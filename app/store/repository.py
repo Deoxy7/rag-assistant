@@ -185,3 +185,34 @@ def relation_sizes(conn: psycopg.Connection) -> list[tuple[str, int]]:
            JOIN pg_namespace n ON n.oid = c.relnamespace
            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'i')
              AND c.relname NOT LIKE 'pg_%' ORDER BY 2 DESC""").fetchall()
+
+
+# --- LLM response cache (migration 0003) -------------------------------------------
+
+def llm_cache_get(conn: psycopg.Connection, key: str) -> tuple[str, int, int] | None:
+    """(response_text, input_tokens, output_tokens) for a cached key, counting the hit; None if absent."""
+    row = conn.execute("""UPDATE llm_cache SET hits = hits + 1 WHERE key = %s
+                          RETURNING response_text, input_tokens, output_tokens""", (key,)).fetchone()
+    return (row[0], row[1], row[2]) if row else None
+
+
+def llm_cache_put(conn: psycopg.Connection, key: str, provider: str, model: str,
+                  text: str, input_tokens: int, output_tokens: int) -> None:
+    conn.execute("""INSERT INTO llm_cache (key, provider, model, response_text, input_tokens, output_tokens)
+                    VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (key) DO NOTHING""",
+                 (key, provider, model, text, input_tokens, output_tokens))
+
+
+# --- citation support -------------------------------------------------------------
+
+def chunk_regions(conn: psycopg.Connection, chunk_id: int) -> list[tuple[int, tuple[float, float, float, float]]]:
+    """(page_number, bbox) of every parsed block that overlaps the chunk's character span.
+
+    Lets a citation be drawn on the PDF page: the chunk's span came from these
+    blocks, and each block kept its PyMuPDF bounding box (x0, y0, x1, y1, points).
+    """
+    rows = conn.execute("""SELECT b.page_number, b.bbox FROM chunks c
+                           JOIN blocks b ON b.document_id = c.document_id
+                                        AND b.char_start < c.char_end AND b.char_end > c.char_start
+                           WHERE c.id = %s ORDER BY b.block_index""", (chunk_id,)).fetchall()
+    return [(r[0], tuple(r[1])) for r in rows]

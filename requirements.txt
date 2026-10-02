@@ -17,6 +17,7 @@ sentence-transformers==6.1.0 # Phase 3: embedding model + its tokenizer (pulls i
 langchain-text-splitters==1.1.2 # Phase 3: recursive splitter only (offsets verified by our tests)
 torch==2.14.1             # Phase 3: model runtime for sentence-transformers
 transformers==5.18.0      # Phase 3: tokenizer with offset mapping
+openai==3.23.0            # Phase 9: official OpenAI SDK for the generator (and later the judge)
 
 # --- Transitive dependencies (pulled in by the packages above) ----------------
 annotated-doc==0.0.5      # Phase 3 (via sentence-transformers / langchain-text-splitters)
@@ -42,6 +43,7 @@ httpx2==2.13.1            # Phase 3 (via sentence-transformers / langchain-text-
 huggingface_hub==1.33.0   # Phase 3 (via sentence-transformers / langchain-text-splitters)
 idna==3.20                # via requests
 iniconfig==2.3.0          # via pytest
+jiter==0.17.0             # Phase 9 (via openai): fast JSON parsing of streamed responses
 Jinja2==3.1.6             # Phase 3 (via sentence-transformers / langchain-text-splitters)
 joblib==1.6.0             # Phase 3 (via sentence-transformers / langchain-text-splitters)
 jsonpatch==1.33           # Phase 3 (via sentence-transformers / langchain-text-splitters)

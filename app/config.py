@@ -8,7 +8,7 @@ so "what can be configured, and what is its default?" has exactly one answer.
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve .env relative to the repo, not the current working directory, so that
@@ -67,6 +67,28 @@ class Settings(BaseSettings):
     rerank_device: str = "auto"
     rerank_batch_size: int = 32
     rerank_max_length: int = 512         # (question + chunk) tokens; longer pairs are truncated
+
+    # --- Generation (Phase 9) ---
+    # "openai" = the real API (needs OPENAI_API_KEY); "fake" = deterministic offline
+    # stand-in for tests and key-less development. No silent fallback: asking for
+    # "openai" without a key is an error, so a demo can't quietly run on the fake.
+    llm_provider: str = "openai"
+    # SecretStr: printing settings shows '**********', never the key.
+    openai_api_key: SecretStr | None = Field(default=None, repr=False)
+    # Chosen 2026-10-02 from OpenAI's pricing page: $0.10 / 1M input, $0.50 / 1M
+    # output, 1.05M context. Not yet exercised against the API (no key yet).
+    llm_model: str = "gpt-6-luna"
+    llm_max_output_tokens: int = 700
+    # None = don't send (some models reject a temperature parameter).
+    llm_temperature: float | None = None
+    llm_timeout_s: float = 60.0
+    llm_cache_enabled: bool = True
+    answer_top_k: int = 10               # chunks retrieved for an answer (after rerank)
+    context_token_budget: int = 3000     # o200k_base tokens of sources packed into the prompt
+    context_order: str = "rank"          # "rank" (best first) | "sandwich" (best at both ends); Phase 12 ablation
+    # USD per 1M tokens for llm_model (pricing page, 2026-10-02); used for cost estimates.
+    llm_price_input_per_m: float = 0.10
+    llm_price_output_per_m: float = 0.50
 
 
 @lru_cache(maxsize=1)

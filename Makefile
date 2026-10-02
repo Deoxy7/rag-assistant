@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -67,6 +67,12 @@ bench-hybrid: install up ## Vector vs keyword vs hybrid (RRF k, weighted fusion)
 
 bench-rerank: install up ## Cross-encoder reranking over hybrid top-N: quality and latency vs N, two models
 	$(PY) scripts/bench_rerank.py
+
+bench-answer: install up ## End-to-end answers on FinanceBench: context, citations, refusals, latency, cost [ARGS="--provider fake"]
+	$(PY) scripts/bench_answer.py $(ARGS)
+
+ask: install up ## Answer one question: make ask Q="What was AMD's net revenue in 2022?" [ARGS="--show-prompt --provider fake"]
+	$(PY) scripts/ask.py "$(Q)" $(ARGS)
 
 test: install up corpus ## Run the full test suite (starts Postgres and fetches the corpus if needed)
 	$(PY) -m pytest
