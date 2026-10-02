@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -49,6 +49,12 @@ inspect: corpus ## Report page counts, text, tables, items, tokens; render docs/
 
 parse: corpus ## Parse every PDF into blocks with page + char offsets (cached in data/parsed/)
 	$(PY) -m app.ingest.parse_corpus
+
+migrate: install up ## Apply pending SQL migrations (app/store/migrations/)
+	$(PY) -m app.store.migrate
+
+ingest: migrate corpus ## Parse, chunk, embed and index the corpus (default chunking from settings)
+	$(PY) -m app.ingest.pipeline
 
 test: install up corpus ## Run the full test suite (starts Postgres and fetches the corpus if needed)
 	$(PY) -m pytest

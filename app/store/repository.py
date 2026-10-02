@@ -1,0 +1,168 @@
+"""Every SQL statement the ingestion path runs, in one place (Repository pattern).
+
+Callers pass an open connection and plain Python objects; nothing outside this
+module writes SQL against these tables. The store layer must not import the
+ingest layer above it (tests/test_architecture.py), so documents and chunks are
+accepted by shape — any object with the fields used below — not by type. Bulk inserts use COPY, which streams
+rows in one round trip instead of one INSERT per row.
+"""
+
+import hashlib
+
+import numpy as np
+import psycopg
+from psycopg import sql
+
+
+HNSW_M = 16                # graph links per node (pgvector default)
+HNSW_EF_CONSTRUCTION = 64  # candidate list size while building (pgvector default)
+
+
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def vector_literal(vec: np.ndarray) -> str:
+    """pgvector's text format: '[0.1,0.2,…]'. Python's float repr round-trips float32 exactly."""
+    return "[" + ",".join(repr(float(x)) for x in vec) + "]"
+
+
+# --- documents ------------------------------------------------------------------
+
+def upsert_document(conn: psycopg.Connection, entry: dict, doc) -> tuple[int, str]:
+    """Insert a document, or replace it if its PDF bytes or parser version changed.
+
+    `doc` is a ParsedDocument (source_sha256, parser_version, text, pages, blocks).
+
+    Returns (document_id, action) with action in {"unchanged", "inserted", "replaced"}.
+    Replacing deletes the old row; ON DELETE CASCADE removes its pages, blocks,
+    chunks and embeddings in the same transaction, so readers never see a mix.
+    """
+    row = conn.execute("SELECT id, source_sha256, parser_version FROM documents WHERE doc_key = %s",
+                       (entry["doc_key"],)).fetchone()
+    if row and row[1] == doc.source_sha256 and row[2] == doc.parser_version:
+        return row[0], "unchanged"
+    action = "inserted"
+    if row:
+        conn.execute("DELETE FROM documents WHERE id = %s", (row[0],))
+        action = "replaced"
+    doc_id = conn.execute(
+        """INSERT INTO documents (doc_key, company, ticker, fiscal_year, form, source_sha256,
+                                  parser_version, page_count, canonical_text)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+        (entry["doc_key"], entry["company"], entry["ticker"], entry["fiscal_year"], entry["form"],
+         doc.source_sha256, doc.parser_version, len(doc.pages), doc.text),
+    ).fetchone()[0]
+    with conn.cursor().copy("COPY pages (document_id, page_number, char_start, char_end, width, height, region) FROM STDIN") as copy:
+        for p in doc.pages:
+            copy.write_row((doc_id, p.page_number, p.char_start, p.char_end, p.width, p.height, p.region))
+    with conn.cursor().copy("COPY blocks (document_id, block_index, page_number, char_start, char_end, kind, heading_level, section, bbox) FROM STDIN") as copy:
+        for b in doc.blocks:
+            copy.write_row((doc_id, b.index, b.page_number, b.char_start, b.char_end, b.kind,
+                            b.heading_level, list(b.section), list(b.bbox)))
+    return doc_id, action
+
+
+# --- chunks ---------------------------------------------------------------------
+
+def get_or_create_chunk_set(conn: psycopg.Connection, strategy: str, size: int, overlap: int, tokenizer: str) -> int:
+    """Look up first, insert only if missing: `INSERT … ON CONFLICT DO NOTHING`
+    alone would consume an identity value on every re-run (we saw ids 1, 3)."""
+    params = (strategy, size, overlap, tokenizer)
+    found = conn.execute("SELECT id FROM chunk_sets WHERE strategy = %s AND chunk_size = %s "
+                         "AND chunk_overlap = %s AND tokenizer = %s", params).fetchone()
+    if found:
+        return found[0]
+    return conn.execute(
+        """INSERT INTO chunk_sets (strategy, chunk_size, chunk_overlap, tokenizer) VALUES (%s, %s, %s, %s)
+           ON CONFLICT (strategy, chunk_size, chunk_overlap, tokenizer)
+           DO UPDATE SET strategy = EXCLUDED.strategy   -- no-op update so RETURNING works under a race
+           RETURNING id""", params).fetchone()[0]
+
+
+def has_chunks(conn: psycopg.Connection, chunk_set_id: int, document_id: int) -> bool:
+    return conn.execute("SELECT EXISTS (SELECT 1 FROM chunks WHERE chunk_set_id = %s AND document_id = %s)",
+                        (chunk_set_id, document_id)).fetchone()[0]
+
+
+def insert_chunks(conn: psycopg.Connection, chunk_set_id: int, document_id: int, chunks: list) -> int:
+    """`chunks` are Chunk objects from app/ingest/chunking.py."""
+    with conn.cursor().copy("""COPY chunks (chunk_set_id, document_id, chunk_index, char_start, char_end,
+                                            page_number, page_end, section, token_count, text, content_sha256)
+                               FROM STDIN""") as copy:
+        for c in chunks:
+            copy.write_row((chunk_set_id, document_id, c.chunk_index, c.char_start, c.char_end, c.page_number,
+                            c.page_end, list(c.section), c.token_count, c.text, sha256_text(c.text)))
+    return len(chunks)
+
+
+# --- embeddings -----------------------------------------------------------------
+
+def reuse_embeddings(conn: psycopg.Connection, chunk_set_id: int, model: str) -> int:
+    """Copy vectors from any chunk with identical text (same content_sha256) that
+    already has one for this model — the embedding cache. Returns rows copied."""
+    cur = conn.execute(
+        """INSERT INTO embeddings (chunk_id, model, chunk_set_id, dims, embedding)
+           SELECT DISTINCT ON (c.id) c.id, e.model, c.chunk_set_id, e.dims, e.embedding
+           FROM chunks c
+           JOIN chunks donor ON donor.content_sha256 = c.content_sha256 AND donor.id <> c.id
+           JOIN embeddings e ON e.chunk_id = donor.id AND e.model = %(model)s
+           WHERE c.chunk_set_id = %(set)s
+             AND NOT EXISTS (SELECT 1 FROM embeddings x WHERE x.chunk_id = c.id AND x.model = %(model)s)
+           ORDER BY c.id""",
+        {"model": model, "set": chunk_set_id})
+    return cur.rowcount
+
+
+def chunks_missing_embeddings(conn: psycopg.Connection, chunk_set_id: int, model: str) -> list[tuple[int, str]]:
+    return conn.execute(
+        """SELECT c.id, c.text FROM chunks c
+           WHERE c.chunk_set_id = %s
+             AND NOT EXISTS (SELECT 1 FROM embeddings e WHERE e.chunk_id = c.id AND e.model = %s)
+           ORDER BY c.id""", (chunk_set_id, model)).fetchall()
+
+
+def insert_embeddings(conn: psycopg.Connection, chunk_set_id: int, model: str,
+                      chunk_ids: list[int], vectors: np.ndarray) -> int:
+    dims = vectors.shape[1]
+    with conn.cursor().copy("COPY embeddings (chunk_id, model, chunk_set_id, dims, embedding) FROM STDIN") as copy:
+        for chunk_id, vec in zip(chunk_ids, vectors):
+            copy.write_row((chunk_id, model, chunk_set_id, dims, vector_literal(vec)))
+    return len(chunk_ids)
+
+
+def hnsw_index_name(chunk_set_id: int, model: str) -> str:
+    return f"embeddings_hnsw_set{chunk_set_id}_{hashlib.sha1(model.encode()).hexdigest()[:8]}"
+
+
+def ensure_hnsw_index(conn: psycopg.Connection, chunk_set_id: int, model: str, dims: int) -> tuple[str, bool]:
+    """One partial HNSW index per (chunk set, model).
+
+    The column is an untyped `vector` (dimensions vary by model), and HNSW needs
+    a fixed dimension, so the index is on the expression embedding::vector(dims).
+    The WHERE clause makes it *partial*: it holds only one configuration's
+    vectors, so a search never has to filter out other configurations' rows
+    (which is where approximate search loses results — card #18).
+    Returns (index name, created_now).
+    """
+    name = hnsw_index_name(chunk_set_id, model)
+    exists = conn.execute("SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = %s)", (name,)).fetchone()[0]
+    if exists:
+        return name, False
+    conn.execute(sql.SQL(
+        """CREATE INDEX {name} ON embeddings
+           USING hnsw ((embedding::vector({dims})) vector_cosine_ops)
+           WITH (m = {m}, ef_construction = {ef})
+           WHERE chunk_set_id = {set} AND model = {model}""").format(
+        name=sql.Identifier(name), dims=sql.Literal(dims), m=sql.Literal(HNSW_M),
+        ef=sql.Literal(HNSW_EF_CONSTRUCTION), set=sql.Literal(chunk_set_id), model=sql.Literal(model)))
+    return name, True
+
+
+def relation_sizes(conn: psycopg.Connection) -> list[tuple[str, int]]:
+    """(name, bytes) for our tables (including their TOAST data) and indexes."""
+    return conn.execute(
+        """SELECT c.relname, pg_total_relation_size(c.oid) FROM pg_class c
+           JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relkind IN ('r', 'i')
+             AND c.relname NOT LIKE 'pg_%' ORDER BY 2 DESC""").fetchall()

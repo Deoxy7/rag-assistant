@@ -27,3 +27,30 @@ def conn():
         )
     yield connection
     connection.close()
+
+
+TEST_DB = "rag_test"
+
+
+@pytest.fixture(scope="session")
+def test_db(conn):
+    """A throwaway database with the schema applied, so tests never touch real data.
+
+    Recreated once per test session (DROP … WITH (FORCE) disconnects stragglers).
+    """
+    from app.store.migrate import apply_migrations
+
+    conn.execute(f"DROP DATABASE IF EXISTS {TEST_DB} WITH (FORCE)")
+    conn.execute(f"CREATE DATABASE {TEST_DB}")
+    with connect(dbname=TEST_DB) as c:
+        apply_migrations(c)
+    return TEST_DB
+
+
+@pytest.fixture
+def db(test_db):
+    """A fresh connection to the test database with every table emptied first."""
+    with connect(dbname=test_db) as c:
+        c.execute("TRUNCATE documents, chunk_sets RESTART IDENTITY CASCADE")
+        c.commit()
+        yield c

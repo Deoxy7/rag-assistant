@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     # bge-small reads at most 512 tokens including its two special tokens
     # ([CLS] and [SEP]); anything longer is silently truncated.
     embedding_max_tokens: int = 512
+    embedding_dims: int = 384
+    # "auto" = Apple GPU (MPS) when available, else CPU. Measured on the M1:
+    # MPS 116 chunks/s vs CPU 46, vectors equal to within 3.3e-7.
+    embedding_device: str = "auto"
+    embedding_batch_size: int = 64
+    # bge v1.5's model card recommends this prefix for *queries* (not passages)
+    # in retrieval; documents are embedded as-is.
+    query_instruction: str = "Represent this sentence for searching relevant passages: "
 
     # --- Chunking (Phase 3; every value is an ablation lever in Phase 12) ---
     chunk_strategy: str = "structure"   # "fixed" | "recursive" | "structure"
