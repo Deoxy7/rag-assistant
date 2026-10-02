@@ -210,3 +210,29 @@
 **Trap.** Calling it a tree, or exact.
 
 **Bridge.** "The beam width is ef_search — the knob I measured."
+
+---
+
+### Q: How does an inverted index answer an AND query and an OR query? Complexity?
+**ID:** P6-08 · **Round:** DSA · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "Each term maps to a sorted posting list of document ids. AND is the intersection of the lists — walk them in parallel like merging, O(sum of lengths), or skip ahead with galloping search when one list is short. OR is the union — a k-way merge, again linear in the total length. Ranking then scores only documents in the result; top-k uses a heap of size k: O(n log k)."
+
+**2-minute answer.** Relate to Postgres: GIN stores posting lists (or posting trees for long lists) per lexeme; a bitmap index scan builds a bitmap of matching rows and the heap scan visits only those pages — 208 matches for 'goodwil & impair' in 0.066 ms. OR on a common term produces large bitmaps, which is why broad OR queries cost more to rank.
+
+**If they push — level 2.** *"Why sorted posting lists?"* Sorted lists make intersection/union linear merges and allow compression with delta encoding.
+
+**If they push — level 3.** *"How do engines avoid scoring every match?"* WAND / block-max WAND: keep per-term upper-bound scores and skip documents that can't beat the current k-th best.
+
+**If they push — level 4.** *"Top-k heap details?"* Min-heap of size k: push each score; if the heap exceeds k, pop the smallest. Final heap holds the k largest. O(n log k) time, O(k) space.
+
+**Whiteboard it.**
+```text
+ goodwil: [12, 88, 301, 977]      impair: [88, 301, 640]
+ AND = merge-intersect → [88, 301]   OR = merge-union → [12, 88, 301, 640, 977]
+ top-k: min-heap(k) over scores → O(n log k)
+```
+
+**Trap.** Saying "it scans the text for the words".
+
+**Bridge.** "Merging ranked lists is also what RRF does — next phase."

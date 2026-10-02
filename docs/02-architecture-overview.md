@@ -99,7 +99,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 | Chunk: fixed / recursive / structure-aware, exact offsets | [06](06-chunking.md) | 3 | ✅ built |
 | Embed (bge-small, MPS) + schema + HNSW/GIN + `make ingest` | [07](07-embeddings.md), [08](08-database-schema.md) | 4 | ✅ built |
 | Vector search: HNSW, filters (iterative), ef_search 160 | [09](09-vector-search.md) | 5 | ✅ built |
-| Keyword search | [10](10-keyword-search.md) | 6 | planned |
+| Keyword search: Postgres FTS, OR + phrases, ts_rank (BM25 option) | [10](10-keyword-search.md) | 6 | ✅ built |
 | RRF fusion | [11](11-hybrid-rrf.md) | 7 | planned |
 | Rerank | [12](12-reranking.md) | 8 | planned |
 | Prompt + citations + LLM | [13](13-prompting-and-citations.md) | 9 | planned |

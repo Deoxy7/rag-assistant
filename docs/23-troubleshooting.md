@@ -228,3 +228,26 @@ AssertionError: forbidden imports: app/store/repository.py: store -> ingest
 - **Symptom:** the float32 row showed recall 0.996 one run and 0.928 another.
 - **Cause:** raw benchmark queries didn't set `hnsw.ef_search`, so they used whatever an earlier search left (T-025 again).
 - **Fix:** each quantisation query sets `ef_search = 40` explicitly.
+
+## Phase 6
+
+### T-028 · Keyword search matches nothing for natural questions — hit
+
+- **Symptom:** "What was AMD's net revenue in 2021?" → 1 match; a long FinanceBench question → 0.
+- **Cause:** `plainto_tsquery` ANDs every lexeme.
+- **Fix:** OR the lexemes (`replace(plainto_tsquery(...)::text, '&', '|')::tsquery`); 2,808 candidates, ranked.
+
+### T-029 · FinanceBench evidence field name differs from its README — hit
+
+```text
+KeyError: 'evidence_doc_name'
+```
+
+- **Cause:** the README documents `evidence_doc_name`; the actual JSONL uses `doc_name` inside each evidence entry.
+- **Fix:** read `e["doc_name"]`; note in `scripts/bench_keyword.py`.
+
+### T-030 · Wrong attribution of a ranking failure — hit (in my own analysis)
+
+- **What happened:** the subsidiary-list result for "goodwill impairment Corning" was first blamed on `ts_rank` lacking IDF, and BM25 was made the default to fix it.
+- **Check that caught it:** running all three functions on the same query: `ts_rank` → goodwill note, `ts_rank_cd` → subsidiary list, BM25 → goodwill note. The first comparison had silently used `ts_rank_cd` (the early default).
+- **Fix:** default changed to `ts_rank` (also better on FinanceBench 4 vs 2 of 28 and 2.3× faster); BM25 kept as an ablation option; test `test_cover_density_is_fooled_by_repetition_but_ts_rank_and_bm25_are_not` pins the behaviour.

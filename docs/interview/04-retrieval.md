@@ -189,3 +189,58 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** "Quantisation makes it faster" — not when the index already fits in RAM.
 
 **Bridge.** "Memory is the first wall at scale — the system-design answer for 10 M documents starts there."
+
+---
+
+## Phase 6 questions
+
+### Q: Give me queries where keyword search beats vector search, and the reverse.
+**ID:** P6-01 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Keyword wins on exact tokens: '16,434' found AMD's revenue tables while vector search returned unrelated number tables; 'MI250X' found the one chunk containing that product code. Vector wins on paraphrase: for 'What was AMD's net revenue in 2021?' it found 'Computing and Graphics net revenue of $9.3 billion in 2021' without needing matching words. On 28 FinanceBench questions, vector found the evidence page for 10, keyword for 2–4, and keyword found nothing vector missed."
+
+**2-minute answer.** Explain the mechanism: embeddings encode meaning of natural language; numbers fragment into WordPiece pieces with little semantic signal, and rare codes may never have been seen in training. Keyword matches lexemes exactly but needs vocabulary overlap ("FY22" doesn't match "fiscal 2022"). That's why they're fused — and why the golden set deliberately includes exact-token questions.
+
+**If they push — level 2.** *"Why was keyword so weak on FinanceBench?"* Long instruction tails add matching-but-irrelevant words; "FY22"-style tokens don't appear in filings; most questions need tables that both methods miss.
+
+**If they push — level 3.** *"How would you fix 'FY22' vs 'fiscal 2022'?"* Query rewriting (expand FY22 → fiscal 2022), a synonym dictionary in Postgres, or learned sparse retrieval (SPLADE).
+
+**If they push — level 4.** *"Can fusion hurt?"* Yes — if one retriever is much worse, its noise can push good results down. Phase 7/12 measures it.
+
+**Whiteboard it.**
+```text
+ "16,434"  keyword ✓ (phrase 16<->434)   vector ✗ (number soup)
+ "MI250X"  keyword ✓ (rare token)        vector ~ (related family)
+ "AMD net revenue 2021" vector ✓         keyword ~ (OR noise)
+ FinanceBench hit@10: vector 10/28, keyword 2–4/28
+```
+
+**Trap.** "Hybrid is always better." Measure it.
+
+**Bridge.** "That's the motivation for RRF — fusing two lists that fail differently."
+
+---
+
+### Q: Explain BM25 and compute one term's contribution.
+**ID:** P6-02 · **Round:** ML screen · DSA  **Difficulty:** 4/5
+
+**30-second answer.** "BM25 scores a document by summing, over query terms, idf × saturated term frequency normalised by length: idf(t) · tf·(k1+1) / (tf + k1·(1 − b + b·len/avg_len)), with k1 = 1.2 and b = 0.75. For 'corn' in my top Corning chunk: df 459 of 7,411 gives idf ln(16.131) = 2.781; tf 2, length 24 vs average 52.7; contribution 4.515."
+
+**2-minute answer.** Walk the three ideas: rare terms matter more (IDF), repeating a term has diminishing returns (saturation via k1), long documents shouldn't win just by containing more words (b). Then the twist from my measurement: on this corpus Postgres's ts_rank with length normalisation matched BM25 and was twice as fast, so it's the default.
+
+**If they push — level 2.** *"Why +0.5 in the idf?"* Smoothing from the probabilistic derivation (Robertson–Spärck Jones); the `1 +` inside the log keeps idf positive for terms in more than half the documents.
+
+**If they push — level 3.** *"How do search engines make BM25 fast?"* Precompute per-term impact scores in the posting lists and use top-k algorithms (WAND, block-max) that skip documents that can't make the top k. My SQL version scores every candidate.
+
+**If they push — level 4.** *"What's my length measure?"* Distinct lexemes (`length(tsvector)`), not word count — an approximation I chose because it's available without unnesting; it changes length normalisation slightly.
+
+**Whiteboard it.**
+```text
+ idf = ln(1 + (N − df + .5)/(df + .5)) = ln(1 + 6952.5/459.5) = 2.781
+ tf part = 2·2.2 / (2 + 1.2·(0.25 + 0.75·24/52.7)) = 4.4/2.71 = 1.624
+ contribution = 2.781 · 1.624 = 4.515
+```
+
+**Trap.** Forgetting IDF, or thinking BM25 is a neural method.
+
+**Bridge.** "And measuring it against the built-in ranking changed my default."

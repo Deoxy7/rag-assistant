@@ -19,6 +19,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Backend process | The Postgres server process started for each client connection. | [03](03-environment-and-infra.md) |
 | Bi-encoder | Model that embeds query and passage separately, so passages can be embedded in advance. | [07](07-embeddings.md) |
 | Bind address | The network interface a port listens on; `127.0.0.1` = this machine only, `0.0.0.0` = every interface. | [03](03-environment-and-infra.md) |
+| BM25 | Ranking: Σ idf · tf·(k1+1)/(tf + k1·(1−b+b·len/avg)); rare terms count more, repeats saturate. | [10](10-keyword-search.md) |
 | Born-digital PDF | A PDF whose pages contain real text drawing instructions (not pictures of text). | [04](04-corpus.md) |
 | Bounding box (bbox) | Smallest rectangle around an element: (x0, y0, x1, y1) in PDF points, origin top-left. | [05](05-pdf-parsing.md) |
 | Canonical text | One normalised string per document that every block and chunk offset indexes into. | [05](05-pdf-parsing.md) |
@@ -46,6 +47,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Digest | A sha256 hash of an image's content; unlike a tag it can never point at different bytes. | [03](03-environment-and-infra.md) |
 | Distance operator | pgvector operator comparing two vectors: `<->` L2, `<=>` cosine distance, `<#>` negative inner product. | [03](03-environment-and-infra.md) |
 | Docker Compose | A YAML file declaring containers, ports and volumes, and the command that makes them match it. | [03](03-environment-and-infra.md) |
+| Document frequency (df) | Number of documents (chunks) containing a term. | [10](10-keyword-search.md) |
 | Dot product | Sum of position-wise products: [1,2,3]·[4,5,6] = 32. | [07](07-embeddings.md) |
 | ef_construction / ef_search / m | HNSW knobs: build-time candidate list, query-time candidate list, links per node. | [08](08-database-schema.md) |
 | Embedding | A list of numbers representing a text's meaning, so that similar meanings are close together. | [07](07-embeddings.md) (Phase 4) |
@@ -75,11 +77,13 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Idempotent | Doing it twice has the same effect as doing it once. | [03](03-environment-and-infra.md) |
 | Idempotent ingestion | Re-running ingestion changes nothing that's already up to date. | [08](08-database-schema.md) |
 | Identity column | Auto-assigned increasing id; values consumed by failed/conflicting inserts leave gaps. | [08](08-database-schema.md) |
+| IDF (inverse document frequency) | ln(1 + (N − df + 0.5)/(df + 0.5)): high for rare terms. | [10](10-keyword-search.md) |
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
 | Iterative index scan | pgvector ≥ 0.8: keep walking HNSW until enough rows pass the filter. | [09](09-vector-search.md) |
 | IVFFlat | Vector index that clusters vectors into lists and searches only the nearest lists. | [08](08-database-schema.md) |
+| k1 / b (BM25) | Term-frequency saturation (1.2) and length normalisation (0.75). | [10](10-keyword-search.md) |
 | Kernel | The core of an operating system: schedules processes, manages memory, talks to hardware. | [03](03-environment-and-infra.md) |
 | Keyword (lexical) search | Search that matches the words themselves after normalising them. | [01](01-what-is-rag.md); details [10](10-keyword-search.md) |
 | kNN (k-nearest neighbours) | Find the k stored vectors closest to a query; exact = compare with all. | [09](09-vector-search.md) |
@@ -113,6 +117,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | PDF point | 1/72 inch; a US Letter page is 612 × 792 points. | [05](05-pdf-parsing.md) |
 | Percentile (p50 / p95 / p99) | The latency that 50% / 95% / 99% of requests beat; p50 is the median. | [02](02-architecture-overview.md) |
 | pgvector | Postgres extension adding a `vector` type, distance operators and HNSW / IVFFlat indexes. | [03](03-environment-and-infra.md) |
+| Phrase query | Terms that must be adjacent and in order: 'net' <-> 'revenu'. | [10](10-keyword-search.md) |
 | Pinning | Fixing a dependency to an exact version (`==`) so installs are reproducible. | [03](03-environment-and-infra.md) |
 | Pipeline / stage | A sequence of steps where each step's output feeds the next; each step is a stage. | [02](02-architecture-overview.md) |
 | Pooling | Turning per-token vectors into one text vector (bge: the [CLS] vector). | [07](07-embeddings.md) |
@@ -146,10 +151,12 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
 | SSE (Server-Sent Events) | A one-way HTTP stream of events from server to client, used to stream answer tokens. | [14](14-api-and-streaming.md) (Phase 10) |
 | Stamp file | An empty file whose timestamp tells Make when a step last ran. | [03](03-environment-and-infra.md) |
+| Stemming | Rule-based cutting of words to a stem; can err ('Corning' → 'corn'). | [10](10-keyword-search.md) |
 | Stop word | A very common word ("the", "were") dropped by full-text search. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Strategy pattern | Interchangeable implementations behind one interface (the three chunkers). | [06](06-chunking.md) |
 | Tag (image) | A movable, human-readable name for an image version. | [03](03-environment-and-infra.md) |
 | Tail latency | The slow end of the latency distribution (p95, p99) that averages hide. | [02](02-architecture-overview.md) |
+| Term frequency (tf) | Occurrences of a term in a document. | [10](10-keyword-search.md) |
 | Text extractability | How much text extraction actually yields from a page. | [04](04-corpus.md) |
 | Throughput | How many requests per second a system can complete. | [02](02-architecture-overview.md) |
 | Time to first token (TTFT) | Time until the first word of an answer appears. | [02](02-architecture-overview.md) |
@@ -160,6 +167,8 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Transaction | A group of statements that all happen or none do. | [03](03-environment-and-infra.md) |
 | Transitive dependency | A package required by your packages rather than by your code directly. | [03](03-environment-and-infra.md) |
 | Truncation | Silently dropping input beyond a model's token limit. | [06](06-chunking.md) |
+| ts_rank / ts_rank_cd | Postgres rankings by term frequency / by cover density (proximity); neither uses IDF. | [10](10-keyword-search.md) |
+| tsquery | Postgres boolean query over lexemes: & AND, | OR, ! NOT, <-> followed by. | [10](10-keyword-search.md) |
 | tsvector | Postgres type holding a document's lexemes with their positions. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Twelve-factor app | A set of service-design principles, including "store config in the environment". | [03](03-environment-and-infra.md) |
 | Unix socket | A file that acts as a network connection between programs on the same machine. | [03](03-environment-and-infra.md) |

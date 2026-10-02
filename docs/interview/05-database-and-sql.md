@@ -210,3 +210,29 @@
 **Trap.** "Prepared statements are always faster." Not if the generic plan is worse.
 
 **Bridge.** "That's also why my vector benchmark needed a separate connection for one experiment."
+
+---
+
+### Q: Why does Postgres full-text search return nothing for natural questions, and how did you fix it?
+**ID:** P6-03 · **Round:** backend screen (DB)  **Difficulty:** 3/5
+
+**30-second answer.** "`plainto_tsquery` ANDs every lexeme after stop-word removal, so 'What was AMD's net revenue in 2021?' became amd & net & revenu & 2021 and matched 1 chunk; a long FinanceBench question matched 0. I build the query, then replace & with | in its text form to get OR, and let ranking order the 2,808 candidates."
+
+**2-minute answer.** Add phrases: grouped numbers like 16,434 are split by the parser into 16 and 434, so they — and quoted text — become phraseto_tsquery terms that every result must contain, combined as `(phrases) && (word₁ | word₂ …)`. And the guard: `numnode` = 0 for a stop-word-only question returns an empty result rather than a notice.
+
+**If they push — level 2.** *"Is string-replacing a tsquery safe?"* The text form quotes lexemes, so `&` appears only as an operator; user text never becomes SQL — it's passed as a parameter to plainto_tsquery.
+
+**If they push — level 3.** *"Why not websearch_to_tsquery?"* It supports quotes and OR syntax for users who type them, but still ANDs plain words.
+
+**If they push — level 4.** *"Does OR hurt performance?"* The GIN lookup returns more candidates (2,808 here), so ranking does more work — 31 ms for ts_rank, 72 ms for BM25.
+
+**Whiteboard it.**
+```text
+ plainto: 'amd' & 'net' & 'revenu' & '2021'   → 1 match
+ ours:    'amd' | 'net' | 'revenu' | '2021'   → 2,808 candidates → ts_rank
+ "16,434" → '16' <-> '434' (required)
+```
+
+**Trap.** Blaming the index when the query semantics are the issue.
+
+**Bridge.** "The ranking function then matters — I compared three."

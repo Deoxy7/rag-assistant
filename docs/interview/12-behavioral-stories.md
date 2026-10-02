@@ -36,3 +36,12 @@
 - **What I did:** compared against the sibling, dropped from document stats to raw PyMuPDF blocks to individual lines, found sections merged into one block with non-breaking-space "blank" lines, and fixed paragraph splitting at line level — then re-checked all ten documents.
 - **Outcome number:** 509 → 1,429 blocks, 18 → 169 headings; no regressions elsewhere.
 - **Lesson:** per-document statistics against siblings are the cheapest bug detector there is.
+
+## Seeds from Phase 6
+
+### S-05 · Building BM25 — and not shipping it
+
+- **Situation:** keyword search returned company subsidiary lists for a goodwill question; textbook answer: Postgres ranking lacks IDF, use BM25.
+- **What I did:** implemented BM25 in SQL (document frequencies from `ts_stat`), then compared it with both built-in rankings on the same query and on 28 labelled FinanceBench questions.
+- **Outcome number:** the failure was `ts_rank_cd`'s, not `ts_rank`'s; `ts_rank` matched BM25 on the example, scored 4 vs 2 of 28, and ran in 31 vs 72 ms. I made `ts_rank` the default and corrected my own write-up.
+- **Lesson:** I was wrong about the cause until I compared all options on the same input; measuring beats the textbook, and being willing to say "my first explanation was wrong" is part of the job.

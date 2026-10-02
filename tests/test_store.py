@@ -59,8 +59,10 @@ def count(db, table: str) -> int:
 
 def test_migrations_are_recorded_and_idempotent(db):
     assert apply_migrations(db) == []  # already applied by the fixture
-    names = [r[0] for r in db.execute("SELECT name FROM schema_migrations")]
-    assert names == ["0001_documents_chunks_embeddings.sql"]
+    from app.store.migrate import MIGRATIONS
+    names = [r[0] for r in db.execute("SELECT name FROM schema_migrations ORDER BY name")]
+    assert names == sorted(f.name for f in MIGRATIONS.glob("*.sql"))
+    assert names[0] == "0001_documents_chunks_embeddings.sql"
 
 
 def test_constraints_reject_inverted_offsets(db):

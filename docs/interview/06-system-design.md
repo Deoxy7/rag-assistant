@@ -233,3 +233,28 @@
 **Trap.** Extrapolating latency only; memory is the first wall.
 
 **Bridge.** "That memory wall is why card #19 measured quantisation even though I don't need it."
+
+---
+
+### Q: Would you move keyword search to Elasticsearch? When?
+**ID:** P6-06 · **Round:** system design  **Difficulty:** 3/5
+
+**30-second answer.** "Not at this size: Postgres full-text search returns in ~30 ms, lives in the same database as the vectors and is updated in the same transaction. I'd move when I needed analyzers Postgres lacks (language-specific tokenisers, synonyms at scale, faceting), horizontal scale for keyword traffic, or when my SQL BM25 — which scores every OR-matched candidate — got too slow."
+
+**2-minute answer.** Cost side of Elasticsearch: a second store kept consistent with Postgres (CDC or dual writes, reconciliation), JVM memory, and hybrid fusion across two systems with two network hops. Benefit side: precomputed BM25 impacts and skip algorithms (WAND) make top-k fast at billions of documents.
+
+**If they push — level 2.** *"What breaks first in Postgres FTS at scale?"* Broad OR queries: candidates grow with the corpus, and ranking scans them all. Mitigation: pre-filter by metadata, cap candidates.
+
+**If they push — level 3.** *"How would you keep ES consistent?"* Outbox table in the same Postgres transaction, a worker that ships changes to ES idempotently by chunk id, periodic reconciliation by counts/hashes.
+
+**If they push — level 4.** *"Would you drop keyword search instead?"* Only if the eval showed fusion adds nothing; exact-token questions (figures, codes) are where it's measurably needed.
+
+**Whiteboard it.**
+```text
+ now:   Postgres: chunks + tsv(GIN) + vectors(HNSW) — one txn, one hop
+ later: Postgres ─outbox→ ES (BM25) ; query: vector@PG ∥ keyword@ES → fuse
+```
+
+**Trap.** "Postgres FTS doesn't scale" without saying what scales badly.
+
+**Bridge.** "Either way the fusion step is the same — RRF on two ranked lists."

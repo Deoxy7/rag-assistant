@@ -131,6 +131,25 @@ def insert_embeddings(conn: psycopg.Connection, chunk_set_id: int, model: str,
     return len(chunk_ids)
 
 
+def refresh_text_stats(conn: psycopg.Connection, chunk_set_id: int) -> int:
+    """Recompute BM25 statistics for one chunk set; returns the number of lexemes.
+
+    ts_stat() takes a query *string* and returns, for every lexeme in the
+    tsvectors it produces, ndoc = the number of rows containing it. The chunk set
+    id is an integer from our own table, formatted with sql.Literal.
+    """
+    conn.execute("DELETE FROM lexeme_stats WHERE chunk_set_id = %s", (chunk_set_id,))
+    conn.execute("DELETE FROM chunk_set_stats WHERE chunk_set_id = %s", (chunk_set_id,))
+    inner = sql.SQL("SELECT tsv FROM chunks WHERE chunk_set_id = {}").format(sql.Literal(chunk_set_id))
+    cur = conn.execute(sql.SQL("""INSERT INTO lexeme_stats (chunk_set_id, lexeme, df)
+                                  SELECT {s}, word, ndoc FROM ts_stat({q})""").format(
+        s=sql.Literal(chunk_set_id), q=sql.Literal(inner.as_string(conn))))
+    conn.execute("""INSERT INTO chunk_set_stats (chunk_set_id, n_chunks, avg_length)
+                    SELECT chunk_set_id, count(*), avg(length(tsv)) FROM chunks
+                    WHERE chunk_set_id = %s GROUP BY chunk_set_id""", (chunk_set_id,))
+    return cur.rowcount
+
+
 def hnsw_index_name(chunk_set_id: int, model: str) -> str:
     return f"embeddings_hnsw_set{chunk_set_id}_{hashlib.sha1(model.encode()).hexdigest()[:8]}"
 

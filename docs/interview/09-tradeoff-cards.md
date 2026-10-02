@@ -30,7 +30,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 18 | Metadata filtering: pre-filter vs post-filter, and the recall cliff | 5 | ✅ [09-vector-search](../09-vector-search.md) |
 | 19 | Quantisation (scalar / binary): when it is worth the recall loss | 5 | ✅ [09-vector-search](../09-vector-search.md) |
 | 20 | Dense-only vs sparse-only vs hybrid retrieval | 7 | not yet written |
-| 21 | Postgres FTS vs Elasticsearch/OpenSearch BM25 vs SPLADE | 6 | not yet written |
+| 21 | Postgres FTS vs Elasticsearch/OpenSearch BM25 vs SPLADE | 6 | ✅ [10-keyword-search](../10-keyword-search.md) |
 | 22 | RRF vs weighted-score fusion vs learned fusion | 7 | not yet written |
 | 23 | The RRF k constant: what it actually controls | 7 | not yet written |
 | 24 | Top-k at each stage: over-retrieve, then narrow | 8 | not yet written |
@@ -715,6 +715,43 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Your latencies for all three are the same ~2.4 ms. Doesn't quantisation make search faster? → A (honest): At 7,411 vectors the query is dominated by fixed overheads (planning, the round trip), not by distance math or memory bandwidth, so smaller vectors don't show up in latency. The speed benefit appears when the index no longer fits in memory — which I can't demonstrate at this size.
 
 **The trap.** Quantising by default "because it's faster". Measure recall loss first; at small scale there's nothing to gain.
+
+### Card 21 — from [10-keyword-search](../10-keyword-search.md)
+
+#### Decision: Postgres full-text search, ranked by ts_rank with length normalisation; BM25 implemented in SQL as an alternative  (rejected: ts_rank_cd, Elasticsearch/OpenSearch BM25, SPLADE)
+
+**One-line defence.** Keyword search lives next to the vectors in the same Postgres, so hybrid search is one database round trip; I implemented BM25 to test the textbook claim that it beats Postgres's ranking, and on this corpus it didn't — so the faster built-in ts_rank is the default.
+
+**What problem is this even solving?** Exact-token retrieval: figures, section numbers, product codes, names — things embeddings blur. Without it, a question quoting "16,434" gets random number tables.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Postgres FTS + `ts_rank` (normalisation 1) | tsvector/GIN matching; rank by term frequency divided by 1 + log(length) | Built in (C code), 31 ms here; same database as vectors | No IDF: common words count fully | Default for this corpus — measured |
+| BM25 in SQL (built here) | IDF from ts_stat + saturated tf + length normalisation over GIN candidates | Principled IDF ranking; handled the "Corning" case | 72 ms (scores every candidate in SQL); FinanceBench hit@10 0.071 vs ts_rank 0.143 (noise) | If the larger golden set shows a gain |
+| `ts_rank_cd` (cover density) | Rewards query terms close together | Good for phrase-like queries | Fooled by repetition: ranked subsidiary lists first | Short multi-word queries without repeated terms |
+| Elasticsearch / OpenSearch | Dedicated engine with BM25, analyzers, sharding | Mature, fast BM25 via precomputed impacts; scales out | A second system to keep consistent; JVM memory on an 8 GB laptop | Search-first products at scale |
+| SPLADE | Neural sparse term weights with vocabulary expansion | Fixes lexical mismatch ("FY22" vs "fiscal 2022") | Model inference at ingest and query; new index format | When vocabulary mismatch is the measured problem |
+
+**What would actually change if we swapped it.** To BM25: one setting (`rank_function="bm25"`), +40 ms per query, `lexeme_stats` must stay fresh (the pipeline refreshes it). To Elasticsearch: a third container, a sync job (inserts/deletes mirrored with retry and reconciliation), and hybrid fusion across two systems. To SPLADE: a second model and a sparse-vector index.
+
+**The decision rule.** Measure the ranking function on your own questions before adopting the textbook default. Use the database's built-in search while the corpus fits; move to a search engine for analyzers, languages or scale; consider learned sparse models when lexical mismatch is the measured failure.
+
+**Where our choice breaks.** Queries where a very common word dominates frequency counts — ts_rank has no IDF, so it would need BM25 or a stop-list for corpus-specific common words (company names). The English stemmer also maps "Corning" to `corn`, matching PepsiCo's corn. And BM25's SQL cost grows with the number of OR-matched candidates.
+
+**The number.** FinanceBench (28 questions) hit@10: vector 0.357, ts_rank 0.143, ts_rank_cd 0.071, BM25 0.071; p50 31.5 / 47.2 / 71.6 ms for the keyword variants. "goodwill impairment Corning" top-1: ts_rank and BM25 the goodwill note; ts_rank_cd a subsidiary list. BM25 worked example: 16.895 = 4.515 + 6.580 + 5.800.
+
+**Interview script (3 sentences).** "Keyword search is Postgres full-text search with OR semantics and phrase-required figures. I implemented BM25 in SQL to test whether it beats Postgres's ranking here — it fixed a failure of the cover-density ranker, but plain ts_rank fixed it too, matched it on FinanceBench and was twice as fast, so ts_rank is the default and BM25 is an ablation option. Measured honestly, keyword search alone found the evidence page for 2–4 of 28 natural-language questions versus 10 for vector search; its job is exact tokens, which is why it's fused, not used alone."
+
+**Follow-ups they will ask:**
+- Q: Why OR instead of AND? → A: Postgres's plainto_tsquery ANDs every word, so the AMD question matched 1 chunk and a long FinanceBench question 0. OR plus ranking returns candidates and lets ranking order them.
+- Q: Explain BM25's k1 and b. → A: k1 (1.2) controls term-frequency saturation — the second occurrence counts less than the first, the tenth barely. b (0.75) controls length normalisation — how much long chunks are penalised.
+- Q: You built BM25 and then didn't use it? → A: I built it to test a claim, and the measurement said the simpler built-in was as good and faster on this data. It stays switchable, and the larger golden set in Phase 12 gets the final word. Building something to measure it, then choosing the simpler option, is the point.
+- Q: Why did ts_rank_cd fail? → A: Cover density rewards query terms appearing close together; a subsidiary list repeating "Corning" again and again is a dense cluster of a query term.
+- Q (the hard one): Your keyword search found nothing that vector search missed. Why keep it at all? → A (honest): On those 28 paraphrased questions, it earned nothing. Its measured wins are exact-token queries ("16,434", "MI250X") where vector search returned noise. Whether that matters overall depends on how many real questions contain exact tokens; the golden set includes such questions, and Phase 7/12 show whether fusion helps, hurts or does nothing.
+
+**The trap.** "BM25 is always better than Postgres's ranking" — or "keyword search is obsolete". Both are claims to measure; here the first was false and the second only half true.
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

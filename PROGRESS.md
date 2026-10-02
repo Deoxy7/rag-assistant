@@ -63,3 +63,13 @@ Numbers:  recall@10 vs exact: ef_search 10/20/40/80/160/320 → 0.742/0.849/0.92
 Bugs found (log as T-025, T-026 in docs/23): SET LOCAL leaks across searches because conn.transaction() inside an open transaction is a savepoint; psycopg auto-prepare (after 5 runs) caches plans so planner settings like enable_sort stop applying.
 Docs:     `docs/09-vector-search.md`; cards #18, #19; 8 interview questions (P5-01…P5-08); T-025…T-027.
 Next:     Phase 6 — Keyword retrieval.
+
+## Phase 6 — Keyword retrieval   [DONE 2026-10-02]
+
+Built:    `app/retrieve/keyword.py` (OR semantics, required phrases for quoted text and grouped numbers, ts_rank default, ts_rank_cd and BM25-in-SQL alternatives, metadata filters); migration `0002_text_stats.sql` (lexeme_stats, chunk_set_stats) + `repo.refresh_text_stats` (ts_stat) called by the pipeline; `scripts/bench_keyword.py` (`make bench-keyword`); `tests/test_keyword.py` (11).
+Docs:     `docs/10-keyword-search.md`; card #21; 8 interview questions (P6-01…P6-08); story S-05; T-028…T-030.
+Diagrams: `10-fts-pipeline`, generated `10-where-it-sits`.
+Numbers:  AND vs OR: 1 vs 2,808 matches; FinanceBench 28 q hit@10: vector 0.357, ts_rank 0.143, ts_rank_cd 0.071, BM25 0.071; keyword found nothing vector missed; p50 ts_rank 31.5 ms, BM25 71.6 ms; BM25 worked example 16.895.
+Decisions: ts_rank (normalisation 1) default after measuring; BM25 kept as ablation; phrase-required grouped numbers.
+Open:     "FY22" vs "fiscal 2022" lexical mismatch (query rewriting not built); stemmer maps Corning → corn.
+Next:     Phase 7 — Hybrid + RRF.

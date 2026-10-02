@@ -1,0 +1,30 @@
+%% Owner: docs/10-keyword-search.md — text → lexemes → inverted index → BM25 rank.
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    chunk["chunk text<br/>'goodwill impairment losses…'"]:::io
+    lex["parser + English dictionary<br/>drop stop words, stem"]:::ingest
+    tsv[("tsvector, generated column<br/>'goodwil':3 'impair':4 …")]:::store
+    gin[("GIN inverted index<br/>lexeme → chunk ids")]:::store
+    stats[("lexeme_stats<br/>df per lexeme, N, avg length")]:::store
+    q["question<br/>'goodwill impairment Corning'"]:::io
+    qlex["plainto_tsquery → OR<br/>goodwil | impair | corn"]:::retrieve
+    cand["GIN lookup<br/>candidate chunks"]:::retrieve
+    bm25["rank: ts_rank (default)<br/>or BM25 in SQL: Σ idf · tf / length"]:::retrieve
+    top["top-k by score"]:::io
+    legend["Legend<br/>blue = ingestion · grey = storage · green = retrieval · white = I/O"]:::legend
+
+    chunk -->|at insert| lex
+    lex -->|lexemes + positions| tsv
+    tsv -->|indexed| gin
+    tsv -->|ts_stat at ingest| stats
+    q -->|text| qlex
+    qlex -->|tsquery| cand
+    gin -.->|posting lists| cand
+    cand -->|tsvectors| bm25
+    stats -.->|df, N, avg length, BM25 only| bm25
+    bm25 -->|ORDER BY score LIMIT k| top

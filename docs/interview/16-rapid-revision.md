@@ -39,6 +39,8 @@
 | HNSW recall@10 vs exact (ef 40 / 160) | 0.928 / 0.996 | — | `make bench-vector` |
 | Exact vs HNSW latency (7,411 vectors) | 11.4 vs 3.4 | ms p50 | same |
 | Recall cliff, post-filter (forced, 6.9% filter) | 3.8 rows avg, 31/150 zero, recall 0.379 | — | same |
+| FinanceBench hit@10 (28 q): vector / ts_rank / BM25 | 0.357 / 0.143 / 0.071 | — | `make bench-keyword` |
+| Keyword latency p50: ts_rank / BM25 | 31.5 / 71.6 | ms | same |
 | Retrieval metrics, latencies | not yet measured | | Phases 11, 13 |
 
 ## Flashcards (Phase 0)
@@ -74,6 +76,10 @@
 | Recall cliff fix? | Iterative index scan (pgvector 0.8) — 10 rows, recall 0.973. |
 | Why literals for chunk set/model? | Generic plans can't prove a partial index predicate with $params. |
 | SET LOCAL gotcha? | Lasts to the end of the top-level transaction; nested transaction = savepoint. |
+| Why OR in keyword search? | plainto_tsquery ANDs all words: 1 match vs 2,808. |
+| Why phrase for 16,434? | Parser splits at the comma into 16 and 434. |
+| Default keyword ranking? | ts_rank — BM25 built, measured, not better here; ts_rank_cd fooled by repetition. |
+| Stemming quirk? | "Corning" → `corn`. |
 
 ## Top questions so far
 

@@ -1,6 +1,6 @@
 # 02 — Question map
 
-**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **54 / 150+** questions.
+**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **62 / 150+** questions.
 
 Every question in `docs/interview/` appears here (a test in `tests/test_docs_integrity.py` fails if one is missing). **Confidence** is yours to fill: 1 = can't answer, 3 = can answer level 1–2, 5 = survives level 4. Re-rate after each drill.
 
@@ -62,6 +62,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P5-06 | Vector search from 7k to 100M chunks | [06](06-system-design.md) | scale | design | 4 | | |
 | P5-07 | Why vector search missed the income-statement line | [03](03-fundamentals.md) | retrieval | ML, deep-dive | 3 | | |
 | P5-08 | HNSW search as an algorithm; complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA, ML | 4 | | |
+| P6-01 | Where keyword beats vector, and the reverse | [04](04-retrieval.md) | keyword | ML, deep-dive | 3 | | |
+| P6-02 | Explain BM25; compute a term's contribution | [04](04-retrieval.md) | keyword | ML, DSA | 4 | | |
+| P6-03 | Why FTS returns nothing for natural questions | [05](05-database-and-sql.md) | DB | backend | 3 | | |
+| P6-04 | Goodwill query returns subsidiary lists — debug | [08](08-debugging-scenarios.md) | debugging | ML, backend | 3 | | |
+| P6-05 | You built BM25 and didn't use it — defend | [07](07-evaluation.md) | eval | deep-dive, ML | 3 | | |
+| P6-06 | Move keyword search to Elasticsearch? When? | [06](06-system-design.md) | design | design | 3 | | |
+| P6-07 | Stemming and stop words; what goes wrong | [03](03-fundamentals.md) | text | viva | 2 | | |
+| P6-08 | Inverted index AND/OR; complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA, backend | 3 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

@@ -207,3 +207,28 @@
 **Trap.** "Embeddings understand tables." Mostly they don't.
 
 **Bridge.** "Which is the argument for hybrid search — Phase 6 and 7."
+
+---
+
+### Q: What are stemming and stop words, and what can go wrong?
+**ID:** P6-07 · **Round:** viva  **Difficulty:** 2/5
+
+**30-second answer.** "Stop words are very common words — 'the', 'was', 'in' — dropped because they appear everywhere. Stemming cuts words to a common stem with rules, so 'impairments' and 'impaired' both become 'impair'. Rules make mistakes: in my corpus the English stemmer turns 'Corning' into 'corn', so Corning queries match PepsiCo's corn; and it doesn't connect irregular forms like 'grew' and 'grow'."
+
+**2-minute answer.** Contrast stemming with lemmatisation (dictionary-based, knows 'grew' → 'grow', slower, needs a language model), and explain why search engines accept stemming errors: they increase recall cheaply. Mention how to inspect it: `SELECT to_tsvector('english', 'Corning')` → `'corn':1`.
+
+**If they push — level 2.** *"Why did 16,434 split?"* The parser treats the comma as a separator, producing two numeric tokens — fixed with phrase queries.
+
+**If they push — level 3.** *"Stop words in phrase queries?"* Postgres keeps their positions, so `phraseto_tsquery('state of the art')` uses `<2>` distance operators to skip the dropped words.
+
+**If they push — level 4.** *"Multilingual?"* One text search configuration per language; a mixed corpus needs per-document configurations and per-language query parsing.
+
+**Whiteboard it.**
+```text
+ "The runners were running" → 'run':4 'runner':2   (stop words gone, stems)
+ "Corning" → 'corn'  (false positive)   "grew" ≠ "grow" (irregular)
+```
+
+**Trap.** Assuming stemming understands words.
+
+**Bridge.** "Vector search covers the cases stemming misses — that's why both exist."

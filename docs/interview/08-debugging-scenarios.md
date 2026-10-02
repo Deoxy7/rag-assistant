@@ -307,3 +307,34 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Rerunning until the numbers look right.
 
 **Bridge.** "Benchmarks are code too — they need the same tests."
+
+---
+
+### Q: Keyword search for a company's goodwill returns lists of its subsidiaries. Debug it.
+**ID:** P6-04 · **Round:** ML screen · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "The query was 'goodwill impairment Corning'. With ts_rank_cd the top hits were subsidiary lists that repeat 'Corning' dozens of times. Cover-density ranking rewards query terms close together, and a list of 'Corning Holding GmbH, Corning Hungary…' is a dense run of one query term. ts_rank with length normalisation and BM25 with IDF both ranked the goodwill note first; I wrote a test that pins all three behaviours."
+
+**2-minute answer — the tree.**
+1. **Is it the match or the rank?** The goodwill note is in the candidate set (GIN finds it) — so ranking.
+2. **What does the winner have?** Repeated `corn` lexemes, few or no `goodwil`/`impair`.
+3. **Which ranking property rewards that?** Cover density (proximity of query terms) without IDF.
+4. **Compare functions on the same query**: ts_rank_cd → list; ts_rank → note; BM25 → note (score 16.90 = 4.515 corn + 6.580 goodwil + 5.800 impair).
+5. **Check the aggregate**, not one query: FinanceBench 28 questions — ts_rank 4, BM25 2, ts_rank_cd 2 hits; pick ts_rank (also fastest).
+
+**If they push — level 2.** *"Why is 'Corning' `corn`?"* The Snowball stemmer strips '-ing'. It also means Corning queries match PepsiCo's corn — a stemming false positive.
+
+**If they push — level 3.** *"Fix for the stemmer?"* A custom dictionary (synonym or exception list) for company names, or the `simple` configuration for proper nouns, or rely on the company metadata filter.
+
+**If they push — level 4.** *"Generalisable lesson?"* Look at what the top result *has*, then ask which property of the scoring function rewards it — instead of tuning weights blindly.
+
+**Whiteboard it.**
+```text
+ ts_rank_cd: "Corning Holding GmbH Corning Hungary…"  (dense 'corn')  ✗
+ ts_rank:    "Corning's gross goodwill … impairment losses"           ✓
+ bm25:       same, 16.90 = 4.52 + 6.58 + 5.80                          ✓
+```
+
+**Trap.** "Add BM25 and it's fixed" — plain ts_rank fixed it too.
+
+**Bridge.** "I built BM25 to test that claim and kept the simpler option."

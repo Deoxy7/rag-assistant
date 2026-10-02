@@ -35,6 +35,7 @@ class IngestReport:
     embeddings_computed: int = 0
     index_name: str = ""
     index_created: bool = False
+    lexemes: int = 0
     seconds: dict[str, float] = field(default_factory=dict)
 
 
@@ -60,6 +61,10 @@ def ingest(conn: psycopg.Connection, docs: list[tuple[dict, ParsedDocument]], st
                 chunks = chunker.chunk(doc)
                 chunk_seconds += timer() - c0
                 report.chunks_inserted += repo.insert_chunks(conn, report.chunk_set_id, doc_id, chunks)
+    if report.chunks_inserted or not conn.execute(
+            "SELECT 1 FROM chunk_set_stats WHERE chunk_set_id = %s", (report.chunk_set_id,)).fetchone():
+        with conn.transaction():
+            report.lexemes = repo.refresh_text_stats(conn, report.chunk_set_id)
     report.seconds["chunk"] = round(chunk_seconds, 1)
     report.seconds["store_documents_and_chunks"] = round(timer() - t - chunk_seconds, 1)
 

@@ -113,3 +113,28 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Labelling chunk ids and then changing the chunker.
 
 **Bridge.** "That overlap rule is defined in Phase 11 — it's the heart of the harness."
+
+---
+
+### Q: You implemented BM25 and then didn't make it the default. Defend that.
+**ID:** P6-05 · **Round:** project deep-dive · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "I built BM25 to test the textbook claim that it beats Postgres's ranking on this corpus. On 28 FinanceBench questions ts_rank found the evidence for 4, BM25 for 2 — noise at that sample size, but no evidence for BM25 — and ts_rank was 31 ms vs 72. Both handled the failure case that motivated BM25. So the simpler, faster option is the default and BM25 stays switchable for the larger golden set in Phase 12."
+
+**2-minute answer.** Explain why 2 vs 4 of 28 is noise: one question is 3.6 points; a paired test on 28 binary outcomes with only a few disagreements can't distinguish them. State what would change the decision: a significant gain on the larger, more exact-token-heavy golden set.
+
+**If they push — level 2.** *"Wasn't building it wasted effort?"* It produced a measured answer to a question interviewers ask ("why not BM25?"), it's 40 lines, and it remains an ablation axis.
+
+**If they push — level 3.** *"How many questions would you need?"* It depends on how often the methods disagree; with a handful of disagreements per 30 questions, you'd need hundreds to detect a few-point difference reliably. That's the H1 over-prep topic.
+
+**If they push — level 4.** *"Could the golden set be biased toward one ranker?"* Yes — if I write questions using document wording, keyword methods benefit. Reporting FinanceBench (external) separately guards against that.
+
+**Whiteboard it.**
+```text
+ hit@10 (28 q): ts_rank 4 · bm25 2 · ts_rank_cd 2   → no evidence for bm25
+ latency:       31 ms     72 ms     47 ms           → default ts_rank
+```
+
+**Trap.** Shipping the textbook-best option without measuring.
+
+**Bridge.** "Significance on small samples is exactly what the eval harness has to handle."
