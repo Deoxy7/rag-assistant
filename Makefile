@@ -1,0 +1,54 @@
+# Run `make` or `make help` to list targets.
+# Written for the GNU make 3.81 that ships with macOS: no .ONESHELL, no make-4 features.
+# Every recipe uses paths relative to the repo root, because the repo's absolute
+# path may contain spaces (make splits unquoted paths on spaces).
+
+.DEFAULT_GOAL := help
+.PHONY: help install up down db-reset psql test diagrams cards docs
+
+PYTHON_BIN ?= python3.11
+VENV := .venv
+PY := $(VENV)/bin/python
+# A stamp file, not .venv/bin/python, marks "requirements installed": the venv's
+# python is a symlink, and `touch` on a symlink would modify the system Python.
+STAMP := $(VENV)/.requirements-installed
+
+help: ## List available targets
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+$(STAMP): requirements.txt
+	test -x $(PY) || $(PYTHON_BIN) -m venv $(VENV)
+	$(PY) -m pip install --quiet --upgrade pip==26.2.1
+	$(PY) -m pip install --quiet -r requirements.txt
+	touch $(STAMP)
+
+install: $(STAMP) ## Create .venv (Python 3.11) and install pinned requirements
+
+.env:
+	cp .env.example .env
+	@echo "Created .env from .env.example"
+
+up: .env ## Start Postgres + pgvector and wait until it accepts connections
+	@docker info >/dev/null 2>&1 || { echo "Docker is not running. Start it with: colima start"; exit 1; }
+	docker compose up -d --wait
+
+down: ## Stop Postgres (data is kept in the pgdata volume)
+	docker compose down
+
+db-reset: ## DESTRUCTIVE: stop Postgres and delete its volume (all local data)
+	docker compose down -v
+
+psql: ## Open a psql shell inside the database container
+	docker compose exec db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+
+test: install up ## Run the full test suite (starts Postgres if needed)
+	$(PY) -m pytest
+
+diagrams: install ## Render docs/diagrams sources to SVG + PNG in docs/diagrams/out/
+	bash scripts/render_diagrams.sh
+
+cards: install ## Copy every Decision Card in docs/ into docs/interview/09-tradeoff-cards.md
+	$(PY) scripts/collect_cards.py
+
+docs: diagrams cards ## Render diagrams, collect cards, then check links, images and ASCII twins
+	$(PY) -m pytest tests/test_docs_integrity.py tests/test_tooling.py

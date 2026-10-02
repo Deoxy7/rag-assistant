@@ -1,0 +1,21 @@
+# Every package is pinned with == so a fresh clone installs exactly what was tested.
+# Python: 3.11.9 (the venv is built with python3.11; see docs/03-environment-and-infra.md)
+# Packages are added here in the phase that first uses them, never earlier.
+
+# --- Direct dependencies -------------------------------------------------------
+psycopg==3.3.6            # Phase 0: Postgres driver (plain SQL, no ORM)
+psycopg-binary==3.3.6     # Phase 0: prebuilt libpq for psycopg, so no local Postgres install is needed
+pydantic-settings==2.15.0 # Phase 0: typed settings loaded from .env (app/config.py)
+pytest==9.1.1             # Phase 0: test runner
+
+# --- Transitive dependencies (pulled in by the packages above) ----------------
+annotated-types==0.8.0    # via pydantic
+iniconfig==2.3.0          # via pytest
+packaging==26.3           # via pytest
+pluggy==1.6.0             # via pytest
+pydantic==2.13.5          # via pydantic-settings
+pydantic_core==2.46.5     # via pydantic
+Pygments==2.21.0          # via pytest
+python-dotenv==1.2.4      # via pydantic-settings
+typing-inspection==0.4.4  # via pydantic
+typing_extensions==4.16.0 # via psycopg, pydantic

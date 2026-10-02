@@ -1,0 +1,36 @@
+# Only the database runs in Docker. The Python app runs on the host (in .venv),
+# which keeps the edit → run → debug loop fast. See docs/03-environment-and-infra.md.
+name: rag-assistant
+
+services:
+  db:
+    # Pinned twice: the tag says what we meant (pgvector 0.8.7 on Postgres 16,
+    # Debian bookworm), the digest guarantees the exact bytes. Tags can be
+    # re-pushed upstream; a digest cannot change.
+    image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
+    environment:
+      # ${VAR:?msg} makes compose refuse to start if .env is missing a value,
+      # instead of silently creating a database with an empty password.
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env (copy .env.example)}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (copy .env.example)}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env (copy .env.example)}
+    ports:
+      # Bind to 127.0.0.1 only. A bare "5432:5432" listens on every network
+      # interface, which would expose the database to the whole Wi-Fi network.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Named volume: data survives `make down` and container re-creation.
+      - pgdata:/var/lib/postgresql/data
+      # Init scripts run once, on an empty volume only (see the SQL file).
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # "Container is running" ≠ "Postgres accepts connections". pg_isready
+      # checks the latter; `docker compose up --wait` blocks until it passes.
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+
+volumes:
+  pgdata:
