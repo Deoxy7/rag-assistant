@@ -438,3 +438,33 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Truncating sources to fill the budget exactly.
 
 **Bridge.** "Numbering by position is what lets citations map back exactly."
+
+---
+
+## Phase 11 questions
+
+### Q: Where does your retrieval fail, by question type, and what would you do about each?
+**ID:** P11-07 · **Round:** project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Single facts in prose: 91% in the top 5; the two misses are 'how many employees did AMD have', where same-topic paragraphs from the other year win. Tables: found in the top 10 for 69%, but first only once in 13, because prose about the same topic outranks the row. Multi-hop: only a third of the needed facts in the top 5, because one query retrieves one company well and the other badly. Fixes, in order: company/year filters, query decomposition for multi-entity questions, BM25 or table-aware chunk headers for tables."
+
+**2-minute answer.** Use G045 as the example: 'Which had higher revenue in 2022, Boeing or Corning?' Corning's table is found at rank 3; Boeing's revenue line is nowhere in the top 10, though 9 relevant chunks exist. Decomposition, meaning one retrieval per entity with the results merged, is the standard fix. Phase 12 measures what's cheap to measure first.
+
+**If they push — level 2.** *"Why do tables rank badly?"* Table chunks are numbers with short row labels. Their embeddings carry little meaning, and question words like 'revenue' appear more often in prose.
+
+**If they push — level 3.** *"Exact tokens?"* 87.5% in the top 5 after the keyword fix. The remaining MI250X miss is ts_rank's lack of IDF in a long OR query.
+
+**If they push — level 4.** *"What does this say about the reranker?"* It reorders the top 10. It can't recover a Boeing row that isn't in the pool. Recall per entity is a first-stage problem.
+
+**Whiteboard it.**
+```text
+ type        hit@5  recall@5  MRR
+ factual      .91     .91     .74   miss: AMD headcount (other-year paragraph wins)
+ exact        .88     .88     .62   miss: MI250X (no IDF in ts_rank)
+ table        .62     .62     .27   row ranked below same-topic prose
+ multi-hop    .56     .33     .34   one entity found, the other not → decompose
+```
+
+**Trap.** Quoting only the overall average.
+
+**Bridge.** "That ordering of fixes is the plan for the ablations."

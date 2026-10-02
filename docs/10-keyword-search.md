@@ -98,7 +98,7 @@ GROUPED_NUMBER = re.compile(r"\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\b")
         parts = [sql.SQL("phraseto_tsquery('english', {})").format(sql.Placeholder(f"p{i}")) ...]
 ```
 
-The parser splits "16,434" at the comma into `16` and `434` (`to_tsvector('english', 'Net revenue | $ 16,434')` → `'16':3 '434':4 'net':1 'revenu':2`). OR-ing those would match any chunk containing "16" — so grouped numbers (and "quoted text") become **phrase** queries `'16' <-> '434'` ("16 immediately followed by 434") that every result must satisfy.
+The parser splits "16,434" at the comma into `16` and `434` (`to_tsvector('english', 'Net revenue | $ 16,434')` → `'16':3 '434':4 'net':1 'revenu':2`). OR-ing those would match any chunk containing "16" — so grouped numbers (and "quoted text") become **phrase** queries `'16' <-> '434'` ("16 immediately followed by 434") that every result must satisfy. The phrases alone decide what matches; the remaining question words only *rank* the matches. (Corrected in Phase 11, T-042: the first version also required at least one other word, so "What does the figure $404,381 represent in Boeing's FY2022 10-K?" matched nothing. The backlog table contains the figure but none of those words. The Phase 6 benches query bare figures and were unaffected.)
 
 ```python
         if conn.execute(sql.SQL("SELECT numnode({q})").format(q=q), params).fetchone()[0] == 0:

@@ -13,9 +13,12 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Aborted transaction | A transaction in which a statement failed; Postgres rejects every further statement until rollback. | [03](03-environment-and-infra.md) |
 | Abstention | Deliberately answering "not in the documents" when the evidence is too weak, instead of guessing. | [01](01-what-is-rag.md) |
 | Abstention / refusal | Declining to answer when the evidence is missing; here a fixed INSUFFICIENT_CONTEXT token. | [13](13-prompting-and-citations.md) |
+| Abstention precision / recall | Of the refusals, the share that were right / of the unanswerable questions, the share refused. | [15](15-eval-harness.md) |
 | Anisotropy (embeddings) | Embedding vectors cluster in a narrow cone, so unrelated texts still have positive cosine (0.37 here). | [07](07-embeddings.md) |
 | ANN (approximate nearest neighbour) | Search that visits part of an index and usually, not always, finds the true nearest vectors. | [08](08-database-schema.md) |
+| Answer relevance | Whether an answer addresses the question (LLM-judged, 1–5 → 0–1). | [15](15-eval-harness.md) |
 | ASGI | Interface between async Python web servers (uvicorn) and apps (FastAPI); WSGI is the older synchronous one. | [14](14-api-and-streaming.md) |
+| AUROC | Probability a random positive scores above a random negative; 0.5 = chance. | [15](15-eval-harness.md) |
 | Autocommit | Driver mode in which every statement is committed as its own transaction. | [03](03-environment-and-infra.md) |
 | B-tree index | Sorted index for equality and range lookups (primary keys, hashes). | [08](08-database-schema.md) |
 | Backend process | The Postgres server process started for each client connection. | [03](03-environment-and-infra.md) |
@@ -23,6 +26,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Bi-encoder | Model that embeds query and passage separately, so passages can be embedded in advance. | [07](07-embeddings.md) |
 | Bind address | The network interface a port listens on; `127.0.0.1` = this machine only, `0.0.0.0` = every interface. | [03](03-environment-and-infra.md) |
 | BM25 | Ranking: Σ idf · tf·(k1+1)/(tf + k1·(1−b+b·len/avg)); rare terms count more, repeats saturate. | [10](10-keyword-search.md) |
+| Bootstrap CI | Interval from resampling the questions with replacement and taking percentiles of the metric. | [15](15-eval-harness.md) |
 | Born-digital PDF | A PDF whose pages contain real text drawing instructions (not pictures of text). | [04](04-corpus.md) |
 | Bounding box (bbox) | Smallest rectangle around an element: (x0, y0, x1, y1) in PDF points, origin top-left. | [05](05-pdf-parsing.md) |
 | Canonical text | One normalised string per document that every block and chunk offset indexes into. | [05](05-pdf-parsing.md) |
@@ -44,6 +48,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Content hash (sha256) | A 64-hex-character fingerprint of a file's bytes; any change alters it. | [04](04-corpus.md) |
 | Content stream | A PDF page's drawing instructions (fonts, positions, glyphs) — not paragraphs. | [05](05-pdf-parsing.md) |
 | Context packing | Choosing which retrieved chunks go into the prompt, in what order, under a token budget. | [13](13-prompting-and-citations.md) |
+| Context precision | Rank-aware share of retrieved chunks judged useful (average precision over useful positions). | [15](15-eval-harness.md) |
 | Context window | The maximum number of tokens (input + output) a model can handle in one call. | [01](01-what-is-rag.md) |
 | Contrastive training | Training that pulls matching pairs' vectors together and pushes non-matching ones apart. | [07](07-embeddings.md) |
 | COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
@@ -51,6 +56,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Cosine similarity | a·b / (‖a‖‖b‖): cosine of the angle between vectors; equals the dot product for unit vectors. | [07](07-embeddings.md) |
 | Cross-encoder | A model that reads the query and a passage *together* to score relevance; accurate but slower. | [12](12-reranking.md) |
 | Custom vs generic plan | Plan built with actual parameter values vs one cached plan built without them (after 5 executions). | [09](09-vector-search.md) |
+| DCG / nDCG | Discounted cumulative gain Σ(2^g−1)/log2(i+1); nDCG divides by the ideal ordering's DCG. | [15](15-eval-harness.md) |
 | Dehyphenation | Rejoining a word hyphenated across a line break. | [05](05-pdf-parsing.md) |
 | Digest | A sha256 hash of an image's content; unlike a tag it can never point at different bytes. | [03](03-environment-and-infra.md) |
 | Distance operator | pgvector operator comparing two vectors: `<->` L2, `<=>` cosine distance, `<#>` negative inner product. | [03](03-environment-and-infra.md) |
@@ -64,10 +70,13 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Environment variable | A named value a process inherits from whoever started it. | [03](03-environment-and-infra.md) |
 | Error envelope | The fixed error body {request_id, error, message} every failure returns. | [14](14-api-and-streaming.md) |
 | Event loop | Single-threaded scheduler for async code; a blocking call on it stalls every task. | [14](14-api-and-streaming.md) |
+| Evidence span | (document, char_start, char_end) of the text that answers a question; stored as an exact quote. | [15](15-eval-harness.md) |
 | Exhibit (10-K) | A document attached to a filing — contracts, plans, certifications — usually after the signature page. | [04](04-corpus.md) |
 | Expression index | An index on an expression's result (embedding::vector(384)); queries must use the same expression. | [08](08-database-schema.md) |
 | Extension (Postgres) | A package adding types, functions, operators or index types; enabled per database with `CREATE EXTENSION`. | [03](03-environment-and-infra.md) |
 | Factory pattern | One function that turns configuration into the right implementation (`get_chunker`). | [06](06-chunking.md) |
+| Faithfulness | Share of an answer's claims supported by the given sources (LLM-judged). | [15](15-eval-harness.md) |
+| False-refusal rate | Share of answerable questions the system refused. | [15](15-eval-harness.md) |
 | Fine-tuning | Continuing to train an already-trained model on new examples, changing its weights. | [01](01-what-is-rag.md) |
 | Fiscal year | A company's accounting year, which need not match the calendar year. | [04](04-corpus.md) |
 | Foreign key | A column that must match a primary key in another table. | [08](08-database-schema.md) |
@@ -76,6 +85,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | GIN index | Generalized Inverted Index: maps each element (lexeme) to the rows containing it. | [08](08-database-schema.md) |
 | Glyph | A drawn character shape from a font; mapped back to Unicode during extraction. | [05](05-pdf-parsing.md) |
 | Golden set | Questions whose correct answers and evidence locations are known in advance, used to score the system. | [15](15-eval-harness.md) (Phase 11) |
+| Graded relevance | Relevance on a scale (here 2 = whole quote, 1 = at least half, 0). | [15](15-eval-harness.md) |
 | Grounding | Making the model answer from supplied evidence: instructions, evidence placement and checks. | [01](01-what-is-rag.md) |
 | Half-open range | [start, end): includes start, excludes end; length = end − start. | [05](05-pdf-parsing.md) |
 | halfvec | pgvector's 16-bit float vector type; halves memory. | [09](09-vector-search.md) |
@@ -84,6 +94,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Hard negative | A non-relevant passage very similar to the relevant one (e.g. the same sentence from last year's filing). | [interview/04](interview/04-retrieval.md) |
 | Heading level | 1 = PART, 2 = ITEM, 3 = other heading, 0 = not a heading. | [05](05-pdf-parsing.md) |
 | Healthcheck | A command run periodically to decide whether a service is ready, not just running. | [03](03-environment-and-infra.md) |
+| Hit@k | 1 if any relevant chunk is in the top k. | [15](15-eval-harness.md) |
 | HNSW | Hierarchical Navigable Small World: layered proximity graph for approximate nearest-neighbour search. | [08](08-database-schema.md) |
 | Idempotent | Doing it twice has the same effect as doing it once. | [03](03-environment-and-infra.md) |
 | Idempotent ingestion | Re-running ingestion changes nothing that's already up to date. | [08](08-database-schema.md) |
@@ -99,6 +110,8 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Kernel | The core of an operating system: schedules processes, manages memory, talks to hardware. | [03](03-environment-and-infra.md) |
 | Keyword (lexical) search | Search that matches the words themselves after normalising them. | [01](01-what-is-rag.md); details [10](10-keyword-search.md) |
 | kNN (k-nearest neighbours) | Find the k stored vectors closest to a query; exact = compare with all. | [09](09-vector-search.md) |
+| Label incompleteness | Correct answer locations missing from the labels; makes scores pessimistic. | [15](15-eval-harness.md) |
+| Label leakage | Test questions shaped by the system or its data; makes scores optimistic. | [15](15-eval-harness.md) |
 | Latency | How long one request takes. | [02](02-architecture-overview.md) |
 | Layering | Lower layers never depend on higher ones; enforced here by `tests/test_architecture.py`. | [02](02-architecture-overview.md) |
 | Learned fusion | Combining retrievers with a model trained on labelled queries (features: scores, ranks, query type). | [11](11-hybrid-rrf.md) |
@@ -116,6 +129,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Min-max normalisation | Rescaling a list's scores to 0–1 via (s − min)/(max − min); the best hit always becomes 1.0. | [11](11-hybrid-rrf.md) |
 | Modular monolith | One deployable application divided into modules with enforced boundaries. | [02](02-architecture-overview.md) |
 | MPS (Metal Performance Shaders) | PyTorch's backend for Apple GPUs. | [07](07-embeddings.md) |
+| MRR (mean reciprocal rank) | Average of 1 / rank of the first relevant result. | [15](15-eval-harness.md) |
 | MVCC | Multi-version concurrency control: updates write new row versions; readers see committed versions. | [08](08-database-schema.md) |
 | Namespaces | Linux kernel feature giving a process its own view of files, network and process ids. | [03](03-environment-and-infra.md) |
 | NFKC normalisation | Unicode normal form that folds compatibility characters (non-breaking space, ligatures) to plain forms. | [05](05-pdf-parsing.md) |
@@ -128,6 +142,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
 | Online path | Work done while a user waits (search, rank, generate). | [02](02-architecture-overview.md) |
 | OpenAPI | Machine-readable API description generated from the request/response models (/openapi.json, /docs). | [14](14-api-and-streaming.md) |
+| Operating point | One chosen threshold together with its error rates. | [15](15-eval-harness.md) |
 | Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
@@ -144,6 +159,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Pooling | Turning per-token vectors into one text vector (bge: the [CLS] vector). | [07](07-embeddings.md) |
 | Port publishing | Making a container's port reachable from the host, e.g. `127.0.0.1:5432:5432`. | [03](03-environment-and-infra.md) |
 | Post-filter / pre-filter | Apply metadata conditions after vs before the vector search. | [09](09-vector-search.md) |
+| Precision@k | Share of the top k that is relevant. | [15](15-eval-harness.md) |
 | Prepared statement | A statement parsed/planned once and executed many times; psycopg auto-prepares after 5 runs. | [09](09-vector-search.md) |
 | Primary key | Column(s) that uniquely identify a row. | [08](08-database-schema.md) |
 | Prompt version | A constant in the cache key; bumped when the instructions change so stale answers aren't served. | [13](13-prompting-and-citations.md) |
@@ -159,6 +175,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
 | Recall ceiling | Share of queries whose evidence is anywhere in a stage's input; no later stage can exceed it. | [12](12-reranking.md) |
 | Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
+| Recall@k | Share of the needed evidence items covered by the top k. | [15](15-eval-harness.md) |
 | Request id | Short id per request, returned in x-request-id and logged, to match user reports to logs. | [14](14-api-and-streaming.md) |
 | Request/response model | A pydantic class describing a body; FastAPI validates and documents it. | [14](14-api-and-streaming.md) |
 | Rerank depth N | How many first-stage candidates the reranker reads (10 here). | [12](12-reranking.md) |
@@ -180,6 +197,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Semantic chunking | Cutting text where similarity between consecutive sentence embeddings drops. | [06](06-chunking.md) |
 | Server-Sent Events (SSE) | One long HTTP response (text/event-stream) carrying event:/data: frames from server to client. | [14](14-api-and-streaming.md) |
 | SET LOCAL | Change a setting until the end of the current top-level transaction. | [09](09-vector-search.md) |
+| Sign test | Paired test on wins vs losses between two systems over the same questions. | [15](15-eval-harness.md) |
 | Span / line / block (PyMuPDF) | Run of text in one font / spans on one baseline / lines grouped by PyMuPDF. | [05](05-pdf-parsing.md) |
 | Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
 | SSE (Server-Sent Events) | A one-way HTTP stream of events from server to client, used to stream answer tokens. | [14](14-api-and-streaming.md) (Phase 10) |

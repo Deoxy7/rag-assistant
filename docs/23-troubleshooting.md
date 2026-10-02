@@ -334,3 +334,23 @@ using the API at https://platform.openai.com/settings/organization/billing/.', '
 
 - **Cause:** health reported the configured `llm_model` setting, not the active client.
 - **Fix:** report `get_llm().model` when the client is ready.
+
+## Phase 11
+
+### T-042 · Keyword search returned nothing for a question containing a figure — hit (my bug, Phase 6 code)
+
+- **Symptom:** golden question G038, "What does the figure $404,381 represent in Boeing's FY2022 10-K?", got 0 keyword hits; the hybrid list was vector-only.
+- **Cause:** `tsquery = phrases && (any other word)`. The backlog table contains `404 <-> 381` but none of figur / repres / boe / fy2022.
+- **Fix:** match on the phrases alone; rank with `phrases || words`. Test `test_a_required_figure_matches_even_when_no_other_question_word_does`. Golden hit@5 0.692 → 0.731. The Phase 6/7 benches were re-run and are unchanged (bare-figure queries). Doc 10 §5 corrected.
+
+### T-043 · Label-edit script crashed with IndexError — hit (my mistake)
+
+- **Symptom:** `IndexError: list index out of range` while adding alternatives; a misleadingly named result (`baseline-labels-audited`, run on unchanged labels) had already been written.
+- **Cause:** I misremembered two question ids (117,100 is G043/G052, not G052/G053; G053 is unanswerable).
+- **Fix:** deleted that just-created result pair, and re-ran the edit with an assertion that each id's question text contains an expected phrase. Lesson: check identity, not position, before editing labels.
+
+### T-044 · Accuracy-optimal refusal threshold refuses nothing — not a bug
+
+- **Symptom:** the first summary's "best threshold" had 0 refusals.
+- **Cause:** 52 answerable vs 9 unanswerable: never refusing is 85% accurate.
+- **Fix:** report operating points (catch ≥ ⅓, ⅔, all) with their false-refusal rates.

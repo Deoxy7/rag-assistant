@@ -1,0 +1,37 @@
+%% Owner: docs/15-eval-harness.md — one run of python -m eval.run.
+flowchart TB
+    classDef evalc fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    golden["golden_v1.jsonl<br/>61 questions · quotes, not offsets"]:::io
+    resolve["resolve quotes → spans<br/>every occurrence · page · LabelError if missing"]:::evalc
+    pg[("Postgres<br/>canonical text · chunks")]:::store
+    cfg["config flags<br/>mode · rerank · N · k · chunk set"]:::io
+    ret["retriever under test<br/>top 10 per question"]:::retrieve
+    grade["grade each chunk vs each evidence item<br/>2 = whole quote · 1 = ≥ half · 0"]:::evalc
+    rmet["retrieval metrics<br/>hit · recall · precision · RR · nDCG @1,3,5,10"]:::evalc
+    abst["retrieval-only abstention<br/>AUROC + operating points"]:::evalc
+    gen["optional: answer (LLM, cached)<br/>refusals · citations"]:::generate
+    judge["optional: LLM judge (cached)<br/>faithfulness · relevance · context precision · correctness"]:::generate
+    stats["bootstrap 95% CI per metric"]:::evalc
+    out["eval/results/‹UTC time›_‹name›.json + .csv<br/>opened with mode x: never overwritten"]:::io
+    legend["Legend<br/>orange = eval · green = retrieval · purple = generation · grey = storage · white = files"]:::legend
+
+    golden --> resolve
+    pg -.->|canonical_text, pages| resolve
+    resolve -->|52 answerable + 9 unanswerable| ret
+    cfg --> ret
+    ret -->|ranked chunk spans| grade
+    pg -.->|all chunks overlapping evidence → ideal DCG| grade
+    grade --> rmet
+    ret -->|top score| abst
+    ret --> gen
+    gen --> judge
+    rmet --> stats
+    stats --> out
+    abst --> out
+    judge --> out

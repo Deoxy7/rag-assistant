@@ -62,3 +62,27 @@ H1–H5 each get an honest-answer section here once their evidence exists (Phase
 **Trap.** Quoting a number you didn't measure.
 
 **Bridge.** "The golden set and judge fill exactly these gaps."
+
+### "Did you tune on your test set?" (asked after Phase 11)
+**ID:** P11-08 · **Round:** project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Partly, and I say so. I fixed one bug the golden set exposed and completed its labels, and Phase 12 picks configurations on it. That makes its numbers optimistic for *this* set. Three things limit the damage: the bug fix was verified on earlier benches and kept only because it's a correctness fix, not a tuning knob; FinanceBench stays as an external check; and every change is a separate kept result, so anyone can see what moved the score."
+
+**2-minute answer.** Distinguish the cases. A bug fix, like a required phrase blocking all matches, is legitimate whatever set exposed it. A label fix corrects the measurement, not the system. Choosing between configurations (k, N, chunk size) on the same questions is the real test-set risk, so I'd confirm winners on FinanceBench and on new questions written after the ablation.
+
+**If they push — level 2.** *"How much optimism?"* Unknown, so I don't claim a number. The CI (±12 points) is larger than most ablation differences anyway.
+
+**If they push — level 3.** *"What would you do with more time?"* Split the set (dev for choices, test touched once), and write 50 new questions after the decisions are made.
+
+**If they push — level 4.** *"Is the label audit biased toward your system?"* I avoided that by searching the full text for answer figures, not the retriever's output. Labels were added wherever the text states the answer, retrieved or not.
+
+**Whiteboard it.**
+```text
+ bug fix (correctness)    → keep, re-run old benches
+ label fix (measurement)  → new golden hash, documented
+ config choice (tuning)   → optimistic on golden → confirm on FinanceBench / fresh questions
+```
+
+**Trap.** Claiming the golden-set score is an unbiased estimate.
+
+**Bridge.** "Phase 12's write-up keeps the dev/test caveat next to every winner."

@@ -114,3 +114,13 @@ Decisions: two endpoints (JSON + SSE); pre-stream validation; sync endpoints in 
 Open:     OpenAI account has no credits (T-038) → real TTFT/latency/quality still not measured; no SSE keepalive pings; client disconnect doesn't cancel generation.
 Next:     Phase 11 — eval harness.
 
+## Phase 11 — Eval harness   [DONE 2026-10-02, judge/answer metrics pending OpenAI credits]
+
+Built:    `eval/golden/golden_v1.jsonl` (61 questions: 22 factual, 13 table, 8 exact-token, 9 multi-hop, 9 unanswerable; evidence = exact quotes with alternatives, resolved to every occurrence); `eval/golden.py` (load + resolve, LabelError, sha256); `eval/metrics/retrieval.py` (graded span relevance; hit, recall, precision, RR, nDCG with ideal from all overlapping chunks), `abstention.py` (precision/recall/false-refusal, AUROC, threshold sweep), `stats.py` (bootstrap CI, sign test), `judge.py` (faithfulness, answer relevance, context precision, correctness; JSON, parse errors counted); `eval/run.py` (`make eval NAME=…`; config flags; optional --generate/--judge; results/<UTC>_<name>.{json,csv} opened with mode x; git/golden hash/config recorded); `scripts/find_quote.py`; `repo.chunks_overlapping`; setting `llm_judge_model` (gpt-6.1-sol); `tests/test_eval.py` (15). Keyword bug fix (T-042) + regression test.
+Docs:     `docs/15-eval-harness.md` (every metric derived by hand, toy + real G045); cards #3, #35, #36, #37, #38; 8 interview questions (P11-01…P11-08); T-042…T-044; doc 10 §5 corrected.
+Diagrams: `15-eval-loop`, `15-metric-decision-tree`, `15-golden-construction`, generated `15-where-it-sits`.
+Numbers:  baseline (hybrid + MiniLM N=10, k=10): hit@5 0.769 [0.65–0.88], recall@10 0.760 [0.64–0.87], MRR 0.535, nDCG@10 0.523, precision@10 0.104; by type hit@5 factual 0.909, exact 0.875, table 0.615, multi-hop 0.556 (recall@5 0.333); retrieval-only abstention AUROC 0.662 (catch 44% → 13% false refusals; catch all → 88%); keyword fix 0.692 → 0.731, label audit → 0.769; runs deterministic (61/61 rows identical); 11.9 s per retrieval-only run.
+Decisions: span labels (not chunk ids); headline hit@5 + recall@10; refusal left to the model (no score threshold); judge = stronger model, cached; self-built harness.
+Open:     answer/judge metrics and model abstention need OpenAI credits; multi-hop decomposition not built; judge not yet validated against human labels; golden set authored by the system's author (FinanceBench reported alongside).
+Next:     Phase 12 — ablations.
+

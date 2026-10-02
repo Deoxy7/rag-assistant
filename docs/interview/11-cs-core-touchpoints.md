@@ -348,3 +348,30 @@
 **Trap.** "async is always faster."
 
 **Bridge.** "That's why model inference is the thing to split out at scale."
+
+---
+
+## Phase 11 questions
+
+### Q: What's a bootstrap confidence interval, and why do you report one?
+**ID:** P11-06 · **Round:** viva · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "Resample the 52 answerable questions with replacement, 2,000 times, compute the mean each time, and take the 2.5th and 97.5th percentiles. It estimates how much the score would move with a different sample of similar questions. hit@5 0.769 has a 95% interval of 0.65–0.88, so a configuration needs to move by roughly ten points before this set can distinguish it from noise."
+
+**2-minute answer.** Contrast with a paired comparison: two configs answer the same questions, so the right test looks at the questions where they disagree. The sign test counts wins and losses; with 6 discordant questions split 4–2, p ≈ 0.69. The bootstrap is about one system's uncertainty; the paired test is about the difference between two.
+
+**If they push — level 2.** *"Why not a normal approximation?"* Per-question scores are 0/1 or bounded, and n is small. The bootstrap needs no distributional assumption.
+
+**If they push — level 3.** *"Seeded?"* Yes (seed 7), so the interval is reproducible run to run.
+
+**If they push — level 4.** *"Limits?"* It can't fix a biased sample: it measures sampling noise, not author bias. That's why the external set exists.
+
+**Whiteboard it.**
+```text
+ for b in 1..2000: sample 52 q with replacement → mean_b
+ CI = [percentile 2.5, percentile 97.5] of mean_b     hit@5: .769 [.65, .88]
+```
+
+**Trap.** Treating overlapping intervals as proof of "no difference": use a paired test.
+
+**Bridge.** "Phase 12 uses paired tests for every ablation comparison."

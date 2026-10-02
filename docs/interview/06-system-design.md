@@ -404,3 +404,32 @@
 **Trap.** Scaling the web framework when the GPU lock is the limit.
 
 **Bridge.** "Phase 13's per-stage timings make this breakdown visible per request."
+
+---
+
+## Phase 11 questions
+
+### Q: Design an evaluation pipeline that a team can trust over months of changes.
+**ID:** P11-05 · **Round:** system design  **Difficulty:** 3/5
+
+**30-second answer.** "A versioned golden set with exact evidence labels, re-validated on every load; a runner that takes the full configuration as flags; deterministic retrieval and a response cache for LLM calls; and results written to new timestamped files, never overwritten, each recording the git commit, a dirty flag, the golden file's hash and every config value. Every metric gets a bootstrap interval, and comparisons use paired tests. My runner does all of this, and two identical runs produced identical rows for all 61 questions."
+
+**2-minute answer.** Add the parts that keep it honest over time: an external set (FinanceBench) as a held-out check; a label-audit step with each change producing a new hash; a results history that shows step changes (bug fix +3.9 points, label audit +3.8 points) instead of one "latest" number; and judge validation against a human-labelled sample before trusting small judged differences.
+
+**If they push — level 2.** *"CI integration?"* Run the retrieval eval (12 s, no API cost) on every PR and fail if hit@5 drops by more than the noise band. Run the judged eval nightly with the cache.
+
+**If they push — level 3.** *"Online evaluation?"* Log real questions, sample them for labelling, track refusal and citation-click rates, and A/B test retrieval changes.
+
+**If they push — level 4.** *"Cost control for judged evals?"* Cache keyed by the full request, a pinned judge model, and only re-judging rows whose answer changed.
+
+**Whiteboard it.**
+```text
+ golden (sha) + config flags → runner → results/<time>_<name>.{json,csv} (mode x)
+   meta: git commit · dirty · golden sha · python
+   summary: metric means + 95% CI · by type · abstention · judge
+ compare runs: paired sign test · history of step changes
+```
+
+**Trap.** One "latest score" in a spreadsheet, overwritten each run.
+
+**Bridge.** "Phase 12 runs the ablation matrix through exactly this runner."

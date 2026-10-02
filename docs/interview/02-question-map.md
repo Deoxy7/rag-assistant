@@ -102,6 +102,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P10-06 | Close the DB connection before the LLM call — why | [05](05-database-and-sql.md) | DB | backend | 2 | | |
 | P10-07 | The refusal gate | [03](03-fundamentals.md) | generation | ML, backend | 2 | | |
 | P10-08 | Testing an API without its paid dependency | [07](07-evaluation.md) | testing | backend, deep-dive | 2 | | |
+| P11-01 | Walk me through your eval set; is it any good? | [07](07-evaluation.md) | eval | deep-dive, ML | 4 | | |
+| P11-02 | Derive nDCG@3; why graded relevance | [07](07-evaluation.md) | eval | ML, whiteboard | 3 | | |
+| P11-03 | A retriever returns nothing for one question — debug | [08](08-debugging-scenarios.md) | debugging | ML, backend | 3 | | |
+| P11-04 | Precision, recall, hit rate, MRR: when each misleads | [03](03-fundamentals.md) | eval | viva, ML | 2 | | |
+| P11-05 | Design an eval pipeline a team can trust | [06](06-system-design.md) | design | design | 3 | | |
+| P11-06 | Bootstrap confidence intervals | [11](11-cs-core-touchpoints.md) | statistics | viva, ML | 3 | | |
+| P11-07 | Where retrieval fails, by question type | [04](04-retrieval.md) | retrieval | deep-dive | 3 | | |
+| P11-08 | "Did you tune on your test set?" | [14](14-honest-answers.md) | honesty | deep-dive | 3 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

@@ -317,3 +317,30 @@
 **Trap.** Streaming control tokens to users.
 
 **Bridge.** "Phase 11 measures how often the real model uses the token correctly."
+
+---
+
+## Phase 11 questions
+
+### Q: Precision, recall, hit rate and MRR: define each for retrieval, and say when each misleads.
+**ID:** P11-04 · **Round:** viva · ML screen  **Difficulty:** 2/5
+
+**30-second answer.** "hit@k: is any relevant chunk in the top k. recall@k: what fraction of the evidence the answer needs is in the top k. precision@k: what fraction of the top k is relevant. MRR: the average of 1 / rank of the first relevant chunk. Hit misleads on multi-hop: our hit@5 is 0.56 but recall@5 is 0.33. Precision misleads when only one or two chunks *can* be relevant: precision@10 is capped near 0.1–0.2. MRR ignores everything after the first hit."
+
+**2-minute answer.** Work an example: two facts needed, one found at rank 1 → hit@5 1, recall@5 0.5, RR 1.0, precision@5 0.2. The perfect MRR hides the missing half. Then tie it to the product: the generator reads ten chunks, so recall@10 asks whether everything it needs is present.
+
+**If they push — level 2.** *"F1?"* Rarely useful for ranked retrieval with a fixed k. Precision and recall are both driven by k, so report curves over k instead.
+
+**If they push — level 3.** *"MAP?"* Mean average precision averages precision at each relevant position, a rank-aware precision. Our judge's context precision uses the same idea.
+
+**If they push — level 4.** *"How do partial matches enter?"* Graded labels: binary metrics count grade ≥ 1 (at least half of the quote), nDCG uses the grade itself.
+
+**Whiteboard it.**
+```text
+ items {A, B}; top 5 = [A, x, x, x, x]
+ hit@5 = 1 · recall@5 = .5 · precision@5 = .2 · RR = 1
+```
+
+**Trap.** Reporting hit rate as "recall" for multi-part answers.
+
+**Bridge.** "The multi-hop gap is the clearest weakness the eval found."

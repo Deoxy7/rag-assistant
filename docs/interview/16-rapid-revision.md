@@ -108,6 +108,13 @@
 | Concurrency measured? | 6.8 → 13.7 req/s with 4 clients (model passes serialise). |
 | 429 gotcha? | Rate limit vs empty balance (insufficient_quota): different fixes, different codes. |
 | Why JSON-encode deltas? | A raw newline would end the SSE frame (tested forged-event attack). |
+| Golden set? | 61 q: 22 factual, 13 table, 8 exact, 9 multi-hop, 9 unanswerable; exact-quote evidence. |
+| Baseline retrieval? | hit@5 .769 [.65–.88], recall@10 .760, MRR .535, nDCG@10 .523. |
+| Weakest type? | Multi-hop: recall@5 .33 (one entity found, the other not). |
+| Grades? | 2 = whole quote in chunk, 1 = ≥ half, 0 otherwise. |
+| nDCG toy? | grades 0,2,1 vs ideal 2,2 → 2.393 / 4.893 = .489. |
+| Score-threshold refusal? | AUROC .66; catching all unanswerables costs 88% false refusals → model decides. |
+| Harness found? | Keyword bug (+3.9 pts) and 8 label gaps (+3.8 pts). |
 
 ## Top questions so far
 

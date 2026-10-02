@@ -12,7 +12,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 |---|---|---|---|
 | 1 | RAG vs fine-tuning vs long-context stuffing vs plain prompting | 0 | ✅ [01-what-is-rag](../01-what-is-rag.md) |
 | 2 | A structured corpus (10-K / protocols / policies) vs a toy corpus | 1 | ✅ [04-corpus](../04-corpus.md) |
-| 3 | Abstention policy: answer with weak evidence vs refuse | 9 | not yet written |
+| 3 | Abstention policy: answer with weak evidence vs refuse | 9 | ✅ [15-eval-harness](../15-eval-harness.md) |
 | 4 | PyMuPDF vs pdfplumber vs unstructured.io vs OCR vs LLM-based parsing | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
 | 5 | Store page_number + char_start + char_end vs text only | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
 | 6 | Batch vs incremental ingest; updated and deleted documents | 4 | ✅ [08-database-schema](../08-database-schema.md) |
@@ -44,10 +44,10 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 32 | Async vs sync; where CPU-bound work goes | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
 | 33 | Caching: exact-match vs semantic vs embedding cache; invalidation | 13 | not yet written |
 | 34 | LangChain vs plain Python vs LlamaIndex | 0 | ✅ [02-architecture-overview](../02-architecture-overview.md) |
-| 35 | Self-built eval harness vs RAGAS vs TruLens vs DeepEval | 11 | not yet written |
-| 36 | Retrieval metrics: recall@k vs precision@k vs MRR vs nDCG | 11 | not yet written |
-| 37 | LLM-as-judge vs human labels vs ROUGE/BLEU; judge bias and variance | 11 | not yet written |
-| 38 | Golden set construction: size, difficulty mix, unanswerables, leakage | 11 | not yet written |
+| 35 | Self-built eval harness vs RAGAS vs TruLens vs DeepEval | 11 | ✅ [15-eval-harness](../15-eval-harness.md) |
+| 36 | Retrieval metrics: recall@k vs precision@k vs MRR vs nDCG | 11 | ✅ [15-eval-harness](../15-eval-harness.md) |
+| 37 | LLM-as-judge vs human labels vs ROUGE/BLEU; judge bias and variance | 11 | ✅ [15-eval-harness](../15-eval-harness.md) |
+| 38 | Golden set construction: size, difficulty mix, unanswerables, leakage | 11 | ✅ [15-eval-harness](../15-eval-harness.md) |
 | 39 | Docker Compose vs managed Postgres vs bare metal | 0 | ✅ [03-environment-and-infra](../03-environment-and-infra.md) |
 | 40 | Multi-tenancy / document ACLs: row-level security vs filter vs separate indexes | 14 | not yet written |
 | 41 | Prompt-injection defences; where trust boundaries sit | 14 | not yet written |
@@ -132,6 +132,41 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q: Why PDFs and not EDGAR's HTML? → A: The plan is a PDF pipeline because most real enterprise documents arrive as PDFs, where layout, page numbers and offsets are the hard part. HTML filings would be easier to parse — and less instructive.
 
 **The trap.** Picking the corpus last, or calling a clean toy corpus "realistic". Interviewers ask "what was hard about your data?" — an answer without specifics (like the exhibit share or the non-breaking spaces) suggests the data was never looked at.
+
+### Card 3 — from [15-eval-harness](../15-eval-harness.md)
+
+#### Decision: refusal is the model's decision (a fixed token), with no retrieval-score threshold  (rejected: refuse below a reranker score; always answer)
+
+**One-line defence.** I measured the score threshold: catching all 9 unanswerable questions would also refuse 88% of answerable ones (AUROC 0.66). The model, which reads the passages, is the right judge, and its refusals are made detectable with a fixed token.
+
+**What problem is this even solving?** For a filing assistant, a confident wrong number is worse than "I can't find that". The system needs a policy for weak evidence.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| Always answer | No refusal path | Never wrongly silent | Confident nonsense on unanswerable questions | Never for factual QA |
+| Refuse below a reranker score | Threshold the top cross-encoder score | No LLM call needed; cheap | Measured AUROC 0.66: catching 4/9 costs 7/52 answerable | When scores are well calibrated for the domain |
+| ✅ Model refuses with `INSUFFICIENT_CONTEXT` | Prompt rule + exact-token detection | Reads the evidence; detectable; measurable | Depends on model compliance (not yet measured) | Default |
+| Both (threshold as a pre-filter for clear cases) | Skip the LLM below a very low score | Saves calls on hopeless queries | Must not cost answerable questions | Once the model's refusal accuracy is known |
+
+**What would actually change if we swapped it.** A threshold would be one setting and one `if` in `answer.py`. The cost is false refusals, measured above.
+
+**The decision rule.** Measure the separation (AUROC) before using any score as a gate. Below ~0.8, let the model decide and measure *its* abstention precision and recall.
+
+**Where our choice breaks.** If the model ignores the rule (answers anyway, or refuses in free text), abstention silently degrades. The eval measures both rates once real generation runs.
+
+**The number.** AUROC 0.662. Operating points: 44% caught / 13% false refusals; 67% / 29%; 100% / 88%. Model abstention precision / recall: *not yet measured*.
+
+**Interview script (3 sentences).** "I tested the intuitive policy first: refuse when the reranker isn't confident. On 9 unanswerable versus 52 answerable questions it barely separates them (AUROC 0.66), because an unanswerable question about a familiar topic still retrieves confident-looking passages. So refusal is the model's call, signalled by a fixed token the API detects, and the harness measures its precision and recall rather than trusting it."
+
+**Follow-ups they will ask:**
+- Q: Why is accuracy the wrong criterion for the threshold? → A: With 52 answerable and 9 unanswerable questions, "never refuse" scores 85% accuracy. Look at the two error rates separately.
+- Q: How would you calibrate a threshold properly? → A: More unanswerable examples, including near-miss ones (right company, wrong metric), and choose t from a stated cost ratio between a false refusal and a false answer.
+- Q: What makes a good unanswerable question? → A: Close to answerable ones: familiar entities, plausible metrics, wrong years. Easy ones ("Tesla deliveries") make abstention look better than it is.
+- Q (the hard one): Isn't letting the model decide unmeasurable? → A: It's measured the same way: abstention recall on the 9, false refusals on the 52. It just needs the generation run.
+
+**The trap.** Picking a threshold by maximising accuracy on an imbalanced set.
 
 ### Card 4 — from [05-pdf-parsing](../05-pdf-parsing.md)
 
@@ -1209,6 +1244,195 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q: When would you pick LlamaIndex? → A: An ingestion-heavy product with many document types, where its node parsers and index types save weeks and I don't need per-character control.
 
 **The trap.** Saying "LangChain is bad" or "frameworks are for beginners". Interviewers want the cost/benefit for *this* project: visibility of measured steps versus integration breadth. Dismissing frameworks outright signals inexperience, not taste.
+
+### Card 35 — from [15-eval-harness](../15-eval-harness.md)
+
+#### Decision: a self-built harness  (rejected: RAGAS, TruLens, DeepEval)
+
+**One-line defence.** Our labels are character spans in the stored text, which no framework grades natively. Every metric is about 20 lines I derived by hand and test exactly, and the harness found a retrieval bug and 8 label gaps in its first runs.
+
+**What problem is this even solving?** Repeatable, comparable measurement of retrieval and answers, with numbers you can defend line by line in an interview.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Self-built (`eval/`) | Span-graded retrieval metrics, our judge prompts, timestamped results | Exact, transparent, tested (15 tests); fits span labels | More code (628 lines); judge prompts are ours to validate | Learning, custom labels, research-style comparisons |
+| RAGAS | LLM-based metrics (faithfulness, context precision/recall) over (q, contexts, answer) | Quick start; standard metric names | Mostly LLM-judged even where labels exist; version churn; costs per metric | No labels yet; quick baselines |
+| TruLens | Feedback functions + tracing dashboard | Observability of production traces | Heavier; dashboard-centric | Monitoring deployed apps |
+| DeepEval | pytest-style LLM test cases and metrics | CI integration | LLM-judged; opinionated thresholds | Regression gates in CI |
+
+**What would actually change if we swapped it.** RAGAS: convert each run to its dataset format, and lose span-graded recall and nDCG (it would judge context relevance with an LLM instead). Our result files and history format would change.
+
+**The decision rule.** Labels you trust plus metrics that use them beat LLM-judged proxies. Use frameworks for LLM-judged parts when you have no labels, or for production monitoring.
+
+**Where our choice breaks.** Breadth: no dashboards, no tracing UI, no ready-made metric zoo. And our judge prompts haven't yet been validated against human labels.
+
+**The number.** 17 retrieval metric values per run, each with a bootstrap CI; run time 11.9 s for 61 questions (retrieval only); 15 harness tests; 5 result runs kept, none overwritten.
+
+**Interview script (3 sentences).** "I built the harness because my labels are exact evidence spans, and I wanted metrics that use them: graded recall and nDCG computed against every chunk that overlaps the evidence, not an LLM's opinion of relevance. Each formula is derived by hand in the docs and asserted in tests. The proof it was worth it: its first runs found a keyword-search bug and incomplete labels, and each fix shows up as a separate, kept result file."
+
+**Follow-ups they will ask:**
+- Q: Isn't this reinventing RAGAS? → A: For the LLM-judged half, partly, and I'd happily compare against RAGAS's faithfulness. For retrieval, RAGAS has nothing equivalent to span-graded metrics.
+- Q: How do you keep the harness itself correct? → A: Hand-computed worked examples as tests, labels re-resolved on every load, determinism checked by comparing two runs.
+- Q: How do results stay comparable over time? → A: Each file stores the golden sha256, the git commit and the full config, and files are never overwritten.
+- Q (the hard one): What if your metrics have a bug? → A: That's what the worked-example tests are for, and the results history makes any later fix visible as a step change.
+
+**The trap.** "We use RAGAS" as if a library made the numbers trustworthy.
+
+### Card 36 — from [15-eval-harness](../15-eval-harness.md)
+
+#### Decision: report hit, recall, precision, MRR and nDCG at k = 1, 3, 5, 10, headline hit@5 and recall@10  (rejected: a single metric)
+
+**One-line defence.** Each metric answers a different question (§ decision tree). The headline pair is what the product needs: is the evidence in the five chunks the model reads first (hit@5), and is *all* of it in the context (recall@10)? Multi-hop shows why one number isn't enough: hit@5 0.56 but recall@5 0.33.
+
+**What problem is this even solving?** Choosing which numbers decide between configurations, and not being fooled by a metric that hides a failure.
+
+![Metric decision tree](../diagrams/out/15-metric-decision-tree.png)
+
+<details><summary>Same diagram as text (for terminal viewing)</summary>
+
+```text
+ What do you need to know?
+ ├─ retrieval: is the evidence retrieved?
+ │   ├─ any piece ............................ hit@k
+ │   ├─ all pieces (multi-hop) ............... recall@k (fraction of items covered)
+ │   ├─ how high? first hit only ............. MRR (1 / first relevant rank)
+ │   │             all hits, graded .......... nDCG@k (graded, position-discounted)
+ │   └─ how much context is noise? ........... precision@k
+ ├─ generation: right and supported? ......... faithfulness · correctness (LLM judge)
+ └─ unanswerable: refuses when it should? .... abstention precision / recall ·
+                                                false-refusal rate · AUROC
+ Legend (colours appear in the image): white = question you're asking ·
+ orange = metric that answers it
+```
+</details>
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Panel: hit, recall, precision, MRR, nDCG @{1,3,5,10} | All from the same graded labels | Each failure visible somewhere | More numbers to read | Comparing configurations |
+| recall@k only | Share of evidence found | Directly "is it in the context" | Ignores rank; can't see noise | Pure recall stages (first-stage tuning) |
+| MRR only | 1 / first relevant rank | Rewards getting the top right | Ignores the 2nd piece of multi-hop | One-answer lookups |
+| nDCG only | Graded, discounted gain vs ideal | Uses grades and all relevant chunks | Hard to explain; depends on IDCG choice | Ranking research |
+
+**What would actually change if we swapped it.** Nothing in code: all are computed per run. The choice is which ones decide.
+
+**The decision rule.** Pick the headline from the product: how many chunks the generator sees (k) and whether answers need several pieces (recall over hit). Keep the rest to explain *why* a headline moved.
+
+**Where our choice breaks.** Precision@k is capped by how many relevant chunks exist (1–2 here), so it's useless as an absolute. And nDCG's ideal uses every overlapping chunk in the set, so questions with many occurrences have a harder ideal.
+
+**The number.** Baseline hit@5 0.769 [0.65–0.88], recall@10 0.760 [0.64–0.87], MRR 0.535, nDCG@10 0.523, precision@10 0.104. Multi-hop: hit@5 0.556 vs recall@5 0.333.
+
+**Interview script (3 sentences).** "hit@k asks 'did I find anything', recall@k 'did I find everything the answer needs', MRR 'how high was the first hit', nDCG 'how good was the whole ranking, with partial matches counting less', and precision 'how much is noise'. My headline is hit@5 and recall@10, because the generator reads ten chunks and multi-hop answers need all their pieces. The panel matters: on multi-hop questions hit@5 says 56% but recall@5 says only a third of the needed facts are there."
+
+**Follow-ups they will ask:**
+- Q: Derive nDCG. → A: DCG = Σ (2^g − 1)/log₂(i + 1); divide by the same sum over the ideal ordering of all relevant chunks. Worked example: 2.393 / 4.893 = 0.489.
+- Q: Why graded relevance? → A: A chunk with half a table row is less useful than one with the whole row. Grade 1 vs 2 captures that.
+- Q: MRR vs nDCG? → A: MRR stops at the first hit; nDCG counts every relevant chunk and their grades.
+- Q (the hard one): Why not report one score to make decisions simple? → A: Because the failures differ. A change that helps tables can hurt multi-hop, and a single average hides it. Decide on the headline, explain with the panel.
+
+**The trap.** Using precision@k as an absolute quality measure when only one chunk can be relevant.
+
+### Card 37 — from [15-eval-harness](../15-eval-harness.md)
+
+#### Decision: an LLM judge (a stronger model than the generator) for answer quality, labels for retrieval  (rejected: ROUGE/BLEU; human-only labels)
+
+**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"). Humans don't scale to every run. So a pinned, cached, stronger judge model (`gpt-6.1-sol`) grades faithfulness, relevance, context precision and correctness, while retrieval, where labels exist, uses no judge at all.
+
+**What problem is this even solving?** Scoring free-text answers repeatedly and consistently, without paying a person per run.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ROUGE / BLEU | n-gram overlap with a reference | Free, deterministic | Rewards wording, not facts; "$23.6 billion" vs "$23,601 million" scores low | Summarisation baselines |
+| Human labels | People grade each answer | Ground truth | Slow, costly, per run | Validating the judge; final reports |
+| ✅ LLM judge, stronger than the generator, cached | JSON verdicts per claim / answer | Scales; reads meaning; cache makes re-runs free | Bias (length, self-preference), variance, cost; needs validation | Every run, with a human-checked sample |
+| Exact-match on extracted numbers | Parse the figure, compare | Deterministic for numeric questions | Only numeric questions; units and rounding | A cheap pre-check before the judge |
+
+**What would actually change if we swapped it.** Human grading would need a labelling UI and per-run spending. ROUGE would be one function, with misleading numbers.
+
+**The decision rule.** Use labels wherever you can (retrieval). Use a judge for free text, never the same model as the generator. Validate the judge against a human-labelled sample before trusting small differences.
+
+**Where our choice breaks.** Untested so far: no API credits, so the judge has graded nothing, and its agreement with humans is unknown. The prompts are implemented and unit-tested with scripted replies (parsing, scoring, refusals, bad JSON counted, not guessed).
+
+**The number.** 4 judge metrics implemented; judge parse errors counted per run; judge model `gpt-6.1-sol` at $2 / $10 per 1M tokens; estimated cost for 61 questions × 4 prompts about $1 (≈ 320 k input and 25 k output tokens; estimate from prompt sizes). Measured judge scores: *not yet measured*.
+
+**Interview script (3 sentences).** "For retrieval I don't need a judge: I have exact evidence spans. For free-text answers I use an LLM judge, a stronger model than the generator so it isn't grading itself, with JSON outputs, parse failures counted rather than guessed, and every verdict cached so re-runs are identical and free. Before trusting it on small differences I'd hand-grade a sample and measure agreement. That's the step still pending, along with the credits to run it."
+
+**Follow-ups they will ask:**
+- Q: What biases do LLM judges have? → A: Preference for longer answers, for their own model family, and for position in pairwise comparisons; plus run-to-run variance. Mitigate with pinned models, caching, and a human-checked sample.
+- Q: Why is faithfulness different from correctness? → A: Faithful means supported by the sources given; correct means it matches the truth. An answer can be faithful to a wrong retrieved passage.
+- Q: How is context precision computed? → A: The judge marks each retrieved chunk useful or not; average precision over the useful positions, so useful chunks ranked higher score more.
+- Q (the hard one): Why not compare numbers directly? → A: For numeric questions I would, as a pre-check. But units, rounding and multi-part answers make pure exact match brittle, so the judge stays for the general case.
+
+**The trap.** Reporting judge scores as ground truth without validating the judge.
+
+### Card 38 — from [15-eval-harness](../15-eval-harness.md)
+
+#### Decision: golden set v1 — 61 hand-written questions, five types, exact-quote evidence, full-text-checked negatives, audited labels  (rejected: FinanceBench only; LLM-generated questions)
+
+**One-line defence.** The questions cover the failure modes earlier phases found (exact tokens, tables, wrong-year traps, multi-hop, unanswerables). Labels are exact quotes verified on every load. And each unanswerable question was checked absent by full-text search, not by assumption.
+
+**What problem is this even solving?** A test set that's large enough to rank configurations, hard in the right places, and trustworthy enough to defend.
+
+![Golden-set construction](../diagrams/out/15-golden-construction.png)
+
+<details><summary>Same diagram as text (for terminal viewing)</summary>
+
+```text
+ ┌──────────────┐   ┌──────────────────────────┐   ┌──────────────────────────────┐
+ │ canonical    │──▶│ scripts/find_quote.py    │──▶│ write question + reference   │
+ │ text, 10     │   │ search the text, not the │   │ answer + exact quote(s)      │
+ │ filings      │   │ retriever                │   └──────────────┬───────────────┘
+ └──┬───────┬───┘   └──────────────────────────┘                  ┆ bias risk: same
+    │       │                                                     ┆ author as the
+    │       └──▶ unanswerable: absence checked by full-text search┆ system; wording
+    │                       │                                     ┆ from the text
+    │                       ▼                                     ▼
+    │         ┌──────────────────────────────────────────────────────────────┐
+    │         │ type mix: 22 factual · 13 table · 8 exact-token · 9 multi-hop │
+    │         │ · 9 unanswerable                                              │
+    │         └──────────────────────────────┬───────────────────────────────┘
+    │                                        ▼
+    │                         ┌──────────────────────────────┐
+    └┄┄ label audit ┄┄┄┄┄┄┄┄┄▶│ golden_v1.jsonl (sha256 in   │
+        (answer figures       │ every result); 8 questions   │
+        elsewhere in filing)  │ gained alternatives          │
+                              └──────────────────────────────┘
+ Legend (colours appear in the image): orange = eval step · grey = storage ·
+ white = artifact · red dashed = known risk
+```
+</details>
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Hand-written, span-labelled, typed | Read the filing, quote the answer | Exact labels; chosen difficulty mix; traps | Author bias; small (52 + 9); wording close to the text | A project like this; seed for a larger set |
+| FinanceBench only | External analyst questions, page labels | Independent author; realistic phrasing | 28 questions here; page-level labels; few exact-token or unanswerable | External check (kept, reported alongside) |
+| LLM-generated questions | Generate Q&A from chunks | Hundreds cheaply | Questions mirror chunk wording (leakage); errors in labels; biased to retrievable text | Augmentation, with human review |
+| Real user logs | Sample production questions | The true distribution | Needs users and labelling | Once deployed |
+
+**What would actually change if we swapped it.** LLM generation: a generation script plus a review pass, and every number would mean "on questions shaped like our chunks". User logs: a labelling workflow.
+
+**The decision rule.** Write the first set by hand from the source, with a deliberate type mix and verified negatives. Add an independent set (FinanceBench) to check for author bias. Grow with reviewed generated questions or user logs.
+
+**Where our choice breaks.** Leakage and bias: I wrote the questions and built the system, and the questions reuse the filings' own words, which helps keyword search. That's why FinanceBench, with different authors and wording, scores far lower (hit@10 0.29 vs 0.81). Also *label incompleteness*: an audit found 8 questions with unlisted answer locations. The audit itself searched only the answers' exact figures, so rounded restatements ("$23.6 billion") can still be missing.
+
+**The number.** 61 questions (52 answerable, 9 unanswerable); 22 / 13 / 8 / 9 / 9 by type; 9 multi-hop questions span two filings each; 20 questions with several evidence occurrences or alternatives; label audit +8 questions → hit@5 0.731 → 0.769.
+
+**Interview script (3 sentences).** "I wrote 61 questions from the filings, mixing single facts, table lookups, exact figures and codes, two-filing multi-hop questions and nine unanswerable ones whose absence I verified by full-text search, with wrong-year traps throughout. Labels are exact quotes, re-checked against the stored text every run, and a full-text audit found 8 questions with answer locations I'd missed. Because I wrote both the questions and the system, I always report FinanceBench next to it, and the gap is large."
+
+**Follow-ups they will ask:**
+- Q: Why only 61? → A: Hand-labelling with exact spans takes time. It's enough to see ~10-point differences (the CI width), not 2-point ones. I say so and use paired tests.
+- Q: How do you avoid tuning on the test set? → A: Phase 12 compares configurations on it, so the winner is optimistic for this set. FinanceBench is the held-out check, and changes are kept only if they don't hurt there.
+- Q: What makes the unanswerable questions credible? → A: Each was searched for in all ten filings, and several are near-misses: Apple is mentioned in three filings, and "base salary" appears, but not for AMD.
+- Q (the hard one): Your labels were incomplete. Why trust them now? → A: Less than perfectly. Incompleteness under-credits retrieval, so the reported numbers are conservative. The audit is repeatable, and each change is a new labelled version with its own hash.
+
+**The trap.** Generating the test set from the same chunks you retrieve, then celebrating high recall.
 
 ### Card 39 — from [03-environment-and-infra](../03-environment-and-infra.md)
 

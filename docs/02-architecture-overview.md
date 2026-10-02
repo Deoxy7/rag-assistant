@@ -104,7 +104,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 | Rerank: cross-encoder MiniLM-L6 over fused top 10, `RERANK_ENABLED` / `RERANK_N` | [12](12-reranking.md) | 8 | ✅ built |
 | Prompt + citations + LLM (OpenAI Responses API, fake for offline; Postgres response cache) | [13](13-prompting-and-citations.md) | 9 | ✅ built (real-model numbers pending key) |
 | FastAPI: /health, /documents, /query, /query/stream (SSE) | [14](14-api-and-streaming.md) | 10 | ✅ built |
-| Eval harness | [15](15-eval-harness.md) | 11 | planned |
+| Eval harness: golden set v1 (61 q), span-graded metrics, abstention, LLM judge, timestamped results | [15](15-eval-harness.md) | 11 | ✅ built |
 | Ablations | [16](16-experiments-and-ablations.md) | 12 | planned |
 | Cost + observability | [17](17-cost-and-observability.md) | 13 | planned |
 | Security | [18](18-security-prompt-injection.md) | 14 | planned |

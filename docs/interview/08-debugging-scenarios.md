@@ -501,3 +501,31 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Assuming model output is plain, safe text.
 
 **Bridge.** "Untrusted text is the theme of the security phase."
+
+---
+
+## Phase 11 questions
+
+### Q: Your new eval shows a retrieval method returning nothing for one question. What do you do?
+**ID:** P11-03 · **Round:** ML screen · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "It happened on 'What does the figure $404,381 represent in Boeing's FY2022 10-K?': keyword search returned zero rows. The query required the figure as a phrase *and* at least one other question word, and the backlog table contains none of 'figure', 'represent', 'Boeing' or 'FY2022'. The fix: the required phrase alone decides the match, and the other words only rank. A regression test pins it. hit@5 went from 0.692 to 0.731, and the Phase 6 and 7 benches were re-run and are unchanged, because they queried bare figures."
+
+**2-minute answer.** The method: isolate one failing question; run each retriever separately at depth 50 and find the relevant chunk's rank in each (vector had it at 41, keyword returned nothing); print the generated tsquery; test the hypothesis on the stored chunk. Then check blast radius: re-run every earlier bench that used the code, and say in the docs that a published description was incomplete.
+
+**If they push — level 2.** *"Why didn't the earlier benches catch it?"* They queried bare figures, so the 'other words' part was empty and the bug never triggered. The golden set has figures inside sentences, like real users.
+
+**If they push — level 3.** *"What about MI250X, which also failed?"* That's different: it matches, but ts_rank has no IDF, so a rare code is outweighed by common words in a long OR query. That's BM25's job, measured in Phase 12, not patched.
+
+**If they push — level 4.** *"How do you keep this kind of bug from returning?"* Questions whose answer contains a token the question names are a test category (exact_token), and a unit test covers a figure plus unrelated words.
+
+**Whiteboard it.**
+```text
+ before: match = phrase('404,381') AND (figur | repres | boe | fy2022 | …)  → 0 rows
+ after : match = phrase('404,381');  rank = phrase OR words                → table found
+ hit@5 .692 → .731 · Phase 6/7 benches unchanged (bare figures)
+```
+
+**Trap.** Tuning weights to "make the number go up" before understanding why it was zero.
+
+**Bridge.** "The harness's first job turned out to be finding bugs, not ranking methods."

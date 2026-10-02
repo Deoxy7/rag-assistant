@@ -252,3 +252,57 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Only testing with the live API, which makes tests cost money and fail when the account does.
 
 **Bridge.** "The account really did run out of credits; the tests didn't care."
+
+---
+
+## Phase 11 questions
+
+### Q: Walk me through your evaluation set. How was it built, and how do you know it's any good?
+**ID:** P11-01 · **Round:** project deep-dive · ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "61 questions I wrote from the ten filings: 22 single facts, 13 table lookups, 8 exact-token questions (figures, product codes), 9 multi-hop questions spanning two filings, and 9 unanswerable ones whose absence I checked by full-text search, with wrong-year traps throughout. Each label is an exact quote, resolved to every occurrence in the stored text on every run. Weaknesses: I wrote both the questions and the system, and they reuse the filings' wording. So I always report FinanceBench beside it: hit@10 0.29 there vs 0.81 here."
+
+**2-minute answer.** Explain the label format: items (facts the answer needs), alternatives (different passages stating the fact), occurrences. Then the label audit: searching each answer's figures across the whole filing found 8 questions with answer locations I'd missed. Adding them raised hit@5 from 0.731 to 0.769, so the earlier labels under-credited the retriever. Name the residual risk: rounded restatements ("$23.6 billion") aren't found by a figure search.
+
+**If they push — level 2.** *"Why not generate questions with an LLM?"* Generated questions mirror chunk wording, which is leakage, and labels need review anyway. Fine for augmentation, not as the only set.
+
+**If they push — level 3.** *"How big should it be?"* The CI on hit@5 is about ±12 points with 52 answerable questions. Halving that needs about four times as many questions. Paired tests help in the meantime.
+
+**If they push — level 4.** *"How do you version it?"* The file's sha256 is stored in every result. Any edit makes a new hash, so old and new results are never silently compared.
+
+**Whiteboard it.**
+```text
+ question → items[] → alternatives[] → occurrences (resolved each run)
+ 22 factual · 13 table · 8 exact · 9 multi-hop (2 filings) · 9 unanswerable (absence searched)
+ audit: +8 questions' alternatives → hit@5 .731 → .769   ·   FinanceBench hit@10 .29 (external)
+```
+
+**Trap.** Presenting a self-written set's numbers as general accuracy.
+
+**Bridge.** "Which is why every number comes with an interval and an external comparison."
+
+---
+
+### Q: Derive nDCG@3 for a ranking, and explain why you use graded relevance.
+**ID:** P11-02 · **Round:** ML screen · whiteboard  **Difficulty:** 3/5
+
+**30-second answer.** "DCG@k sums, over positions i, (2^g − 1) / log₂(i + 1), where g is the grade. IDCG is the same sum for the best possible ordering of all relevant chunks. nDCG = DCG / IDCG. Example: ranks 1–3 graded 0, 2, 1 with an ideal of [2, 2]: DCG = 3/log₂3 + 1/log₂4 = 1.893 + 0.5 = 2.393; IDCG = 3/1 + 3/log₂3 = 4.893; nDCG = 0.489. Grades: 2 if the chunk holds the whole evidence quote, 1 if at least half (it straddles a chunk boundary)."
+
+**2-minute answer.** Explain why the ideal ranking comes from *every* chunk in the set that overlaps the evidence, not just retrieved ones. Otherwise a retriever that finds one weak chunk would look perfect. Then a real example: G045 has 9 relevant chunks in the set and one found at rank 3, so nDCG@3 = 1.5/6.393 = 0.2346 and nDCG@10 = 0.1175, exactly what the result file says.
+
+**If they push — level 2.** *"Why 2^g − 1?"* It's the common gain function: it makes a fully relevant chunk worth 3× a partial one, not 2×. A linear gain (g) is also used. The choice should be stated.
+
+**If they push — level 3.** *"MRR vs nDCG?"* MRR looks only at the first relevant result. nDCG counts all of them, graded, with a log discount.
+
+**If they push — level 4.** *"What's nDCG's blind spot for RAG?"* It doesn't know the generator reads all k chunks almost equally. A relevant chunk at rank 8 may be as useful as one at rank 2. That's why recall@k is the headline and nDCG explains.
+
+**Whiteboard it.**
+```text
+ grades  0  2  1      ideal 2 2
+ DCG  = 0 + 3/log₂3 + 1/log₂4 = 1.893 + 0.5 = 2.393
+ IDCG = 3/log₂2 + 3/log₂3     = 3 + 1.893   = 4.893   → nDCG@3 = 0.489
+```
+
+**Trap.** Computing IDCG from the retrieved list only.
+
+**Bridge.** "The same graded labels drive every other metric."

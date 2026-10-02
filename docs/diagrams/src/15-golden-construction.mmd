@@ -1,0 +1,24 @@
+%% Owner: docs/15-eval-harness.md — how golden_v1 was built (and where bias could enter).
+flowchart LR
+    classDef evalc fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef bad fill:#ffffff,stroke:#dc2626,stroke-dasharray:4 3,color:#7f1d1d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    text[("canonical text<br/>10 filings")]:::store
+    find["scripts/find_quote.py<br/>search the text, not the retriever"]:::evalc
+    write["write question + reference answer<br/>+ exact quote(s)"]:::evalc
+    mix["type mix<br/>22 factual · 13 table · 8 exact-token ·<br/>9 multi-hop · 9 unanswerable"]:::io
+    neg["unanswerable: check absence<br/>by full-text search"]:::evalc
+    audit["label audit: answer figures elsewhere<br/>in the filing → 8 questions gain alternatives"]:::evalc
+    golden["golden_v1.jsonl<br/>sha256 recorded in every result"]:::io
+    bias["bias risks: same author as the system ·<br/>questions phrased from the text's own words"]:::bad
+    legend["Legend<br/>orange = eval step · grey = storage · white = artifact · red dashed = known risk"]:::legend
+
+    text --> find --> write --> mix --> golden
+    text --> neg --> mix
+    golden --> audit
+    text -.-> audit
+    audit -->|alternatives added| golden
+    write -.- bias
