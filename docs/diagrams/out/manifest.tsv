@@ -8,3 +8,6 @@ name	source	sha256	svg_bytes	png_bytes
 04-corpus-composition	docs/diagrams/src/04-corpus-composition.mmd	441650213f87dc14ddc763182d4fd2af3928bd0dc8497b57a8c04f55828bfeac	24398	216285
 04-document-anatomy	docs/diagrams/src/04-document-anatomy.mmd	a866937ecbecb252f74bacb18832d25bf477c00e9dbbfc5871f54ab8748f0b14	28923	275712
 04-where-it-sits	docs/diagrams/build/04-where-it-sits.mmd	a66ae903ad4efc5a11edcb134afebc622ca3ff1538654ad4e7188c085f5308f1	48781	265170
+05-page-to-blocks	docs/diagrams/src/05-page-to-blocks.mmd	8313607c84f4d6d59131be86cc100514acbf015cc837ed377dcdfc60433aad83	23779	317303
+05-parsing-pipeline	docs/diagrams/src/05-parsing-pipeline.mmd	3896bf72579f36da19931fe5f4b13826c54b2590e5b2f4bc6ad2f90e5c4f26b3	26492	202924
+05-where-it-sits	docs/diagrams/build/05-where-it-sits.mmd	1ba1339e2ce3595bdd731860d3febc65be7f4a8d18170bcf2b4d41a9efea0b56	48781	265166

@@ -1,0 +1,28 @@
+%% Owner: docs/05-pdf-parsing.md — what happens to one PDF in app/ingest/pdf_parser.py.
+flowchart TB
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    pdf["PDF file"]:::io
+    mu["PyMuPDF<br/>get_text dict"]:::ingest
+    para["Split into paragraphs<br/>blank line · bold change · ITEM"]:::ingest
+    norm["Normalise<br/>NFKC, one space"]:::ingest
+    edge["Drop running<br/>headers / footers"]:::ingest
+    tab["pdfplumber tables<br/>ruled tables, every page"]:::ingest
+    order["Reading order<br/>two-column aware"]:::ingest
+    head["Classify headings<br/>PART · ITEM · bold"]:::ingest
+    asm["Assemble one text<br/>+ char offsets"]:::ingest
+    cache[("data/parsed/KEY.json")]:::store
+    legend["Legend<br/>blue = ingestion · grey = storage · white = input"]:::legend
+
+    pdf -->|bytes| mu
+    mu -->|blocks, lines, spans, bbox, font| para
+    para -->|paragraph blocks| norm
+    norm -->|clean text| edge
+    edge -->|kept blocks| tab
+    tab -->|text blocks + table blocks| order
+    order -->|ordered blocks| head
+    head -->|blocks + section path| asm
+    asm -->|ParsedDocument| cache

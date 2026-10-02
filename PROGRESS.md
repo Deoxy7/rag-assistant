@@ -25,3 +25,13 @@ Numbers:  2,224 pages; 6,128,300 chars; 1,415,012 o200k_base tokens; 606 table p
 Decisions: corpus = FinanceBench-mirrored 10-Ks (licence CC BY-NC 4.0 per HF card; GitHub repo has no licence file). Pages after the signature page are labelled, never dropped (Corning's financial statements live there). Text must be NFKC-normalised at parse time (non-breaking spaces).
 Open:     Phase 2 must strip running headers ("Table of Contents" on up to 144/215 pages) and normalise whitespace before computing offsets.
 Next:     Phase 2 — Parsing.
+
+## Phase 2 — PDF parsing   [DONE 2026-10-02]
+
+Built:    `app/ingest/models.py` (Page, Block, ParsedDocument; offset invariant; `page_of` binary search); `app/ingest/pdf_parser.py` (PyMuPDF line-level paragraphs, NFKC, running header/footer + page-number removal, pdfplumber tables, two-column ordering, PART/ITEM/bold headings, section paths, page regions, bboxes); `app/ingest/parse_corpus.py` (`make parse`, cache keyed by PDF sha256 + PARSER_VERSION 2.3); `tests/test_pdf_parser.py` (9 synthetic rule tests + 7 on AMD 2021, Corning 2021, Verizon 2022).
+Docs:     `docs/05-pdf-parsing.md`; cards #4, #5; 8 interview questions (P2-01…P2-08); stories S-03, S-04.
+Diagrams: `05-parsing-pipeline`, `05-page-to-blocks`, generated `05-where-it-sits`.
+Numbers:  30,327 blocks, 2,655 headings, 1,073 tables; 1,334 header/footer + 1,275 page-number blocks removed; 0 two-column pages; offsets exact for 30,327/30,327 blocks; full parse 3 min 4 s; pdfplumber pre-filter measured at ~2% and removed.
+Decisions: offsets into one NFKC-normalised canonical text per document, blocks joined by "\n\n"; pages after signatures tagged `after_signatures`, never dropped; level-3 headings exclude digits/parentheses.
+Open:     table column headers above the ruled area fall outside table blocks (measure via table questions in Phase 11); unruled tables not detected; two-column logic only synthetically tested.
+Next:     Phase 3 — Chunking.

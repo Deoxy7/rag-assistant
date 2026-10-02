@@ -34,3 +34,29 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** "Near-duplicates should just be deduplicated." They differ in exactly the facts users ask about.
 
 **Bridge.** "Filtering by year inside approximate vector search has its own trap — the recall cliff."
+
+---
+
+### Q: Why does table parsing matter for retrieval, and what's the weakness in yours?
+**ID:** P2-07 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Most financial questions are answered by a table cell. Extracted naively, a table becomes a stream of numbers with no row structure, so neither keyword nor vector search can tie '16,434' to 'Net revenue'. My parser turns ruled tables into rows like `Net revenue | $ 16,434 | $ 9,763 | $ 6,731`. The weakness: column headers above the ruled area come out as separate blocks, so a chunk can contain the row without knowing which column is 2021."
+
+**2-minute answer.** Numbers: 1,073 tables across 2,224 pages. Explain why rows help both retrievers: keyword search finds "net revenue" and the figure in one block; an embedding of a row is about one line item, not a soup of numbers. Then quantify the weakness honestly: unknown until Phase 11's table-reading questions; mitigations ready — attach header blocks directly above a table, or prepend the column header to each row.
+
+**If they push — level 2.** *"How would you embed a big table?"* Split by rows, repeating the header and the table title on each chunk, so each piece is self-describing. That's a Phase 3 option.
+
+**If they push — level 3.** *"Unruled tables?"* pdfplumber's line strategy misses them; they come out as aligned text blocks. The text strategy (clustering by alignment) could find them at the cost of false positives on ordinary indented text.
+
+**If they push — level 4.** *"Would you rather store tables in SQL?"* For numeric questions across many filings, yes — extracting line items into a table and answering with SQL beats text retrieval. That's a different system (text-to-SQL) and out of scope here.
+
+**Whiteboard it.**
+```text
+ naive:  "Net revenue $ 16,434 $ 9,763 $ 6,731 Cost of sales 8,505 …"
+ ours:   Net revenue | $ 16,434 | $ 9,763 | $ 6,731   (row per line)
+ gap:    "Year Ended … 2021 | 2020 | 2019" sits outside the table block
+```
+
+**Trap.** "Embeddings handle tables fine." Embedding a number soup loses which number belongs to which label.
+
+**Bridge.** "Which leads to how chunk boundaries interact with tables — the chunking ablation."

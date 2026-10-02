@@ -128,3 +128,65 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Disabling verification "just for the download".
 
 **Bridge.** "Pinning `certifi` in requirements.txt keeps even the CA bundle reproducible."
+
+---
+
+### Q: Running headers were removed everywhere except your largest document. Debug it.
+**ID:** P2-04 · **Round:** project deep-dive · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "The rule was 'a line in the top or bottom band on at least 30% of pages'. PepsiCo's 'Table of Contents' header is on its 129 body pages, but the PDF has 503 pages because of exhibits — and 30% of 503 is 150. The threshold scaled with something that wasn't the population the header lives in. The fix was an absolute floor of 5 pages plus a 10% share."
+
+**2-minute answer — the tree.**
+1. **Is the line in the band?** Print the block's bbox: y1 = 17 on an 842-point page, well inside the top 8% — so detection, not geometry.
+2. **What's its count vs the threshold?** 129 pages vs threshold 150 — found it.
+3. **Why does only PepsiCo fail?** It's the only document where most pages (374–420) aren't body pages.
+4. **Fix and side effects:** lowering the share risks removing real repeated content; the 5-page floor plus band restriction keeps that unlikely. Re-run all ten and compare removal counts (PepsiCo 0 → 129).
+5. **Lock it in:** the synthetic test asserts exact removal counts.
+
+**If they push — level 2.** *"Couldn't you count only body pages?"* Yes, if the signature page were reliable for every document — it isn't a clean boundary (Corning's financials are after it), so I kept a rule that doesn't depend on it.
+
+**If they push — level 3.** *"What would a false positive look like?"* A genuine repeated line in the band, like a recurring table caption at the very top. It would vanish from the text; I'd see it as a drop in that phrase's frequency between raw and parsed text.
+
+**If they push — level 4.** *"How do you catch this class of bug generally?"* Per-document summary stats after every parser change — a document whose removal count is zero while siblings remove hundreds is an outlier worth reading.
+
+**Whiteboard it.**
+```text
+ pages 503 (129 body + 374 exhibits)   header on 129
+ old: 129 ≥ 0.30×503 = 150?  no  → kept ✗
+ new: 129 ≥ max(5, 0.10×503 = 50)? yes → removed ✓
+```
+
+**Trap.** Tuning the threshold until the one document works, without asking why it differed.
+
+**Bridge.** "Per-document stats are also how I'll report eval metrics, so one company can't hide behind the average."
+
+---
+
+### Q: One company's section headings vanished after parsing. Walk me through it.
+**ID:** P2-05 · **Round:** project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Corning 2021 had 18 headings for 125 pages while its 2022 filing had over 200. Printing the raw PyMuPDF blocks showed whole sections — running header, two Item headings and body — merged into one block, separated only by lines containing a non-breaking space. Headings were inside long blocks, so 'short and bold' never matched. Splitting blocks at blank lines and bold changes fixed it: 1,429 blocks and 169 headings."
+
+**2-minute answer — the tree.**
+1. **Compare with a sibling.** Same company, next year: 213 headings. Same generator? No — Corning 2021 used "EDGAR PDF Generator", 2022 "EDGRpdf Service".
+2. **Inspect raw blocks on one page.** p.21: five blocks; the first starts "Table of Contents Item 1B. Unresolved Staff Comments None. Item 2. Properties…".
+3. **Inspect lines in that block.** Bold lines for the Item headings, separated by lines whose only character is `\xa0`.
+4. **Fix at the right level.** Split at blank lines (lines with no visible spans), at bold/normal changes, and at lines starting PART/ITEM.
+5. **Verify across all ten:** no document lost headings; Corning's running header now sits in its own block and gets removed too.
+
+**If they push — level 2.** *"Why did the running header survive before?"* It was glued to the Item heading inside one block, whose box extended far below the header band.
+
+**If they push — level 3.** *"Could splitting on bold changes over-split?"* Yes — a paragraph with one bold phrase in the middle becomes three blocks. Chunking re-joins small blocks, so the cost is low; I accepted it.
+
+**If they push — level 4.** *"How would you detect this automatically next time?"* An alert on headings-per-page and median block length per document relative to the corpus — Corning 2021's median block was far longer than its peers.
+
+**Whiteboard it.**
+```text
+ block: "Table of Contents" | "\xa0" | "Item 1B…"(bold) | "\xa0" | "None." | "\xa0" | "Item 2…"(bold)
+ split at blank lines + bold changes → 5 paragraphs, 2 headings
+ Corning 2021: 509 blocks / 18 headings → 1,429 / 169
+```
+
+**Trap.** Fixing heading detection thresholds instead of looking at the raw structure.
+
+**Bridge.** "Section paths matter because the structure-aware chunker splits on them."

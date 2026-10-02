@@ -28,6 +28,8 @@
 | Corpus pages / table pages / scanned | 2,224 / 606 / 0 | pages | `make inspect` |
 | Corpus size in LLM tokens | 1,415,012 | `o200k_base` tokens | `make inspect` |
 | FinanceBench questions on our filings | 28 of 150 | questions | FinanceBench open-source set |
+| Parsed blocks / tables / headings | 30,327 / 1,073 / 2,655 | blocks | `make parse` |
+| Parse time, whole corpus | 3 min 4 s | — | `make parse` (no cache) |
 | Retrieval metrics, latencies | not yet measured | | Phases 11, 13 |
 
 ## Flashcards (Phase 0)
@@ -50,6 +52,9 @@
 | What's odd about PepsiCo's PDFs? | ~400 of ~500 pages are exhibits after the signature page. |
 | What's odd about Corning's? | Financial statements come *after* the signatures; 2021 is full of non-breaking spaces (2.64 chars/token). |
 | Why two years per company? | Hard negatives: near-identical text, different facts — tests wrong-year retrieval. |
+| The offset invariant? | `doc.text[b.char_start:b.char_end] == b.text` for every block (30,327/30,327). |
+| Why normalise before offsets? | NFKC can change length; offsets must index the stored text. |
+| Parser's known weakness? | Table column headers above the ruled area end up outside the table block. |
 
 ## Top questions so far
 

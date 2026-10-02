@@ -4,3 +4,4 @@
 01	vec,fts,prompt,llm
 03	pg
 04	pdf
+05	parse

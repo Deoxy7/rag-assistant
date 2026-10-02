@@ -129,3 +129,29 @@
 **Trap.** "Just commit the PDFs." Licence, repo bloat, and no stronger guarantee than hashes give.
 
 **Bridge.** "Carrying the source hash into the database is also how incremental re-ingestion works."
+
+---
+
+### Q: Parsing takes three minutes. How do you avoid redoing it — and how would you parse a million PDFs?
+**ID:** P2-06 · **Round:** system design · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "Cache each document's parse as JSON keyed by two things: the PDF's sha256 and the parser version. If either changes, it's rebuilt; otherwise it's reused instantly. For a million PDFs, parsing is embarrassingly parallel — each document is independent — so it becomes a queue of document ids consumed by many workers, with results in object storage under the same key."
+
+**2-minute answer.** Explain why both parts of the key matter: the content hash catches a changed file; the parser version catches changed rules (it went 2.0 → 2.3 in this phase, each bump forcing a full re-parse). Numbers: about 0.08 s per page here (2,224 pages in 184 s, single process). A million 200-page PDFs at that rate is ~16.5 million CPU-seconds — about 190 CPU-days — so ~200 cores finish in about a day. Failures: some PDFs will crash the parser or take minutes; give each job a timeout and a dead-letter queue.
+
+**If they push — level 2.** *"How do you roll out a parser change at that scale?"* Version the output path by parser version; parse into the new version in the background; evaluate on a sample (block counts, golden-set retrieval) before switching readers over.
+
+**If they push — level 3.** *"What's the bottleneck?"* CPU in layout analysis (pdfplumber is the slow part), then memory for giant PDFs. Python's GIL means one process per core rather than threads.
+
+**If they push — level 4.** *"Exactly-once processing?"* Not needed: parsing is deterministic and keyed by content hash, so re-processing a document produces the same output — idempotent writes make at-least-once delivery safe.
+
+**Whiteboard it.**
+```text
+ key = (pdf_sha256, PARSER_VERSION) → data/parsed/KEY.json
+ scale: queue(doc ids) → N workers (1 proc/core) → object store[key]
+ 0.083 s/page × 200 pages × 1M docs ≈ 190 CPU-days
+```
+
+**Trap.** Caching by filename. A changed file with the same name silently serves stale text.
+
+**Bridge.** "The same idempotent, content-keyed idea drives incremental re-ingestion in Phase 4."

@@ -13,8 +13,8 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 1 | RAG vs fine-tuning vs long-context stuffing vs plain prompting | 0 | ✅ [01-what-is-rag](../01-what-is-rag.md) |
 | 2 | A structured corpus (10-K / protocols / policies) vs a toy corpus | 1 | ✅ [04-corpus](../04-corpus.md) |
 | 3 | Abstention policy: answer with weak evidence vs refuse | 9 | not yet written |
-| 4 | PyMuPDF vs pdfplumber vs unstructured.io vs OCR vs LLM-based parsing | 2 | not yet written |
-| 5 | Store page_number + char_start + char_end vs text only | 2 | not yet written |
+| 4 | PyMuPDF vs pdfplumber vs unstructured.io vs OCR vs LLM-based parsing | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
+| 5 | Store page_number + char_start + char_end vs text only | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
 | 6 | Batch vs incremental ingest; updated and deleted documents | 4 | not yet written |
 | 7 | Deduplication strategy; near-duplicate boilerplate | 4 | not yet written |
 | 8 | Fixed-size vs recursive-character vs structure-aware vs semantic chunking | 3 | not yet written |
@@ -132,6 +132,81 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q: Why PDFs and not EDGAR's HTML? → A: The plan is a PDF pipeline because most real enterprise documents arrive as PDFs, where layout, page numbers and offsets are the hard part. HTML filings would be easier to parse — and less instructive.
 
 **The trap.** Picking the corpus last, or calling a clean toy corpus "realistic". Interviewers ask "what was hard about your data?" — an answer without specifics (like the exhibit share or the non-breaking spaces) suggests the data was never looked at.
+
+### Card 4 — from [05-pdf-parsing](../05-pdf-parsing.md)
+
+#### Decision: PyMuPDF for text and layout + pdfplumber for ruled tables  (rejected: pdfplumber alone, unstructured.io, OCR with Tesseract, LLM/vision-model parsing)
+
+**One-line defence.** Every page in this corpus is born-digital (0 scanned pages), so the job is reconstructing layout from real text instructions — PyMuPDF does that fast with fonts and bounding boxes, and pdfplumber's line-based table finder gives clean rows; OCR or a vision model would add cost and error for no gain.
+
+**What problem is this even solving?** Something has to turn drawing instructions into ordered, structured text with positions. Remove it and there is no text to chunk; pick badly and every downstream metric inherits the errors (missing tables, noise, wrong order).
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ PyMuPDF + pdfplumber | PyMuPDF (MuPDF engine) for blocks/lines/spans/fonts; pdfplumber (pdfminer) for tables from drawn lines | Fast (PyMuPDF text for 118 pages in ~1 s); fonts and bold flags for heading detection; exact bboxes; pdfplumber gives row/cell structure | Two libraries; tables without drawn lines are missed; header rows above the ruled area are lost; heuristics for headings and order | Born-digital PDFs where you need positions and control |
+| pdfplumber alone | pdfminer layout analysis for text and tables | One library; good tables | Slower (12.5 s vs 7.1 s just for table finding on AMD 2021); weaker font/flags API for headings | Table-heavy, small corpora |
+| unstructured.io | A library that partitions documents into typed elements (Title, NarrativeText, Table) | Many formats; element types out of the box | Its own heuristics and models to trust; heavier dependencies; offsets back into *our* canonical text not guaranteed | Heterogeneous inputs (Word, HTML, email, PDF) |
+| OCR (Tesseract) | Render each page to an image, recognise characters | Works on scans | Slow; introduces recognition errors into text that is already perfect; loses font info | Scanned pages — none here |
+| LLM / vision-model parsing | Send page images to a multimodal model, ask for structured output | Understands complex layouts and table headers | Cost per page × 2,224 pages; non-deterministic; can hallucinate cells; offsets meaningless | Small numbers of messy, high-value documents |
+
+**What would actually change if we swapped it.** To unstructured.io: `app/ingest/pdf_parser.py` would shrink to a mapping from its element types to our `Block`, but `char_start`/`char_end` would have to be recomputed by locating each element's text in our own assembled text — and the tests in `tests/test_pdf_parser.py` would need re-deriving. To a vision model: per-page API cost on 2,224 pages for every re-parse, minutes to hours of latency, and a new failure mode — invented table cells — that no offset check can catch. About a day of rework for unstructured; a different cost profile entirely for vision.
+
+**The decision rule.** Born-digital PDFs: extract text with a layout-aware library and keep coordinates. Scanned PDFs: OCR, keeping confidence scores. Layout too complex for heuristics (multi-level table headers, forms) and few documents: consider a vision model, with validation. The crossover is when heuristic failures on your measured sample cost more than the per-page price of a model.
+
+**Where our choice breaks.** (1) Unruled tables — aligned columns with no drawn lines — are missed by pdfplumber's default strategy and come out as loose text. (2) Column headers above a table's ruled area are separated from it (AMD p.51). (3) Truly multi-column layouts would rely on a gutter heuristic tested only synthetically. Migration path: pdfplumber's text-alignment strategy for unruled tables, a rule attaching the text blocks directly above a table as its header row, or a vision model for table pages only.
+
+**The number.** 2,224 pages parsed in 3 min 4 s; 1,073 tables; 30,327 blocks; offsets exact for every block in all 10 documents (`test_real_offsets_are_exact_and_pages_consistent`); 0 scanned pages. Table-detection timing: PyMuPDF 7.1 s vs pdfplumber 12.5 s on AMD 2021, agreeing on 116/118 pages.
+
+**Interview script (3 sentences).** "All 2,224 pages are born-digital, so I didn't need OCR: PyMuPDF gives me text with fonts and bounding boxes, and pdfplumber turns ruled tables into rows. On top of that I wrote tested rules for paragraph splitting, header/footer removal, reading order and headings, and every block carries exact character offsets into one canonical text. The known weak spot is table header rows that sit above the ruled area — they end up as loose text."
+
+**Follow-ups they will ask:**
+- Q: Why not just use one library? → A: PyMuPDF's span-level font flags made heading detection possible (headings here are bold at body size), and pdfplumber's tables came out with cleaner cells. Both share PDF coordinates (origin top-left, points), so combining them was just a box-containment test.
+- Q: How do you know your heading detection works? → A: On AMD 2021 the ITEM headings come out exactly in order 1, 1A, 1B, 2 … 16 (a test asserts the full list), and the section path of a block on the income-statement page is `PART II › ITEM 8 › Consolidated Statements of Operations`. Level-3 headings have some noise; I measured the first fix (excluding captions with digits/parentheses), not perfection.
+- Q: What about scanned documents in a real system? → A: Detect them as in Phase 1 (little text, big image), route those pages to OCR, store OCR confidence, and keep offsets into the OCR text. None exist here, so I didn't build it.
+- Q: Why not send pages to a vision model — they read tables well? → A: Cost and trust: 2,224 pages per full re-parse, non-deterministic output, and a model can invent a cell value — the one error a financial QA system must never have. I'd consider it for the few hundred table pages if eval showed table questions failing because of parsing.
+- Q (the hard one): Your tables lose their column headers. How bad is that? → A (honest): For a question like "AMD's 2021 net revenue", the table block says `Net revenue | $ 16,434 | $ 9,763 | $ 6,731` and the year labels are in separate blocks nearby. If both land in the same chunk the LLM can infer the order; if a chunk boundary separates them, it can't. I haven't measured how often that happens yet — table-reading golden questions in Phase 11 will show it.
+- Q: What does TEXT_DEHYPHENATE do? → A: It rejoins words hyphenated across a line break ("manage-" / "ment" → "management"), which matters for keyword search. The risk is joining a real hyphenated word that happened to break at its hyphen; I accepted that.
+
+**The trap.** "PDF parsing is a solved problem — call `get_text()`." Interviewers ask what was hard about the data; an answer with no specifics about headers, tables or reading order suggests the parsing was never inspected.
+
+### Card 5 — from [05-pdf-parsing](../05-pdf-parsing.md)
+
+#### Decision: Store page_number, char_start, char_end (and a bbox) for every block — offsets into one canonical text  (rejected: text only, page number only, offsets into raw extracted text, offsets per page)
+
+**One-line defence.** A citation is only checkable if it points at exact characters; capturing offsets at parse time costs two integers per block, while adding them later would mean re-parsing and re-ingesting the whole corpus.
+
+**What problem is this even solving?** The answer has to say *where* its evidence is, precisely enough to highlight the sentence (Phase 15) and to score retrieval against evidence spans (Phase 11). Text-only storage can find chunks but can't place them.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Offsets into one canonical normalised text per document (+ page table + bbox) | Every block and chunk is a `[char_start, char_end)` range of `doc.text`; pages map to ranges | Exact, testable invariant; chunks spanning pages work (`page_of`); evidence spans comparable across chunking configs | Canonical text must never change without re-parsing; normalisation choices are baked in | Citations, highlighting, span-based eval |
+| Text only | Store chunk text, nothing else | Simplest | No page numbers, no highlighting, can't compare chunks to evidence spans | Prototypes |
+| Page number only | Chunk text + page | Coarse citations | Can't highlight; a chunk crossing pages has no single page | Page-level citation is enough |
+| Offsets into raw (un-normalised) text | Offsets computed before cleaning | Matches the PDF's raw extraction | Raw text contains headers and non-breaking spaces; any cleaning step invalidates offsets | When you never clean text |
+| Offsets relative to each page | `(page, start, end)` within that page's text | Simple per page | Chunks spanning two pages need two ranges; cross-page comparisons awkward | Single-page units only |
+
+**What would actually change if we swapped it.** Text only: `Block`/chunk models lose four fields; Phase 11's relevance rule (evidence-span overlap) becomes impossible, so labels would revert to chunk ids — which break across the chunking ablation (agreed change A); Phase 15's highlight feature disappears. Adding offsets back later: re-parse (3 minutes) plus re-chunk and re-embed every configuration (Phase 4 numbers), and every golden label re-derived.
+
+**The decision rule.** If answers must be verifiable or evaluation compares retrieved text to labelled evidence, capture character-level positions at the first point text exists, against one canonical text, and test the invariant. If page-level citation is enough and labels are per document, store pages only.
+
+**Where our choice breaks.** Any change to normalisation or block order changes the canonical text and silently invalidates stored offsets and golden spans — which is why the parser version is part of the cache key and Phase 4 will store it with each document. Highlighting on the original PDF also needs the bbox, which is per block, not per character: a highlight can only be as precise as a block unless character boxes are stored (they are not).
+
+**The number.** Invariant `doc.text[b.char_start:b.char_end] == b.text` holds for all 30,327 blocks in the 10 parsed documents (checked in the spot-check run and by `test_real_offsets_are_exact_and_pages_consistent` on three of them). Storage cost: two integers per block plus a four-float bbox.
+
+**Interview script (3 sentences).** "Every block — and later every chunk — stores its page and its exact character range in one canonical, normalised text per document, plus its bounding box. A test checks that slicing the text with those offsets returns exactly the block, for every block. It costs a few integers per row and it's what makes citations checkable and lets my eval compare retrieved chunks with labelled evidence spans across different chunking strategies."
+
+**Follow-ups they will ask:**
+- Q: Why normalise before computing offsets? → A: NFKC can change string length, so normalising afterwards would shift every offset after the first changed character. Normalise first, then offsets are into the text you actually store and search.
+- Q: How do you handle a chunk that spans two pages? → A: Its offsets are a single range of the canonical text; `page_of(char_start)` and `page_of(char_end - 1)` give the first and last page. That's why there's `page_end` in the agreed schema.
+- Q: Can you highlight on the original PDF from character offsets? → A: Only to block precision: each block has a bbox, so I can highlight the paragraph or table containing the cited span. Word-level highlighting would need per-character boxes from PyMuPDF, which I chose not to store.
+- Q: What if you change the parser? → A: The parser version is in the cache key, so everything is re-parsed; golden evidence spans are derived from text quotes located in the new canonical text, so they're rebuilt mechanically rather than hand-edited.
+- Q (the hard one): Your canonical text isn't the PDF's text — it has headers removed and spaces normalised. Isn't the citation then "of" something the user never saw? → A (honest): Yes, the cited string is the normalised one. The displayed citation shows our text plus the page and highlighted box on the real PDF, so the user can check it against the original. A character-exact mapping back to raw PDF text would need a second offset table; I judged the block box sufficient.
+
+**The trap.** "Store the page number, that's enough for citations." It's not enough to evaluate retrieval across chunking strategies or to highlight evidence — and retrofitting offsets is the expensive part.
 
 ### Card 15 — from [03-environment-and-infra](../03-environment-and-infra.md)
 

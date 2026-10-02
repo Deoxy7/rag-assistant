@@ -1,6 +1,6 @@
 # 02 — Question map
 
-**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **22 / 150+** questions.
+**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **30 / 150+** questions.
 
 Every question in `docs/interview/` appears here (a test in `tests/test_docs_integrity.py` fails if one is missing). **Confidence** is yours to fill: 1 = can't answer, 3 = can answer level 1–2, 5 = survives level 4. Re-rate after each drill.
 
@@ -30,6 +30,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P1-06 | CERTIFICATE_VERIFY_FAILED on macOS — debug it | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
 | P1-07 | What is FinanceBench and why use it? | [07](07-evaluation.md) | eval | ML | 3 | | |
 | P1-08 | Detect scanned pages programmatically; cost? | [11](11-cs-core-touchpoints.md) | algorithms | viva, backend | 2 | | |
+| P2-01 | How does a PDF store text? Why is extraction hard? | [03](03-fundamentals.md) | parsing | viva, backend | 2 | | |
+| P2-02 | Offset → page: algorithm and complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA, viva | 2 | | |
+| P2-03 | Unicode normalisation; why before offsets? | [11](11-cs-core-touchpoints.md) | text | viva, backend | 3 | | |
+| P2-04 | Headers removed everywhere but the largest doc — debug | [08](08-debugging-scenarios.md) | debugging | deep-dive, backend | 3 | | |
+| P2-05 | One company's headings vanished — debug | [08](08-debugging-scenarios.md) | debugging | deep-dive | 3 | | |
+| P2-06 | Avoid re-parsing; parse a million PDFs | [06](06-system-design.md) | scale | design, backend | 3 | | |
+| P2-07 | Why tables matter for retrieval; your weakness | [04](04-retrieval.md) | retrieval | ML, deep-dive | 3 | | |
+| P2-08 | How do you know the parser is good enough? | [07](07-evaluation.md) | eval | ML, deep-dive | 3 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

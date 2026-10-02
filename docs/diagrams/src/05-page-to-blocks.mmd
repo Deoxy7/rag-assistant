@@ -1,0 +1,24 @@
+%% Owner: docs/05-pdf-parsing.md — AMD 2021 10-K page 51, real parser output.
+flowchart TD
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef gone fill:#ffffff,stroke:#dc2626,stroke-dasharray:4 3,color:#7f1d1d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    page["AMD 2021 10-K · page 51<br/>612 × 792 pt · 15 raw PyMuPDF blocks"]:::io
+    h2["#515 heading, level 2<br/>ITEM 8. FINANCIAL STATEMENTS…<br/>chars 212,902-212,953"]:::ingest
+    co["#516 text<br/>Advanced Micro Devices, Inc."]:::ingest
+    h3["#517 heading, level 3<br/>Consolidated Statements of Operations"]:::ingest
+    yrs["#518-522 five small text blocks<br/>column headers: Year Ended… 2021 2020 2019"]:::ingest
+    tbl["#523 table, 23 rows<br/>Net revenue | $ 16,434 | $ 9,763 | $ 6,731<br/>chars 213,134-213,898"]:::ingest
+    note["#524 text<br/>See accompanying notes…"]:::ingest
+    pg["page number '51'"]:::gone
+    legend["Legend<br/>blue = kept block · red dashed = removed"]:::legend
+
+    page -->|first block in reading order| h2
+    h2 -->|next| co
+    co -->|next| h3
+    h3 -->|next, outside the table box| yrs
+    yrs -->|next, pdfplumber bbox| tbl
+    tbl -->|next| note
+    page -.->|dropped: bare number ends page| pg

@@ -128,3 +128,34 @@ urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certifica
 - **Symptom:** Corning 2021 showed 65 of 125 pages "after signatures" — implausible for exhibits alone.
 - **Cause:** Corning places its financial statements after the signature page (income statement p.65, signatures p.60).
 - **Fix:** the inspection reports `pages_after_signatures` and whether the income statement comes before or after; no page is ever dropped by position. Test: `test_corning_puts_financial_statements_after_the_signatures`.
+
+## Phase 2
+
+### T-014 · PepsiCo running header not removed — hit
+
+- **Symptom:** `make parse` reported 0 header/footer blocks removed for both PepsiCo filings, though every body page starts with "Table of Contents".
+- **Cause:** threshold "repeats on ≥30% of pages". The header is on 129 body pages; the PDF has 503 pages including exhibits, and 30% of 503 = 150.
+- **Fix:** `max(5 pages, 10% of pages)`. PepsiCo now removes 129 per filing.
+
+### T-015 · Verizon footers survive on 10 pages — hit
+
+```text
+FAILED tests/test_pdf_parser.py::test_verizon_running_header_removed - assert not True
+```
+
+- **Cause:** the footer is "Verizon 2022 Annual Report on Form 10-K 6" on even pages but "5 Verizon 2022 Annual Report on Form 10-K" on odd ones, and on 10 pages PyMuPDF merged the leading number into the block, so its fingerprint ("# Verizon # …") differed and fell below the threshold.
+- **Fix:** `edge_key` also strips a leading or trailing `#`. Verizon 2022 removals 160 → 171.
+
+### T-016 · Corning 2021 has 18 headings in 125 pages — hit
+
+- **Cause:** PyMuPDF merged whole sections (running header, Item headings, body) into one block; the paragraph breaks are lines containing only a non-breaking space.
+- **Fix:** split blocks at line level on blank lines, bold/normal changes and PART/ITEM lines. Corning 2021: 509 blocks / 18 headings → 1,429 / 169. Test: `test_blank_lines_split_a_merged_block`.
+
+### T-017 · Table captions classified as headings — hit
+
+- **Symptom:** section paths like `… › (In millions, except per share amounts)`.
+- **Fix:** level-3 headings may not contain digits or start with "(". AMD 2021 headings 256 → 218.
+
+### Removed after measuring: pdfplumber page pre-filter
+
+Not an error, but logged because it was a measured reversal: skipping pdfplumber on pages without drawn lines saved ~2% (AMD 14.9 s vs 15.2 s) for identical output, because 118/118 AMD pages and 213/215 Boeing pages draw something. The rule was deleted.

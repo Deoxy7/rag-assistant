@@ -79,3 +79,55 @@
 **Trap.** "Check whether the page has an image." Most 10-K pages with images are logos on text pages.
 
 **Bridge.** "Zero scanned pages is why the parser choice in Phase 2 doesn't need OCR."
+
+---
+
+### Q: Given a character offset into a document, how do you find its page? What's the complexity?
+**ID:** P2-02 · **Round:** DSA · viva  **Difficulty:** 2/5
+
+**30-second answer.** "Each page stores the offset where its text starts, in increasing order. Finding the page for an offset is 'the last page whose start is ≤ the offset' — a binary search, O(log P) for P pages, instead of a linear scan. `ParsedDocument.page_of` does exactly that, and a test checks it agrees with every block's stored page."
+
+**2-minute answer.** Explain the loop: `lo, hi = 0, P-1`; `mid = (lo + hi + 1) // 2` (round *up*, otherwise `lo = mid` can loop forever when `hi = lo + 1`); if `start[mid] <= x`, `lo = mid`, else `hi = mid - 1`. Edge case: empty pages have `char_start == char_end` equal to the next page's start, and "last page with start ≤ x" correctly skips to the non-empty one. Python's `bisect.bisect_right(starts, x) - 1` is the library version.
+
+**If they push — level 2.** *"Why half-open ranges?"* `[start, end)` makes length `end - start`, adjacent ranges touch without overlapping, and an empty range is `start == end`. Closed ranges need ±1 everywhere.
+
+**If they push — level 3.** *"How would you find all chunks overlapping an evidence span?"* Chunks sorted by start: binary-search the first chunk with `end > span_start`, then walk while `start < span_end`. O(log n + matches). Overlap condition for half-open ranges: `a.start < b.end and b.start < a.end`.
+
+**If they push — level 4.** *"And in SQL?"* Postgres range types (`int4range`) with a GiST index support `&&` (overlaps) efficiently; with plain integer columns a B-tree on `(doc_id, char_start)` plus the overlap predicate works at our scale.
+
+**Whiteboard it.**
+```text
+ page starts: [0, 2810, 5622, 5622, 9101]   x = 5700
+ last start ≤ 5700 → index 3 (page 4)   O(log P)
+ overlap([a,b), [c,d))  ⇔  a < d and c < b
+```
+
+**Trap.** Rounding `mid` down in the "last ≤" variant — infinite loop on two elements.
+
+**Bridge.** "The overlap test is the core of how the eval decides whether a retrieved chunk is relevant."
+
+---
+
+### Q: What is Unicode normalisation, and why do you normalise before computing offsets?
+**ID:** P2-03 · **Round:** viva · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "The same visible text can be encoded differently — a non-breaking space versus a space, the 'ﬁ' ligature versus 'f' + 'i'. NFKC normalisation rewrites those compatibility characters into plain forms. It can change string length, so if offsets were computed first and text normalised later, every offset after the first change would point at the wrong characters. So each block is normalised first; offsets index the normalised text."
+
+**2-minute answer.** Distinguish the forms: NFC/NFD compose/decompose accents (é as one code point or e + combining accent); NFKC/NFKD additionally fold *compatibility* variants (full-width digits, ligatures, non-breaking space). For search, NFKC is right: users type plain characters. Corpus evidence: Corning 2021's 65,886 non-breaking spaces gone after normalisation, verified by a test that asserts no `\xa0` in any parsed document.
+
+**If they push — level 2.** *"Any downside to NFKC?"* It's lossy: superscripts become plain digits ("10²" → "102"), which could change a figure's meaning. I haven't seen it in this corpus; it's on the honest-answers list.
+
+**If they push — level 3.** *"Does Postgres normalise for full-text search?"* I tested that its English parser already treats U+00A0 as a separator, so FTS wasn't affected — exact matching and LLM token counts were.
+
+**If they push — level 4.** *"How would you keep offsets into the original PDF text too?"* Store a mapping from normalised positions to raw positions while normalising (an array of raw offsets per output character). I chose block bounding boxes instead, which is enough for highlighting.
+
+**Whiteboard it.**
+```text
+ raw:   "Table\xa0of\xa0Contents  ﬁnance"
+ NFKC + collapse → "Table of Contents finance"
+ order: normalise → assemble → offsets   (never the reverse)
+```
+
+**Trap.** "Normalisation is cosmetic." It changes lengths, which changes every offset.
+
+**Bridge.** "That ordering rule is the reason the parser version is part of the cache key."

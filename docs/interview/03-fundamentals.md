@@ -105,3 +105,28 @@
 **Trap.** "A token is about four characters." It's a property of the tokenizer *and the text*; this corpus shows a 1.7× swing.
 
 **Bridge.** "That's why chunk sizes are measured in the embedding model's own tokens, not characters."
+
+---
+
+### Q: How does a PDF actually store text? Why is extracting it hard?
+**ID:** P2-01 · **Round:** viva · backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "A PDF page is a list of drawing instructions — 'use font F1 at 8 points, move to (24, 65), draw these glyphs'. There are no paragraphs, no reading order, often no space characters: a space is just a gap between two positioned strings. Extraction rebuilds words, lines and paragraphs from coordinates, and every heuristic in that rebuild — what's a paragraph, what order to read in, what's a header — can be wrong."
+
+**2-minute answer.** Walk the hierarchy PyMuPDF reconstructs (span → line → block) and the concrete failures in this corpus: Corning 2021 put a whole section in one block separated by lines containing only a non-breaking space; Verizon's footer alternates between "5 Verizon…" and "…10-K 6"; AMD's headings are bold at body size, so font size can't identify them; table column headers sit outside the ruled table. Each became a tested rule.
+
+**If they push — level 2.** *"Where does the Unicode come from if the PDF draws glyphs?"* A font can embed a mapping from glyph codes to Unicode (a ToUnicode table). If it's missing or wrong, extraction yields garbage characters even though the page looks fine — one reason to inspect extractability per page.
+
+**If they push — level 3.** *"Why is reading order ambiguous?"* Content-stream order is whatever the generating program emitted — headers last, columns interleaved. Tools sort by position instead, which works for one column and breaks for two, hence gutter detection.
+
+**If they push — level 4.** *"What about right-to-left or vertical text?"* My rules assume left-to-right horizontal Latin text. I'd need direction-aware ordering (PyMuPDF reports line direction) and haven't tested any of it.
+
+**Whiteboard it.**
+```text
+ content stream:  BT /F1 8 Tf 24 65 Td (ITEM 8.) Tj ... ET
+ extraction:      glyphs → spans → lines → blocks → (our rules) → paragraphs, order, headings
+```
+
+**Trap.** "PDF text is just there — call get_text()." It's reconstructed, and the reconstruction is where the bugs live.
+
+**Bridge.** "Which is why the parser's output is checked by an offset invariant on every block."
