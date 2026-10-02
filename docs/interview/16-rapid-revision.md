@@ -30,6 +30,8 @@
 | FinanceBench questions on our filings | 28 of 150 | questions | FinanceBench open-source set |
 | Parsed blocks / tables / headings | 30,327 / 1,073 / 2,655 | blocks | `make parse` |
 | Parse time, whole corpus | 3 min 4 s | — | `make parse` (no cache) |
+| Max chunk size | 510 | bge-small tokens | 512 − [CLS] − [SEP] |
+| Chunks at 256 tokens (fixed / recursive / structure) | 5,604 / 6,538 / 7,411 | chunks | `python -m app.ingest.chunk_corpus` |
 | Retrieval metrics, latencies | not yet measured | | Phases 11, 13 |
 
 ## Flashcards (Phase 0)
@@ -55,6 +57,9 @@
 | The offset invariant? | `doc.text[b.char_start:b.char_end] == b.text` for every block (30,327/30,327). |
 | Why normalise before offsets? | NFKC can change length; offsets must index the stored text. |
 | Parser's known weakness? | Table column headers above the ruled area end up outside the table block. |
+| Three chunkers? | fixed (token windows), recursive (LangChain, ¶→line→sentence), structure (whole blocks per section). |
+| Why not LangChain's start_index? | It subtracts token overlap from a character position → -1. |
+| Why cut windows between words? | Mid-word slices re-tokenize differently (257 ≠ 256). |
 
 ## Top questions so far
 

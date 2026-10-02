@@ -1,0 +1,26 @@
+%% Owner: docs/06-chunking.md — the same real page (AMD 2021 10-K p.44) chunked three ways at 256 tokens.
+flowchart TB
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef bad fill:#ffffff,stroke:#dc2626,stroke-dasharray:4 3,color:#7f1d1d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    page["AMD 2021 · page 44 · 9 blocks<br/>critical accounting estimates:<br/>revenue allowances, inventory, goodwill"]:::io
+
+    subgraph fixed["fixed · 5 chunks touch the page"]
+        f1["#158 · 256 tok<br/>starts 'data analysis. Our estimates…'"]:::bad
+        f2["#160 · 256 tok<br/>ends '…to determine if it is'"]:::bad
+    end
+    subgraph recursive["recursive · 7 chunks"]
+        r1["#206 · 197 tok<br/>'Inventory Valuation…' to '…in that period.'"]:::ingest
+        r2["#207 · 78 tok<br/>'If in any period we are…'"]:::ingest
+    end
+    subgraph structure["structure · 7 chunks"]
+        s1["#231 · 255 tok<br/>block #420, first window"]:::ingest
+        s2["#232 · 52 tok<br/>block #420, rest + overlap"]:::ingest
+    end
+    legend["Legend<br/>blue = clean boundary · red dashed = cut mid-sentence<br/>white = input page"]:::legend
+
+    page -->|token windows, blind to text| fixed
+    page -->|split at paragraph, line, sentence| recursive
+    page -->|whole blocks, one section| structure

@@ -34,7 +34,7 @@ Python 3.11 (`python3.11`; plain `python3` on this machine is 3.14) · FastAPI +
 - **C. Unanswerable questions** are scored with abstention metrics, not recall@k.
 - **D. LLM response cache** keyed by hash of (model, prompt template version, params) for reproducible, cheap eval re-runs.
 - **E. Colima** instead of Docker Desktop.
-- **F. Chunk sizes in embedding-model tokens**, capped at the model's max input (512 for bge-small).
+- **F. Chunk sizes in embedding-model tokens**, capped at 510 (bge-small's 512 minus [CLS]/[SEP]); ablation sizes 128 / 256 / 510, overlap = size ÷ 8.
 - **G. LangChain** = text splitter only.
 - **Proposed for Phase 12:** add a closed-book (no retrieval) baseline row.
 - `mmdc` 12 has no `-w`: PNGs use `--size 1800 -s 2 -b white -t neutral`.

@@ -11,3 +11,6 @@ name	source	sha256	svg_bytes	png_bytes
 05-page-to-blocks	docs/diagrams/src/05-page-to-blocks.mmd	8313607c84f4d6d59131be86cc100514acbf015cc837ed377dcdfc60433aad83	23779	317303
 05-parsing-pipeline	docs/diagrams/src/05-parsing-pipeline.mmd	3896bf72579f36da19931fe5f4b13826c54b2590e5b2f4bc6ad2f90e5c4f26b3	26492	202924
 05-where-it-sits	docs/diagrams/build/05-where-it-sits.mmd	1ba1339e2ce3595bdd731860d3febc65be7f4a8d18170bcf2b4d41a9efea0b56	48781	265166
+06-chunking-strategies	docs/diagrams/src/06-chunking-strategies.mmd	28a1e81b5f4c847e9aaae12c86e192ed36e8b823a290055da2b88f7840aa1391	21097	171120
+06-overlap-mechanics	docs/diagrams/src/06-overlap-mechanics.mmd	4210654209bb3296b325ed9a34109253626336646ff24e13c5e92b542563045f	18144	105567
+06-where-it-sits	docs/diagrams/build/06-where-it-sits.mmd	134a63660f349982ef20246a4d0e42e874dc6c34de08c7fc0bf6ce6f4050ab67	48781	265243

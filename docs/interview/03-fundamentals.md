@@ -130,3 +130,28 @@
 **Trap.** "PDF text is just there — call get_text()." It's reconstructed, and the reconstruction is where the bugs live.
 
 **Bridge.** "Which is why the parser's output is checked by an offset invariant on every block."
+
+---
+
+### Q: Why is your maximum chunk size 510 tokens, not 512?
+**ID:** P3-03 · **Round:** ML screen · viva  **Difficulty:** 2/5
+
+**30-second answer.** "bge-small's limit is 512 tokens including the two special tokens it wraps around every input — `[CLS]` at the start and `[SEP]` at the end. That leaves 510 for text. Anything longer is truncated silently, so the vector ignores the tail. My first corpus run at size 512 actually produced 511- and 512-token chunks, so the factory now rejects anything above 510."
+
+**2-minute answer.** Explain what the special tokens are for: `[CLS]` is a position whose final hidden state models like BERT use as a summary (bge uses the CLS vector as the sentence embedding); `[SEP]` marks the end of a segment. Add the units point: the limit is in WordPiece tokens, where "16,434" costs four — so character budgets can't guarantee it.
+
+**If they push — level 2.** *"How do you count tokens?"* With the model's own fast tokenizer (`add_special_tokens=False`), which also returns each token's character span — that's how windows map back to offsets.
+
+**If they push — level 3.** *"Does the model warn you on truncation?"* No error at embedding time — sentence-transformers truncates to its max length. That's exactly why the check lives at chunking time.
+
+**If they push — level 4.** *"Do LLMs have the same problem?"* Different scale: context windows are far larger, but the same principle applies — measure in the model's tokenizer, budget for system text, and decide what to drop explicitly rather than letting the API reject or truncate.
+
+**Whiteboard it.**
+```text
+ [CLS] t1 t2 … t510 [SEP]   = 512   ✓
+ [CLS] t1 … t512 [SEP]      = 514 → last 2 dropped silently
+```
+
+**Trap.** "512 tokens means 512 words." Words ≠ tokens, and special tokens count.
+
+**Bridge.** "Truncation is also why chunk size is an ablation axis capped at 510."

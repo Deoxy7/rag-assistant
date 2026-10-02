@@ -155,3 +155,30 @@
 **Trap.** Caching by filename. A changed file with the same name silently serves stale text.
 
 **Bridge.** "The same idempotent, content-keyed idea drives incremental re-ingestion in Phase 4."
+
+---
+
+### Q: How does chunk size affect cost and storage at scale?
+**ID:** P3-07 · **Round:** system design  **Difficulty:** 3/5
+
+**30-second answer.** "Chunk count drives vector count, embedding time and index size; chunk size drives prompt tokens per question. Halving the size roughly doubles the vectors: structure chunks go 4,183 → 7,411 → 14,513 at 510 / 256 / 128 tokens. But each question's evidence budget shrinks: top-5 is about 1,700 tokens at 510 and 1,000 at 256 by median size."
+
+**2-minute answer.** Translate to storage with arithmetic: 384-dim float32 = 1,536 bytes per vector, so 14,513 vectors ≈ 22 MB raw — trivial here; at 10 M documents of similar shape (~1,450 chunks per doc at 128 tokens) that's 14.5 billion vectors ≈ 22 TB raw, which changes every storage decision. LLM cost scales with k × chunk size × queries. The two levers pull against each other.
+
+**If they push — level 2.** *"Which would you optimise first at scale?"* Usually prompt tokens, because they're paid per query forever, while embedding is paid once per chunk (and again on model upgrades).
+
+**If they push — level 3.** *"What else does overlap cost?"* Fixed windows at 256 carry ~1.43 M tokens vs ~1.28 M of unique text — about 12% more vectors-worth of text to embed and store.
+
+**If they push — level 4.** *"Can you shrink vectors?"* Half-precision or binary quantisation (card #19, Phase 5) trade recall for 2×–32× less memory.
+
+**Whiteboard it.**
+```text
+ size  chunks  raw vectors   top-5 prompt
+ 510   4,183    6.4 MB        ~1,700 tok
+ 256   7,411   11.4 MB        ~1,000 tok
+ 128  14,513   22.3 MB          ~535 tok
+```
+
+**Trap.** Optimising only storage. Prompt tokens are the recurring cost.
+
+**Bridge.** "That's why size is in the ablation with both quality and cost reported."

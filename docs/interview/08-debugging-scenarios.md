@@ -190,3 +190,58 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Fixing heading detection thresholds instead of looking at the raw structure.
 
 **Bridge.** "Section paths matter because the structure-aware chunker splits on them."
+
+---
+
+### Q: Your library's offsets come back as -1 for some chunks. Debug it.
+**ID:** P3-04 · **Round:** project deep-dive · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "LangChain's recursive splitter has `add_start_index=True`, and with a token-based length function it returned -1. Reading its source: it computes the search position as `index + previous_chunk_len - chunk_overlap` — subtracting the overlap as characters. My overlap is 32 tokens, about 150 characters, so the search starts past the real chunk start and `find` fails. I stopped trusting its offsets and locate each chunk myself from the previous chunk's start."
+
+**2-minute answer — the tree.**
+1. **Fail loudly first.** My wrapper compares `doc.text[start:end]` with the chunk text and raises on mismatch — that's how -1 surfaced instead of producing silently wrong citations.
+2. **Reproduce minimal.** A synthetic text with token length and overlap 20 shows -1 deterministically.
+3. **Read the library source** (`inspect.getsource`) rather than guess: unit mismatch between `chunk_overlap` (our tokens) and string positions (characters).
+4. **Fix at the boundary I own:** `doc.text.find(chunk, previous_start + 1)` — correct because chunks are emitted in order and each starts after the previous.
+5. **Pin it:** a test asserts LangChain still returns -1 (so I notice if they fix it) and that my offsets are exact.
+
+**If they push — level 2.** *"Could `find` match the wrong occurrence of repeated boilerplate?"* Only an earlier one — and searching from the previous start excludes those. Identical text later in the document can't be matched first because the search moves forward monotonically.
+
+**If they push — level 3.** *"Why not report it upstream?"* I would; the test documents the exact behaviour in a version-pinned way.
+
+**If they push — level 4.** *"General lesson?"* Never trust derived metadata from a library on the critical path of correctness without an invariant check. Here the invariant is one line.
+
+**Whiteboard it.**
+```text
+ LangChain: offset = index + prev_len − chunk_overlap   (overlap in tokens, used as chars)
+ ours:      start  = text.find(chunk, prev_start + 1);  assert text[start:start+len] == chunk
+```
+
+**Trap.** Patching around -1 with a fallback search everywhere instead of understanding the unit bug.
+
+**Bridge.** "The same invariant protects every chunker, which is why evaluation can compare them fairly."
+
+---
+
+### Q: A 256-token window measures 257 when you re-count it. What's going on?
+**ID:** P3-05 · **Round:** ML screen · DSA  **Difficulty:** 3/5
+
+**30-second answer.** "WordPiece splits words into pieces — '16,434' is `16 | , | 43 | ##4`. My first windows were cut at arbitrary tokens, so a window could start at `##4`. Re-tokenizing that slice alone treats '4' as a new word, so the pieces — and the count — change. Fix: group tokens into whole words using their character offsets (a token that starts where the previous ended continues the word) and cut only between words."
+
+**2-minute answer.** Why it matters: at the 510 ceiling an off-by-one becomes silent truncation. Then the algorithm: one pass over offsets builds word groups (O(n)); windows accumulate whole words until adding the next would exceed the size; overlap steps back whole words.
+
+**If they push — level 2.** *"Is 'contiguous offsets = same word' exactly right?"* It groups punctuation attached to a word too ("16,434" as one unit), which is fine — the goal is a boundary where re-tokenization is stable, and whitespace boundaries are.
+
+**If they push — level 3.** *"Complexity of chunking a document?"* Tokenizing is linear in characters; grouping and windowing are linear in tokens; each window's count is re-verified, so O(n) overall with a constant factor for re-tokenizing slices.
+
+**If they push — level 4.** *"What about a single 'word' longer than the window?"* The loop takes it anyway (`last == first` guard) so it can't stall; it would exceed the size. No such token run exists in this corpus; I'd split by characters if one did.
+
+**Whiteboard it.**
+```text
+ tokens: net revenue $ 16 , 43 ##4      spans contiguous → one word "16,434"
+ cut between words only → slice re-tokenizes identically
+```
+
+**Trap.** Counting tokens once and assuming any slice keeps the same count.
+
+**Bridge.** "That's the kind of bug a property test catches — every chunk's count is re-measured."

@@ -159,3 +159,30 @@ FAILED tests/test_pdf_parser.py::test_verizon_running_header_removed - assert no
 ### Removed after measuring: pdfplumber page pre-filter
 
 Not an error, but logged because it was a measured reversal: skipping pdfplumber on pages without drawn lines saved ~2% (AMD 14.9 s vs 15.2 s) for identical output, because 118/118 AMD pages and 213/215 Boeing pages draw something. The rule was deleted.
+
+## Phase 3
+
+### T-018 · A 256-token window measures 257 — hit
+
+- **Cause:** windows were cut at arbitrary WordPiece tokens; one started at a `##` continuation piece, and the slice re-tokenized into different pieces.
+- **Fix:** `word_groups` groups tokens with contiguous character spans into whole words; windows are cut only between words. Test: `test_windows_never_exceed_size_and_overlap_repeats_words`.
+
+### T-019 · LangChain `start_index` = -1 — hit
+
+```text
+ValueError: AMD_2021_10K: LangChain start_index -1 does not match chunk 1
+```
+
+- **Cause:** langchain-text-splitters 1.1.2 computes `offset = index + previous_chunk_len - self._chunk_overlap` and `text.find(chunk, max(0, offset))`; `chunk_overlap` is in our length unit (tokens) but is subtracted from a character position, so the search starts after the true chunk start.
+- **Fix:** don't use `add_start_index`; locate each chunk with `doc.text.find(text, previous_start + 1)` and verify. Test: `test_langchain_start_index_is_wrong_for_token_lengths_and_ours_is_right` (also fails if LangChain fixes it, prompting a review).
+
+### T-020 · Size-512 chunks would be truncated — hit
+
+- **Symptom:** corpus run at size 512 produced chunks of 511–512 content tokens (p95 512, max 512).
+- **Cause:** bge-small's 512 includes `[CLS]` and `[SEP]`.
+- **Fix:** `get_chunker` rejects sizes above `embedding_max_tokens - 2` (510); the ablation's top size is 510.
+
+### T-021 · Structure chunks of 4–6 tokens — hit
+
+- **Cause:** every heading started a new chunk, so "PART II" and "ITEM 5…" became chunks on their own.
+- **Fix:** a heading or new section closes the current chunk only if it already holds body text. 5th-percentile chunk at 256: 5 → 19 tokens.

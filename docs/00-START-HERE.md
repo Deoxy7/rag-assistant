@@ -95,7 +95,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [03](03-environment-and-infra.md) | Environment and infrastructure | 0 | ✅ written |
 | [04](04-corpus.md) | Corpus | 1 | ✅ written |
 | [05](05-pdf-parsing.md) | PDF parsing | 2 | ✅ written |
-| [06](06-chunking.md) | Chunking | 3 | not yet written |
+| [06](06-chunking.md) | Chunking | 3 | ✅ written |
 | [07](07-embeddings.md) | Embeddings | 4 | not yet written |
 | [08](08-database-schema.md) | Database schema | 4 | not yet written |
 | [09](09-vector-search.md) | Vector search | 5 | not yet written |

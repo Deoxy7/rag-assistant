@@ -60,3 +60,54 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** "Embeddings handle tables fine." Embedding a number soup loses which number belongs to which label.
 
 **Bridge.** "Which leads to how chunk boundaries interact with tables — the chunking ablation."
+
+---
+
+### Q: How did you choose your chunking strategy?
+**ID:** P3-01 · **Round:** project deep-dive · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "I didn't pick one blind. Three chunkers — fixed windows, LangChain's recursive splitter, and a structure-aware one that groups whole paragraphs within a 10-K section — sit behind one interface, all with exact character offsets. Structure-aware is the default because the filings have reliable headings, but the ablation decides."
+
+**2-minute answer.** Show the measured shapes at 256 tokens: fixed 5,604 chunks always 256 tokens and cut mid-sentence; recursive 6,538 with median 223, ending at sentence breaks; structure 7,411 with median 196 and 1,061 tiny ones from short sections. Explain why offsets make the comparison fair: relevance is overlap with labelled evidence spans, independent of how chunks were cut.
+
+**If they push — level 2.** *"What does structure-aware do with a 1,500-character paragraph?"* If it's bigger than the chunk size it's cut into overlapping word windows inside that block — page 44's "Inventory Valuation" block became two chunks overlapping by 161 characters.
+
+**If they push — level 3.** *"Why might it lose?"* Its many tiny chunks ("Item 4 — Not applicable") are low-information but can still score highly on keyword matches, crowding the top-k. And it inherits every heading-detection error from the parser.
+
+**If they push — level 4.** *"How would you know chunking is the problem rather than retrieval?"* Hold retrieval fixed and vary only the chunker — that's the ablation — and look at failure cases where the evidence span was split across two chunks.
+
+**Whiteboard it.**
+```text
+ fixed      |256|256|256|   cuts anywhere
+ recursive  |¶ ¶|¶|¶ ¶ |    natural breaks
+ structure  |Item7: ¶¶|¶|Item8: ¶|   whole blocks, one section
+```
+
+**Trap.** "Semantic chunking is best." Not without evidence on your data.
+
+**Bridge.** "The size axis matters as much as the strategy — want the 510-token story?"
+
+---
+
+### Q: What does chunk overlap do, and how much do you use?
+**ID:** P3-02 · **Round:** ML screen · viva  **Difficulty:** 2/5
+
+**30-second answer.** "Overlap repeats the end of one chunk at the start of the next, so a sentence cut by a boundary appears whole in at least one chunk if it's shorter than the overlap. I use an eighth of the chunk size — 32 tokens at 256 — and only where boundaries are arbitrary: every fixed window, recursive chunks, and inside oversized blocks for the structure chunker."
+
+**2-minute answer.** The cost side: overlap increases chunk count and total tokens (fixed at 256: 1,431,386 tokens across chunks vs ~1.28 M for structure), and adjacent overlapping chunks are near-duplicates that can both land in the top-k, wasting slots. That's why it's kept small and why structure chunks, which end at block boundaries, don't overlap at all.
+
+**If they push — level 2.** *"How do you implement it on token windows?"* Step back from the window's end one whole word at a time until ~32 tokens repeat, always advancing past the previous start so the loop can't stall.
+
+**If they push — level 3.** *"Why whole words?"* Cutting mid-word (on a `##` WordPiece) changes how the slice re-tokenizes — one 256-token window measured 257, which at the 510 ceiling means truncation.
+
+**If they push — level 4.** *"Would deduplicating overlapping results help?"* Yes — merging adjacent retrieved chunks from the same document before building the prompt saves tokens. Not built; noted for Phase 9.
+
+**Whiteboard it.**
+```text
+ window 1: [w1 w2 … w60]
+ window 2:          [w53 … w60 w61 … w115]   ← ~32 tokens repeated
+```
+
+**Trap.** "More overlap is always safer." It multiplies vectors and near-duplicate hits.
+
+**Bridge.** "Near-duplicates are also what the reranker and RRF have to cope with."

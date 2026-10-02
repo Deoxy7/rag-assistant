@@ -20,6 +20,8 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Canonical text | One normalised string per document that every block and chunk offset indexes into. | [05](05-pdf-parsing.md) |
 | cgroups | Linux kernel feature limiting how much CPU and memory a group of processes may use. | [03](03-environment-and-infra.md) |
 | Chunk | A passage of a document small enough to search precisely and to fit, several at a time, in a prompt. | [01](01-what-is-rag.md) |
+| Chunk overlap | Repeating the last tokens of one chunk at the start of the next so boundary-cut sentences survive. | [06](06-chunking.md) |
+| Chunking strategy | How boundaries are chosen: fixed windows, recursive (¶/line/sentence), structure-aware, semantic. | [06](06-chunking.md) |
 | Citation | A pointer from a claim in an answer back to its source — here chunk id + page + character span. | [01](01-what-is-rag.md) |
 | Closed-book / open-book | Answering from memory alone vs answering with the documents available. | [01](01-what-is-rag.md) |
 | Closed-book baseline | The same golden questions answered with retrieval switched off; measures what retrieval adds. | [01](01-what-is-rag.md) |
@@ -39,6 +41,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Environment variable | A named value a process inherits from whoever started it. | [03](03-environment-and-infra.md) |
 | Exhibit (10-K) | A document attached to a filing — contracts, plans, certifications — usually after the signature page. | [04](04-corpus.md) |
 | Extension (Postgres) | A package adding types, functions, operators or index types; enabled per database with `CREATE EXTENSION`. | [03](03-environment-and-infra.md) |
+| Factory pattern | One function that turns configuration into the right implementation (`get_chunker`). | [06](06-chunking.md) |
 | Fine-tuning | Continuing to train an already-trained model on new examples, changing its weights. | [01](01-what-is-rag.md) |
 | Fiscal year | A company's accounting year, which need not match the calendar year. | [04](04-corpus.md) |
 | Form 10-K | The annual report US public companies file with the SEC, with a structure fixed by regulation. | [04](04-corpus.md) |
@@ -71,8 +74,10 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Non-parametric memory | Knowledge stored outside the model in a searchable index (term from Lewis et al., 2020). | [01](01-what-is-rag.md) |
 | OCR (optical character recognition) | Recovering text from an image of text; needed only for scanned pages. | [04](04-corpus.md) |
 | Offline path | Work done ahead of time that nobody waits for (parsing, chunking, embedding). | [02](02-architecture-overview.md) |
+| Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
 | Online path | Work done while a user waits (search, rank, generate). | [02](02-architecture-overview.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
+| Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
 | Parser version (cache key) | Version string stored with parsed output; bumping it forces a re-parse. | [05](05-pdf-parsing.md) |
 | PDF outline (bookmarks) | An optional table of contents stored inside a PDF; only Verizon's files have one here. | [04](04-corpus.md) |
 | PDF point | 1/72 inch; a US Letter page is 612 × 792 points. | [05](05-pdf-parsing.md) |
@@ -81,6 +86,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Pinning | Fixing a dependency to an exact version (`==`) so installs are reproducible. | [03](03-environment-and-infra.md) |
 | Pipeline / stage | A sequence of steps where each step's output feeds the next; each step is a stage. | [02](02-architecture-overview.md) |
 | Port publishing | Making a container's port reachable from the host, e.g. `127.0.0.1:5432:5432`. | [03](03-environment-and-infra.md) |
+| Protocol (Python typing) | An interface defined by attributes/methods; any class with them qualifies, no inheritance. | [06](06-chunking.md) |
 | QPS | Queries per second. | [02](02-architecture-overview.md) |
 | RAG (Retrieval-Augmented Generation) | Retrieve relevant passages at question time, then have the LLM answer from them with citations. | [01](01-what-is-rag.md) |
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
@@ -94,10 +100,13 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Scanned PDF page | A page that is a picture of text: an image and little or no extractable text. | [04](04-corpus.md) |
 | SCRAM-SHA-256 | Challenge-response password authentication; the password never crosses the network readably. | [03](03-environment-and-infra.md) |
 | Section path | The chain of headings a block sits under, e.g. PART II › ITEM 8 › … | [05](05-pdf-parsing.md) |
+| Semantic chunking | Cutting text where similarity between consecutive sentence embeddings drops. | [06](06-chunking.md) |
 | Span / line / block (PyMuPDF) | Run of text in one font / spans on one baseline / lines grouped by PyMuPDF. | [05](05-pdf-parsing.md) |
+| Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
 | SSE (Server-Sent Events) | A one-way HTTP stream of events from server to client, used to stream answer tokens. | [14](14-api-and-streaming.md) (Phase 10) |
 | Stamp file | An empty file whose timestamp tells Make when a step last ran. | [03](03-environment-and-infra.md) |
 | Stop word | A very common word ("the", "were") dropped by full-text search. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
+| Strategy pattern | Interchangeable implementations behind one interface (the three chunkers). | [06](06-chunking.md) |
 | Tag (image) | A movable, human-readable name for an image version. | [03](03-environment-and-infra.md) |
 | Tail latency | The slow end of the latency distribution (p95, p99) that averages hide. | [02](02-architecture-overview.md) |
 | Text extractability | How much text extraction actually yields from a page. | [04](04-corpus.md) |
@@ -109,6 +118,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Training cutoff | The date a model's training data ends. | [01](01-what-is-rag.md) |
 | Transaction | A group of statements that all happen or none do. | [03](03-environment-and-infra.md) |
 | Transitive dependency | A package required by your packages rather than by your code directly. | [03](03-environment-and-infra.md) |
+| Truncation | Silently dropping input beyond a model's token limit. | [06](06-chunking.md) |
 | tsvector | Postgres type holding a document's lexemes with their positions. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Twelve-factor app | A set of service-design principles, including "store config in the environment". | [03](03-environment-and-infra.md) |
 | Unix socket | A file that acts as a network connection between programs on the same machine. | [03](03-environment-and-infra.md) |
@@ -116,4 +126,5 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Virtual environment (venv) | A per-project Python with its own installed packages. | [03](03-environment-and-infra.md) |
 | Virtual machine (VM) | Software emulating a whole computer, running its own kernel. | [03](03-environment-and-infra.md) |
 | Volume | Docker-managed storage that outlives containers; holds our database files. | [03](03-environment-and-infra.md) |
+| WordPiece | BERT's subword tokenizer; continuation pieces are marked ## (16,434 → 16 , 43 ##4). | [06](06-chunking.md) |
 | Workload contract | The answers to: how big, how often, how many, who sees what, what if unsure, which latency matters. | [02](02-architecture-overview.md) |

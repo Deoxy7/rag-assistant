@@ -87,3 +87,29 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** "All tests pass, so parsing is correct." Tests prove what they check.
 
 **Bridge.** "That's the same reasoning as measuring retrieval separately from generation."
+
+---
+
+### Q: How can you compare retrieval quality across chunking strategies when each produces different chunks?
+**ID:** P3-08 · **Round:** ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "Labels aren't chunk ids — they're evidence spans: document, page, and character range of the passage that answers the question. Every chunk from every strategy is a character range of the same canonical text, so 'is this retrieved chunk relevant?' becomes 'does it overlap the evidence span enough?', which works for any chunking."
+
+**2-minute answer.** Why chunk-id labels fail: re-chunking changes ids, so labels would only be valid for one configuration and the ablation would need relabelling nine times. Spans survive. The judgement call is the overlap rule — e.g. relevant if the chunk covers at least half the span, or the span covers at least half the chunk when the evidence is a whole table. That threshold changes the numbers, so it's defined once, tested, and reported.
+
+**If they push — level 2.** *"Doesn't a bigger chunk get more 'relevant' hits for free?"* Yes — bigger chunks overlap evidence more easily, flattering recall. That's why precision and the median chunk size are reported alongside, and the overlap rule is relative to the span.
+
+**If they push — level 3.** *"What about evidence split across two chunks?"* Both partial chunks may fall below the threshold; the question then shows as a miss for that configuration — which is a real retrieval weakness, not a labelling artefact, and exactly what the strategy comparison should reveal.
+
+**If they push — level 4.** *"Is there a threshold-free alternative?"* Character-level recall: the fraction of evidence characters covered by the union of top-k chunks. It's continuous and threshold-free, but less standard than recall@k; I'd report it as a secondary metric.
+
+**Whiteboard it.**
+```text
+ evidence span:      [==========]            doc, 188700–189100
+ chunk A (fixed):  [=====]                   overlap 40%
+ chunk B (struct):    [================]     overlap 100%  → relevant
+```
+
+**Trap.** Labelling chunk ids and then changing the chunker.
+
+**Bridge.** "That overlap rule is defined in Phase 11 — it's the heart of the harness."

@@ -35,3 +35,13 @@ Numbers:  30,327 blocks, 2,655 headings, 1,073 tables; 1,334 header/footer + 1,2
 Decisions: offsets into one NFKC-normalised canonical text per document, blocks joined by "\n\n"; pages after signatures tagged `after_signatures`, never dropped; level-3 headings exclude digits/parentheses.
 Open:     table column headers above the ruled area fall outside table blocks (measure via table questions in Phase 11); unruled tables not detected; two-column logic only synthetically tested.
 Next:     Phase 3 — Chunking.
+
+## Phase 3 — Chunking   [DONE 2026-10-02]
+
+Built:    `app/embed/tokenizer.py` (bge-small tokenizer pinned to revision 5c38ec7c, counts + offset mapping); `app/ingest/chunking.py` (Chunk; FixedSizeChunker, RecursiveChunker (LangChain splitter, own offsets), StructureChunker; word-boundary token windows; `get_chunker` factory rejecting size > 510); `app/ingest/chunk_corpus.py` (stats for 3 strategies × 128/256/510); settings `chunk_strategy`/`chunk_size`/`chunk_overlap`, model settings; `tests/test_chunking.py` (13 tests); pinned sentence-transformers 6.1.0, torch 2.14.1, transformers 5.18.0, langchain-text-splitters 1.1.2 (+ transitive).
+Docs:     `docs/06-chunking.md`; cards #8, #9, #10; 8 interview questions (P3-01…P3-08).
+Diagrams: `06-chunking-strategies`, `06-overlap-mechanics`, generated `06-where-it-sits`.
+Numbers:  at 256 tokens: fixed 5,604 chunks, recursive 6,538 (p50 223), structure 7,411 (p50 196); at 128: 11,206 / 13,870 / 14,513; at 510: 2,809 / 3,042 / 4,183. Tokenizer: 1.18 M chars → 247,369 tokens in 0.5 s. All chunk offsets verified (`--check`).
+Decisions: LangChain's `start_index` not used (unit bug); windows cut between whole words; separators kept at chunk end; heading runs merged with following body; default structure/256/32.
+Open:     structure creates many tiny chunks for short sections (1,061 under 64 tokens at 256) — watch in Phase 12; parent-document retrieval deferred unless Phase 11 shows multi-chunk evidence.
+Next:     Phase 4 — Embeddings + schema.

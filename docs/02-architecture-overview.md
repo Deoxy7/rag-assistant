@@ -96,7 +96,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 | Docs pipeline: diagrams, ASCII twins, card mirroring, integrity tests | [00](00-START-HERE.md) | 0 | ✅ built |
 | Corpus: 10 × 10-K, pinned manifest, inspection | [04](04-corpus.md) | 1 | ✅ built |
 | Parse (PyMuPDF + pdfplumber): blocks, offsets, tables, headings | [05](05-pdf-parsing.md) | 2 | ✅ built |
-| Chunk | [06](06-chunking.md) | 3 | planned |
+| Chunk: fixed / recursive / structure-aware, exact offsets | [06](06-chunking.md) | 3 | ✅ built |
 | Embed + schema + `make ingest` | [07](07-embeddings.md), [08](08-database-schema.md) | 4 | planned |
 | Vector search | [09](09-vector-search.md) | 5 | planned |
 | Keyword search | [10](10-keyword-search.md) | 6 | planned |

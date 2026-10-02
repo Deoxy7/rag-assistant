@@ -17,9 +17,9 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 5 | Store page_number + char_start + char_end vs text only | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
 | 6 | Batch vs incremental ingest; updated and deleted documents | 4 | not yet written |
 | 7 | Deduplication strategy; near-duplicate boilerplate | 4 | not yet written |
-| 8 | Fixed-size vs recursive-character vs structure-aware vs semantic chunking | 3 | not yet written |
-| 9 | Chunk size and overlap: the quality/cost curve | 3 | not yet written |
-| 10 | Chunk-level vs sentence-level vs parent-document retrieval | 3 | not yet written |
+| 8 | Fixed-size vs recursive-character vs structure-aware vs semantic chunking | 3 | ✅ [06-chunking](../06-chunking.md) |
+| 9 | Chunk size and overlap: the quality/cost curve | 3 | ✅ [06-chunking](../06-chunking.md) |
+| 10 | Chunk-level vs sentence-level vs parent-document retrieval | 3 | ✅ [06-chunking](../06-chunking.md) |
 | 11 | Local open embedding model vs API embeddings | 4 | not yet written |
 | 12 | Embedding dimension: 384 vs 768 vs 1536 | 4 | not yet written |
 | 13 | Normalisation and distance metric: cosine vs inner product vs L2 | 4 | not yet written |
@@ -207,6 +207,117 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Your canonical text isn't the PDF's text — it has headers removed and spaces normalised. Isn't the citation then "of" something the user never saw? → A (honest): Yes, the cited string is the normalised one. The displayed citation shows our text plus the page and highlighted box on the real PDF, so the user can check it against the original. A character-exact mapping back to raw PDF text would need a second offset table; I judged the block box sufficient.
 
 **The trap.** "Store the page number, that's enough for citations." It's not enough to evaluate retrieval across chunking strategies or to highlight evidence — and retrofitting offsets is the expensive part.
+
+### Card 8 — from [06-chunking](../06-chunking.md)
+
+#### Decision: Three pluggable chunkers — fixed, recursive, structure-aware — with structure-aware as the default  (rejected: one hard-coded strategy, semantic chunking, LLM-based chunking)
+
+**One-line defence.** Which strategy wins is an empirical question on this corpus, so all three exist behind one interface with identical offset guarantees; structure-aware is the default because 10-Ks have reliable section structure and its chunks never mix two Items.
+
+**What problem is this even solving?** Something must decide passage boundaries. Bad boundaries split an answer across two chunks (neither matches well) or mix topics (the vector is a blur). Delete chunking and you embed whole documents — 250,000 tokens into a 510-token model.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Structure-aware (default) | Whole blocks within one section, heading opens a chunk, big blocks windowed | Chunks are self-contained sections; never mixes Items; headings at chunk starts | Variable sizes; many tiny chunks (1,061 under 64 tokens at size 256); depends on parser heading quality | Documents with reliable structure |
+| ✅ Recursive character | Split at ¶, line, sentence, word — whichever fits | Natural boundaries without needing headings; mature implementation | Can mix the end of one section with the next; still variable sizes | Unstructured or inconsistently structured text |
+| ✅ Fixed size | Equal token windows with overlap | Simplest; uniform cost; perfect baseline | Cuts mid-sentence and mid-table; blind to sections | Baselines; uniform text like transcripts |
+| Semantic chunking | Embed sentences; cut where consecutive similarity drops | Topic-coherent chunks | Embeds every sentence (cost); thresholds to tune; boundaries non-obvious to debug | Long unstructured prose with topic shifts |
+| LLM-based chunking | Ask an LLM to segment the text | Can follow complex structure | Cost and latency per page; non-deterministic; offsets must be recovered | Small, high-value document sets |
+
+**What would actually change if we swapped it.** Adding semantic chunking: a fourth class in `app/ingest/chunking.py` plus one dictionary entry; it would embed roughly every sentence of 6 M characters at ingest (Phase 4 measures embedding throughput), and its boundaries depend on a similarity threshold that would become a new ablation axis. Nothing downstream changes — that's the point of the interface. Removing the alternatives and keeping only one: the ablation's strategy axis disappears and card #9's numbers can't be produced.
+
+**The decision rule.** Respect the document's own structure when it's reliable; fall back to natural-language boundaries (paragraph, sentence) when it isn't; use fixed windows only as a baseline or for uniform text. Make the choice configurable and measure, because the winner depends on the questions as much as the documents.
+
+**Where our choice breaks.** Structure-aware is only as good as heading detection: Corning 2021 had 18 headings before the parser fix and would have produced section-blind chunks. It also creates many tiny chunks for short sections, which can crowd the top-k. Migration path: merge tiny sections with their neighbour within the same Item, or prepend the section path to each chunk's *embedding input* (not its stored text).
+
+**The number.** At 256 tokens: fixed 5,604 chunks (p50 256), recursive 6,538 (p50 223), structure 7,411 (p50 196, 1,061 under 64 tokens). Retrieval quality per strategy: not yet measured — Phase 12.
+
+**Interview script (3 sentences).** "I built three chunkers behind one interface — fixed windows, LangChain's recursive splitter, and a structure-aware one that groups whole blocks within a 10-K section — all with exact character offsets. Structure-aware is the default because these filings have reliable headings, and its chunks never mix two Items. Which one actually retrieves best is a measured result in my ablation, not an assumption: ⟨Phase 12⟩."
+
+**Follow-ups they will ask:**
+- Q: Why not semantic chunking? → A: It needs an embedding per sentence at ingest and a similarity threshold to tune, and its boundaries are hard to explain when they're wrong. 10-Ks already mark topic boundaries with headings, which are free and explainable. If my structure chunks underperformed on prose-heavy sections, semantic chunking is what I'd try next.
+- Q: How do you know structure-aware chunks don't mix sections? → A: A test walks every structure chunk of AMD 2021 and checks that all non-heading blocks inside it share one PART/ITEM.
+- Q: Isn't a heading-only chunk useless? → A: Yes, which is why consecutive headings now stay with the body that follows; that raised the 5th-percentile chunk from 4–6 tokens to 12–19.
+- Q: Do the strategies produce comparable results for evaluation? → A: Yes — that's why offsets matter: every chunk from every strategy is a range of the same canonical text, so relevance is judged by overlap with one set of evidence spans.
+- Q (the hard one): Your recursive and structure chunkers agree on most of page 44. Is the distinction even meaningful? → A (honest): On prose pages they converge because both respect paragraphs; they differ at section boundaries (recursive will merge the end of one Item into the next) and around tables. Whether that difference moves recall is exactly what the ablation measures — it might not, and I'll report it if it doesn't.
+- Q: Why LangChain for one chunker? → A: Recursive splitting is a solved problem and theirs is battle-tested. But its `start_index` is wrong when chunk length is measured in tokens, so I compute offsets myself — and a test pins both the bug and the fix.
+
+**The trap.** Naming a "best" chunking strategy without data. The right answer is "it depends on the documents and the questions — here's how I measured it."
+
+### Card 9 — from [06-chunking](../06-chunking.md)
+
+#### Decision: Sizes 128 / 256 / 510 tokens with overlap = size ÷ 8; default 256 / 32  (rejected: character-based sizes, sizes over the model limit, zero overlap, 50% overlap)
+
+**One-line defence.** Sizes are measured in the embedding model's own tokens because that's the unit it truncates in; 510 is the hard ceiling, and the three sizes bracket the precision-versus-context trade-off for the ablation.
+
+**What problem is this even solving?** Chunk size sets how much text one vector summarises and how much evidence each retrieved result carries into the prompt; overlap decides whether a sentence cut at a boundary survives intact somewhere.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Token sizes 128/256/510, overlap 1/8 | Count with the embedding tokenizer; three sizes as ablation levels | No silent truncation; directly comparable; modest storage overhead | More chunks at 128 (≈14k) → more vectors and slower ingest | Default for this project |
+| Character sizes (e.g. 1,000 chars) | Count characters | Tokenizer-free, simple | Token count per character varies (Corning: 2.64 vs 4.34 chars/token) → some chunks silently truncated | Models with very large limits |
+| Size above the model limit (e.g. 1,024) | Bigger chunks | More context per chunk | The model only sees the first 510 tokens; the rest is invisible to vector search | Never with this model |
+| Zero overlap | Windows end-to-end | Fewest chunks | A sentence straddling a boundary is split in both chunks | Structure-aware chunks of whole blocks (we only window oversized blocks) |
+| 50% overlap | Each window repeats half the previous one | Boundary-cut sentences always appear whole | Doubles the number of chunks and vectors; near-duplicate results crowd top-k | Very short, dense windows |
+
+**What would actually change if we swapped it.** Moving the default to 510: ~4,200 structure chunks instead of ~7,400 (roughly 45% fewer vectors, and less embedding time in Phase 4), but each retrieved chunk carries ~2× the tokens into the prompt, so a top-5 evidence budget grows from about 1,000 to about 1,700 tokens (5 × the median chunk: 196 vs 335) and LLM input cost per query rises accordingly. Moving to characters: one setting changes, and a new failure mode appears — silent truncation on token-dense text.
+
+**The decision rule.** Measure size in the units of the component that enforces the limit. Pick the smallest size whose chunks are still self-explanatory for the questions you expect; bracket it (½×, 1×, 2×) and measure. Use overlap only where boundaries are arbitrary, and keep it small (10–15%) so it doesn't create near-duplicate results.
+
+**Where our choice breaks.** Questions needing context spread over more than ~500 tokens (a whole table with its headers, a multi-paragraph explanation) can't be answered by one chunk at any allowed size. Migration path: parent-document retrieval (card #10) or a long-context embedding model.
+
+**The number.** Chunks at 128 / 256 / 510: fixed 11,206 / 5,604 / 2,809; recursive 13,870 / 6,538 / 3,042; structure 14,513 / 7,411 / 4,183. Quality per size: not yet measured — Phase 12.
+
+**Interview script (3 sentences).** "Chunk sizes are in the embedding model's own tokens — 128, 256 and 510 — because that's the unit it silently truncates in, and 510 is its 512 limit minus the two special tokens. Overlap is an eighth of the size, applied only where a boundary is arbitrary. The trade-off is precision versus context per chunk, and my ablation measures it instead of guessing."
+
+**Follow-ups they will ask:**
+- Q: Why exactly 510 and not 512? → A: bge-small's 512-token limit includes `[CLS]` at the start and `[SEP]` at the end. A 512-content-token chunk becomes 514 tokens and loses its last two. My first run at size 512 produced exactly such chunks; the factory now rejects sizes above 510.
+- Q: What does overlap buy you? → A: If a sentence is cut by a window boundary, overlap repeats the end of one window at the start of the next, so a sentence shorter than the overlap appears whole in at least one chunk. The cost is more chunks and near-duplicate neighbours in results.
+- Q: Why count tokens and not characters? → A: Characters per token vary from 2.64 to 4.80 across this corpus (Phase 1), so a fixed character budget overflows the model on some documents.
+- Q: How does chunk size affect the LLM cost? → A: The prompt carries k chunks, so its evidence tokens ≈ k × average chunk size; going from 256 to 510 roughly doubles the per-question input.
+- Q (the hard one): Your structure chunks average under the target size. Are you comparing like with like across strategies? → A (honest): Not exactly — "size 256" is a ceiling for recursive and structure but an exact length for fixed (p50 196 vs 256). I'll report the actual median chunk size next to each result, so a strategy can't win just by having bigger chunks.
+
+**The trap.** "Bigger chunks give the LLM more context, so they're better." Past the model limit the extra text isn't embedded at all, and bigger chunks blur the vector.
+
+### Card 10 — from [06-chunking](../06-chunking.md)
+
+#### Decision: Retrieve at chunk level  (rejected for now: sentence-level retrieval, parent-document retrieval, multi-granularity)
+
+**One-line defence.** One unit for both matching and context keeps the pipeline and its evaluation simple; parent-document retrieval is the planned escalation if table and multi-paragraph questions fail.
+
+**What problem is this even solving?** The unit you *match* on and the unit you *give to the LLM* don't have to be the same. Small units match precisely but carry little context; big units carry context but match vaguely.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Chunk-level | Match and return the same 128–510-token chunks | Simple; one index; eval unit = retrieval unit | Precision/context trade-off fixed by one size | Default |
+| Sentence-level | Embed every sentence; return sentences | Very precise matches | Too little context to answer; ~10× more vectors | Fact lookup with short answers |
+| Parent-document | Match small child chunks, return their larger parent (section) | Precise matching *and* full context | Two levels to store and keep in sync; larger prompts; eval must decide which level counts | Answers spanning paragraphs or tables |
+| Multi-granularity | Index several sizes, fuse results | Best of each | Duplicate content in results; complex | Mature systems with measured need |
+
+**What would actually change if we swapped it.** Parent-document: a `parent_chunk_id` column in Phase 4's schema, a second chunking pass (structure sections as parents, small windows as children), retrieval that maps child hits to parents before reranking, and evidence-span relevance judged on the returned parent. Prompt tokens per question would rise with parent size. About a day of work.
+
+**The decision rule.** Start with one granularity sized for the typical answer. Split matching from context only when evaluation shows answers spanning more than one chunk.
+
+**Where our choice breaks.** Questions whose evidence is a whole table or spans several paragraphs. The evidence for that will come from Phase 11's multi-hop and table questions.
+
+**The number.** Not yet measured — Phase 11 reports how many golden answers' evidence spans more than one chunk.
+
+**Interview script (3 sentences).** "I retrieve at chunk level, so the unit I match on is the unit I hand to the LLM, which keeps both the pipeline and the evaluation simple. If the eval shows answers spanning several chunks — big tables are the likely case — the next step is parent-document retrieval: match small chunks, return their section. I'd add it on evidence, not by default."
+
+**Follow-ups they will ask:**
+- Q: What is parent-document retrieval? → A: Index small "child" chunks for precise matching, but return the larger "parent" they belong to, so the LLM sees the full context. Child and parent are linked by id.
+- Q: Why not just make chunks bigger? → A: Bigger chunks blur the vector — a 510-token chunk about three topics matches each topic weakly — and you can't exceed the model's 510 tokens anyway.
+- Q: How would evaluation change with parents? → A: Relevance would be judged on the returned parent span, which is larger, so precision@k would look worse even if answers improve. I'd report both levels.
+- Q: Sentence-level for numbers? → A: A sentence like "Net revenue grew 19%" lacks the subject (which segment? which year?), so it'd need its section prepended — which is half-way to parent retrieval.
+- Q (the hard one): Wouldn't parent retrieval fix your table header problem? → A (honest): Partly — returning the whole table's section would include the column headers that the parser separated from the table block. But a big statement can exceed the prompt budget on its own. I haven't measured it.
+
+**The trap.** Assuming the unit of retrieval must be the unit of context. Separating them is a standard technique — and a sign you understand the trade-off.
 
 ### Card 15 — from [03-environment-and-infra](../03-environment-and-infra.md)
 

@@ -1,0 +1,17 @@
+%% Owner: docs/06-chunking.md — how token windows overlap (app/ingest/chunking.py token_windows).
+flowchart LR
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    text["Text → tokens<br/>grouped into whole words"]:::io
+    w1["Window 1<br/>words until 256 tokens"]:::ingest
+    ov["Overlap<br/>last ~32 tokens of window 1,<br/>whole words only"]:::ingest
+    w2["Window 2<br/>starts at the overlap,<br/>adds words until 256"]:::ingest
+    sent["A sentence cut at the boundary<br/>is complete in one window<br/>if it is shorter than the overlap"]:::io
+    legend["Legend<br/>blue = ingestion · white = input / effect"]:::legend
+
+    text -->|word groups| w1
+    w1 -->|step back ~32 tokens| ov
+    ov -->|repeated at the start of| w2
+    w2 -->|next window| sent

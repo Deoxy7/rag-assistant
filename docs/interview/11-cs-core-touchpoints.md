@@ -131,3 +131,30 @@
 **Trap.** "Normalisation is cosmetic." It changes lengths, which changes every offset.
 
 **Bridge.** "That ordering rule is the reason the parser version is part of the cache key."
+
+---
+
+### Q: Which design patterns does your chunking code use, and why?
+**ID:** P3-06 · **Round:** viva · backend screen (OOP)  **Difficulty:** 2/5
+
+**30-second answer.** "Strategy and Factory. `Chunker` is a Protocol — anything with `name`, `size`, `overlap` and `chunk(doc)` qualifies — and `FixedSizeChunker`, `RecursiveChunker` and `StructureChunker` are interchangeable strategies. `get_chunker(strategy, size, overlap)` is the factory: the only place a config string becomes an object, and where invalid sizes are rejected."
+
+**2-minute answer.** Why Protocol over an abstract base class: structural typing — implementations don't inherit anything, which keeps them simple and lets a test double satisfy the interface. Why it pays off: ingestion and the Phase 12 ablation loop over configurations without a single `if strategy == …`. Add the immutability point: `Chunk` is a frozen dataclass so offsets and text can't drift apart after creation.
+
+**If they push — level 2.** *"How would you add semantic chunking?"* One new class with a `chunk` method and one dictionary entry in `CHUNKERS`; no caller changes (open/closed principle).
+
+**If they push — level 3.** *"Protocol vs ABC — runtime behaviour?"* A Protocol is checked by type checkers, not at runtime, unless marked `@runtime_checkable`. An ABC refuses instantiation of incomplete subclasses at runtime. For a small internal interface, static checking was enough.
+
+**If they push — level 4.** *"Where else will you use these?"* Retrievers (vector, keyword, hybrid) behind one interface with a factory driven by `retrieval_mode` (Phase 7), and LLM clients behind a `generate` interface (Phase 9).
+
+**Whiteboard it.**
+```text
+ config(strategy,size,overlap) ─▶ get_chunker() ─▶ Chunker
+                                     ├ FixedSizeChunker
+                                     ├ RecursiveChunker
+                                     └ StructureChunker      .chunk(doc) → [Chunk]
+```
+
+**Trap.** Calling any class a "pattern". Name what varies (the algorithm) and what's fixed (the interface).
+
+**Bridge.** "That interface is what makes the ablation a loop instead of a rewrite."

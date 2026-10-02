@@ -1,6 +1,6 @@
 # 02 — Question map
 
-**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **30 / 150+** questions.
+**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **38 / 150+** questions.
 
 Every question in `docs/interview/` appears here (a test in `tests/test_docs_integrity.py` fails if one is missing). **Confidence** is yours to fill: 1 = can't answer, 3 = can answer level 1–2, 5 = survives level 4. Re-rate after each drill.
 
@@ -38,6 +38,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P2-06 | Avoid re-parsing; parse a million PDFs | [06](06-system-design.md) | scale | design, backend | 3 | | |
 | P2-07 | Why tables matter for retrieval; your weakness | [04](04-retrieval.md) | retrieval | ML, deep-dive | 3 | | |
 | P2-08 | How do you know the parser is good enough? | [07](07-evaluation.md) | eval | ML, deep-dive | 3 | | |
+| P3-01 | How did you choose your chunking strategy? | [04](04-retrieval.md) | chunking | deep-dive, ML | 3 | | |
+| P3-02 | What does overlap do; how much? | [04](04-retrieval.md) | chunking | ML, viva | 2 | | |
+| P3-03 | Why 510 tokens, not 512? | [03](03-fundamentals.md) | tokenisation | ML, viva | 2 | | |
+| P3-04 | Library offsets come back -1 — debug | [08](08-debugging-scenarios.md) | debugging | deep-dive, backend | 3 | | |
+| P3-05 | 256-token window measures 257 — why? | [08](08-debugging-scenarios.md) | tokenisation | ML, DSA | 3 | | |
+| P3-06 | Design patterns in the chunking code | [11](11-cs-core-touchpoints.md) | OOP | viva, backend | 2 | | |
+| P3-07 | Chunk size vs cost and storage at scale | [06](06-system-design.md) | scale | design | 3 | | |
+| P3-08 | Compare retrieval across chunkers fairly | [07](07-evaluation.md) | eval | ML | 4 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 
