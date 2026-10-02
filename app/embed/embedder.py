@@ -4,6 +4,7 @@ Documents and queries are embedded differently on purpose: bge v1.5 expects a
 short instruction in front of *queries* only (see Settings.query_instruction).
 """
 
+import threading
 from functools import lru_cache
 
 import numpy as np
@@ -30,6 +31,9 @@ class Embedder:
         self.dims = self.model.get_embedding_dimension()
         self.texts_embedded = 0  # counts real model calls; tests use it to prove the cache works
         self._query_cache = lru_cache(maxsize=4096)(self._embed_query_uncached)
+        # The API serves requests from a thread pool; one forward pass at a time
+        # keeps the (not thread-safe) MPS/torch model state consistent.
+        self._lock = threading.Lock()
 
     def embed_documents(self, texts: list[str]) -> np.ndarray:
         """Unit-length float32 vectors, one row per text, in input order."""
@@ -38,13 +42,15 @@ class Embedder:
         self.texts_embedded += len(texts)
         # normalize_embeddings=True divides each vector by its length, so cosine
         # similarity and inner product become the same number (card #13).
-        return self.model.encode(texts, batch_size=self.batch_size, normalize_embeddings=True,
-                                 convert_to_numpy=True, show_progress_bar=False).astype(np.float32)
+        with self._lock:
+            return self.model.encode(texts, batch_size=self.batch_size, normalize_embeddings=True,
+                                     convert_to_numpy=True, show_progress_bar=False).astype(np.float32)
 
     def _embed_query_uncached(self, text: str) -> tuple[float, ...]:
         self.texts_embedded += 1
-        vec = self.model.encode([self.query_instruction + text], normalize_embeddings=True,
-                                convert_to_numpy=True, show_progress_bar=False)[0]
+        with self._lock:
+            vec = self.model.encode([self.query_instruction + text], normalize_embeddings=True,
+                                    convert_to_numpy=True, show_progress_bar=False)[0]
         return tuple(float(x) for x in vec)  # hashable, so lru_cache can store it
 
     def embed_query(self, text: str) -> np.ndarray:

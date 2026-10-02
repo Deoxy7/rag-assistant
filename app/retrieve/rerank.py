@@ -9,6 +9,7 @@ one model pass per (question, chunk) pair, so it only runs on the top N of
 the first stage.
 """
 
+import threading
 from dataclasses import dataclass, replace
 from functools import lru_cache
 
@@ -33,13 +34,15 @@ class Reranker:
         self.model = CrossEncoder(model, revision=revision, cache_folder=str(cache_dir), device=device,
                                   max_length=max_length)
         self.pairs_scored = 0
+        self._lock = threading.Lock()   # one forward pass at a time (API thread pool)
 
     def score(self, query: str, texts: list[str]) -> list[float]:
         if not texts:
             return []
         self.pairs_scored += len(texts)
-        out = self.model.predict([(query, t) for t in texts], batch_size=self.batch_size,
-                                 show_progress_bar=False, convert_to_numpy=True)
+        with self._lock:
+            out = self.model.predict([(query, t) for t in texts], batch_size=self.batch_size,
+                                     show_progress_bar=False, convert_to_numpy=True)
         return [float(x) for x in out]
 
 

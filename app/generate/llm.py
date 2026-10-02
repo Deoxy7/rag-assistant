@@ -15,6 +15,7 @@ import json
 import re
 import time
 from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -135,12 +136,26 @@ def cache_key(provider: str, model: str, instructions: str, user: str, params: d
 
 
 class CachedLLM:
-    """Wraps a client: identical requests are answered from Postgres, not the API."""
+    """Wraps a client: identical requests are answered from Postgres, not the API.
 
-    def __init__(self, inner, conn: psycopg.Connection):
-        self.inner, self.conn = inner, conn
+    `db` is either an open connection (scripts, tests) or a zero-argument function
+    returning a new connection (the API). With a function, each cache read and
+    write uses its own short-lived connection, so a request streaming from the
+    LLM for several seconds doesn't hold a database connection the whole time.
+    """
+
+    def __init__(self, inner, db):
+        self.inner, self.db = inner, db
         self.provider, self.model = inner.provider, inner.model
         self.last_result: LLMResult | None = None
+
+    @contextmanager
+    def _conn(self):
+        if isinstance(self.db, psycopg.Connection):
+            yield self.db
+            return
+        with self.db() as conn:   # psycopg: commits on clean exit, closes the connection
+            yield conn
 
     def _key(self, instructions: str, user: str) -> str:
         params = self.inner.params() if hasattr(self.inner, "params") else {}
@@ -149,18 +164,21 @@ class CachedLLM:
     def generate(self, instructions: str, user: str) -> LLMResult:
         key = self._key(instructions, user)
         t0 = time.perf_counter()
-        hit = repo.llm_cache_get(self.conn, key)
+        with self._conn() as conn:
+            hit = repo.llm_cache_get(conn, key)
         if hit:
             return LLMResult(hit[0], self.inner.model, self.inner.provider, hit[1], hit[2],
                              (time.perf_counter() - t0) * 1000, cached=True)
         r = self.inner.generate(instructions, user)
-        repo.llm_cache_put(self.conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens)
+        with self._conn() as conn:
+            repo.llm_cache_put(conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens)
         return r
 
     def stream(self, instructions: str, user: str) -> Iterator[str]:
         key = self._key(instructions, user)
         t0 = time.perf_counter()
-        hit = repo.llm_cache_get(self.conn, key)
+        with self._conn() as conn:
+            hit = repo.llm_cache_get(conn, key)
         if hit:
             self.last_result = LLMResult(hit[0], self.inner.model, self.inner.provider, hit[1], hit[2],
                                          (time.perf_counter() - t0) * 1000, cached=True)
@@ -168,7 +186,8 @@ class CachedLLM:
             return
         yield from self.inner.stream(instructions, user)
         r = self.inner.last_result
-        repo.llm_cache_put(self.conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens)
+        with self._conn() as conn:
+            repo.llm_cache_put(conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens)
         self.last_result = r
 
 

@@ -10,10 +10,13 @@ model's answers are extractive quotes, not model quality.
 
 import argparse
 import sys
+
+import openai
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from app.api.main import classify  # noqa: E402
 from app.config import get_settings  # noqa: E402
 from app.generate.answer import answer_question  # noqa: E402
 from app.generate.llm import CachedLLM, MissingAPIKey, get_llm  # noqa: E402
@@ -43,7 +46,12 @@ def main() -> int:
     filters = Filters(tuple(args.company) if args.company else None, tuple(args.year) if args.year else None)
     with connect() as conn:
         client = llm if args.no_cache or not s.llm_cache_enabled else CachedLLM(llm, conn)
-        a = answer_question(conn, args.question, retriever_from_settings(1), client, filters=filters)
+        try:
+            a = answer_question(conn, args.question, retriever_from_settings(1), client, filters=filters)
+        except openai.APIError as e:
+            status, code, message = classify(e)
+            print(f"error: {code}: {message}", file=sys.stderr)
+            return 3
         conn.commit()
     if args.show_prompt:
         instructions, user = a.prompt

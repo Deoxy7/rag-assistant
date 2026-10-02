@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -70,6 +70,12 @@ bench-rerank: install up ## Cross-encoder reranking over hybrid top-N: quality a
 
 bench-answer: install up ## End-to-end answers on FinanceBench: context, citations, refusals, latency, cost [ARGS="--provider fake"]
 	$(PY) scripts/bench_answer.py $(ARGS)
+
+serve: install up ## Run the API on http://127.0.0.1:8000 (docs at /docs); LLM_PROVIDER=fake works without a key
+	$(PY) -m uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+
+bench-api: install ## Latency through HTTP against a running `make serve` (sequential, streaming, concurrent)
+	$(PY) scripts/bench_api.py
 
 ask: install up ## Answer one question: make ask Q="What was AMD's net revenue in 2022?" [ARGS="--show-prompt --provider fake"]
 	$(PY) scripts/ask.py "$(Q)" $(ARGS)

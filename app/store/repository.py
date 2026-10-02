@@ -216,3 +216,25 @@ def chunk_regions(conn: psycopg.Connection, chunk_id: int) -> list[tuple[int, tu
                                         AND b.char_start < c.char_end AND b.char_end > c.char_start
                            WHERE c.id = %s ORDER BY b.block_index""", (chunk_id,)).fetchall()
     return [(r[0], tuple(r[1])) for r in rows]
+
+
+# --- API reads ---------------------------------------------------------------------
+
+def list_documents(conn: psycopg.Connection, chunk_set_id: int) -> list[dict]:
+    rows = conn.execute("""SELECT d.doc_key, d.company, d.ticker, d.fiscal_year, d.form, d.page_count,
+                                  count(c.id)
+                           FROM documents d LEFT JOIN chunks c ON c.document_id = d.id AND c.chunk_set_id = %s
+                           GROUP BY d.id ORDER BY d.company, d.fiscal_year""", (chunk_set_id,)).fetchall()
+    keys = ("doc_key", "company", "ticker", "fiscal_year", "form", "pages", "chunks")
+    return [dict(zip(keys, r)) for r in rows]
+
+
+def known_companies(conn: psycopg.Connection) -> set[str]:
+    return {r[0] for r in conn.execute("SELECT DISTINCT company FROM documents")}
+
+
+def find_chunk_set(conn: psycopg.Connection, strategy: str, size: int, overlap: int, tokenizer: str) -> int | None:
+    """The id of an existing chunk set, or None (readers must never create one)."""
+    row = conn.execute("SELECT id FROM chunk_sets WHERE strategy = %s AND chunk_size = %s "
+                       "AND chunk_overlap = %s AND tokenizer = %s", (strategy, size, overlap, tokenizer)).fetchone()
+    return row[0] if row else None
