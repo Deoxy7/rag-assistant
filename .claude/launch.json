@@ -30,6 +30,43 @@
         "8000"
       ],
       "port": 8000
+    },
+    {
+      "name": "api-gpt-oss-20b",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "LLM_MODEL=openai/gpt-oss-20b",
+        "LLM_PRICE_INPUT_PER_M=0.075",
+        "LLM_PRICE_OUTPUT_PER_M=0.30",
+        ".venv/bin/python",
+        "-m",
+        "uvicorn",
+        "app.api.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "ui",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PYTHONPATH=.",
+        ".venv/bin/streamlit",
+        "run",
+        "ui/app.py",
+        "--server.address",
+        "127.0.0.1",
+        "--server.port",
+        "8501",
+        "--server.headless",
+        "true",
+        "--browser.gatherUsageStats",
+        "false"
+      ],
+      "port": 8501
     }
   ]
 }

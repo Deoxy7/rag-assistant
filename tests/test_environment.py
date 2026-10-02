@@ -43,3 +43,11 @@ def test_venv_matches_requirements_exactly():
     extra = {n: v for n, v in have.items() if n not in want}
     assert not missing, f"pinned but not installed at that version: {missing}"
     assert not extra, f"installed but not pinned in requirements.txt: {extra}"
+
+
+def test_inline_comments_are_separated_by_whitespace():
+    """pip only treats "#" as a comment after whitespace: "pkg==1.0# note" is an invalid requirement (T-070).
+    pinned() above splits on any "#", so it would not notice; this check reads the file the way pip does."""
+    bad = [line for line in REQUIREMENTS.read_text().splitlines()
+           if "#" in line and not line.lstrip().startswith("#") and not re.search(r"\s#", line)]
+    assert bad == []

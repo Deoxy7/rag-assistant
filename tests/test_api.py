@@ -241,3 +241,27 @@ def test_requests_are_logged_and_aggregated_by_stats(client, monkeypatch, db, te
     assert s["input_tokens"] == 240 and s["billed_usd"] == 0.0 and s["list_usd"] > 0
     assert {"retrieve", "pack", "generate"} <= set(s["stages"]) and s["stages"]["generate"]["n"] == 2
     assert client.get("/stats", params={"hours": 0}).status_code == 422
+
+
+def test_chunk_page_renders_the_cited_page_with_highlights(conn):
+    """Real database + real PDF: the page a chunk came from, as a PNG (citation preview, Phase 15)."""
+    from app.api.main import resolve_chunk_set
+    cid, page = conn.execute("SELECT id, page_number FROM chunks WHERE chunk_set_id = %s ORDER BY id LIMIT 1 OFFSET 100",
+                             (resolve_chunk_set(conn),)).fetchone()
+    c = TestClient(app)
+    r = c.get(f"/chunks/{cid}/page.png?dpi=60")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png" and r.content[:8] == b"\x89PNG\r\n\x1a\n"
+    assert c.get(f"/chunks/{cid}/page.png?page={page + 5000}").json()["error"] == "invalid_request"
+    assert c.get("/chunks/999999999/page.png").status_code == 404
+    assert c.get(f"/chunks/{cid}/page.png?dpi=900").status_code == 422     # capped: rendering cost grows with dpi²
+
+
+def test_chunk_page_refuses_a_pdf_that_is_not_the_ingested_file(tmp_path, monkeypatch):
+    from app.api import pages
+    fake = tmp_path / "x.pdf"
+    fake.write_bytes(b"%PDF-1.4 not the ingested file")
+    monkeypatch.setattr(pages, "manifest_paths", lambda: {"DOC": fake})
+    with pytest.raises(pages.PageUnavailable, match="sha256 mismatch"):
+        pages.pdf_for("DOC", "0" * 64)
+    with pytest.raises(pages.PageUnavailable, match="no PDF listed"):
+        pages.pdf_for("OTHER", "0" * 64)

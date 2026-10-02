@@ -16,11 +16,12 @@ from contextlib import asynccontextmanager
 
 import openai
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.sse import EventSourceResponse, format_sse_event
 
+from app.api import pages
 from app.api.schemas import (CitationOut, DocumentOut, ErrorOut, Health, QueryRequest, QueryResponse, SourceOut,
                              QuarantinedOut, Stats, Usage)
 from app.config import get_settings
@@ -272,6 +273,24 @@ def query(req: QueryRequest, request: Request, conn=Depends(db), llm=Depends(llm
     record(request.state.request_id, "/query", 200, None, req.question, a, (time.perf_counter() - t0) * 1000)
     request.state.logged = True
     return response_out(request.state.request_id, a)
+
+
+@app.get("/chunks/{chunk_id}/page.png", response_class=Response,
+         responses={200: {"content": {"image/png": {}}}, 404: {"model": ErrorOut}, 422: {"model": ErrorOut}})
+def chunk_page(chunk_id: int, page: int | None = None, dpi: int = Query(110, ge=50, le=200), conn=Depends(db)):
+    """The PDF page a chunk came from, with the chunk's parsed blocks highlighted (for citation previews)."""
+    loc = repo.chunk_location(conn, chunk_id)
+    if loc is None:
+        raise HTTPException(404, ("not_found", f"no chunk {chunk_id}"))
+    page = page or loc["page_number"]
+    if not loc["page_number"] <= page <= loc["page_end"]:
+        raise HTTPException(422, ("invalid_request", f"chunk {chunk_id} spans pages {loc['page_number']}–{loc['page_end']}"))
+    boxes = [bbox for p, bbox in repo.chunk_regions(conn, chunk_id) if p == page]
+    try:
+        png = pages.render_highlight(pages.pdf_for(loc["doc_key"], loc["source_sha256"]), page, boxes, dpi)
+    except pages.PageUnavailable as exc:
+        raise HTTPException(404, ("page_unavailable", str(exc)))
+    return Response(png, media_type="image/png", headers={"cache-control": "max-age=3600"})
 
 
 @app.get("/stats", response_model=Stats)

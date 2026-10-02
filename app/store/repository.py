@@ -220,6 +220,13 @@ def chunk_regions(conn: psycopg.Connection, chunk_id: int) -> list[tuple[int, tu
 
 # --- API reads ---------------------------------------------------------------------
 
+def chunk_location(conn: psycopg.Connection, chunk_id: int) -> dict | None:
+    """Where a chunk lives: document key, the ingested file's sha256, and its page range."""
+    r = conn.execute("""SELECT d.doc_key, d.source_sha256, c.page_number, c.page_end FROM chunks c
+                        JOIN documents d ON d.id = c.document_id WHERE c.id = %s""", (chunk_id,)).fetchone()
+    return dict(zip(("doc_key", "source_sha256", "page_number", "page_end"), r)) if r else None
+
+
 def list_documents(conn: psycopg.Connection, chunk_set_id: int) -> list[dict]:
     rows = conn.execute("""SELECT d.doc_key, d.company, d.ticker, d.fiscal_year, d.form, d.page_count,
                                   count(c.id)
