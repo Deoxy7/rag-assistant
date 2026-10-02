@@ -2,7 +2,7 @@
 
 A question-answering assistant over complex PDF documents that answers only from the documents, cites the exact page and character span it used, or says the answer isn't there — plus an evaluation harness and ablation study showing which retrieval choices actually help.
 
-**Status:** Phase 0 of 16 — environment, database, docs pipeline and tests. The full README (architecture, headline metrics, demo) is written in Phase 16. Progress log: [PROGRESS.md](PROGRESS.md).
+**Status:** Phases 0–11 of 16 done: ingestion, hybrid retrieval + reranking, cited generation (Gemini), FastAPI with streaming, and the eval harness. Baseline retrieval on the 61-question golden set: hit@5 0.769 [95% CI 0.65–0.88]. Ablations, cost/observability, security, UI and packaging are next; the full README (architecture, headline metrics, demo) is written in Phase 16. Progress log: [PROGRESS.md](PROGRESS.md).
 
 ## Quick start
 
