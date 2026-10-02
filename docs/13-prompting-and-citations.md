@@ -1,6 +1,6 @@
 # 13 — Prompting and citations
 
-**Status:** written in Phase 9 (2026-10-02). Generation runs through the OpenAI Responses API with `gpt-6-luna`. **No `OPENAI_API_KEY` was set during this phase**, so every number below that needs the real model says *not yet measured*. The rest was measured with the deterministic fake model, which tests the *pipeline* (packing, parsing, mapping), not answer quality. This doc owns these terms: context window, token budget, context packing, lost in the middle, grounding, citation marker, citation span, refusal / abstention, temperature, structured output, prompt version, response cache.
+**Status:** written in Phase 9 (2026-10-02); **provider switched to Gemini the same day** (user's decision; card x-llm-provider). Generation and the eval judge now call Gemini's OpenAI-compatible Chat Completions endpoint: `gemini-3.5-flash` generates, `gemini-3.5-flash-lite` judges. Pipeline numbers below were measured with the deterministic fake model. Real-model numbers come from a 6-question smoke run; the full 61-question real-model eval is *not yet measured* (Phase 12). This doc owns these terms: context window, token budget, context packing, lost in the middle, grounding, citation marker, citation span, refusal / abstention, temperature, structured output, prompt version, response cache, OpenAI-compatible endpoint, thinking tokens, exponential backoff.
 
 > **Prerequisites:** [12-reranking.md](12-reranking.md) (the ranked hits that become sources). Numbers come from `make bench-answer ARGS="--provider fake"`, `make ask`, `scripts/render_citation_example.py` and `tests/test_generate.py`, run on 2026-10-02.
 
@@ -39,7 +39,7 @@ The instructions address all three. The citation check makes the first two visib
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ╔═══════╧══════╗  ╔════════════════════╗  ┌────────┐  ┌────────────┐
-               ║ LLM (OpenAI) ║◀─║ Prompt + citations ║◀─│ Rerank │◀─│ RRF fusion │
+               ║ LLM (Gemini) ║◀─║ Prompt + citations ║◀─│ Rerank │◀─│ RRF fusion │
                ╚══════════════╝  ╚════════════════════╝  └────────┘  └────────────┘
 
  Double-line boxes (╔═╗) = this doc.
@@ -82,8 +82,8 @@ The instructions address all three. The citation check makes the first two visib
                   └──────────────────┬──────────────────┘
                                      ▼
                        ┌────────────────────────────┐
-                       │ LLM: gpt-6-luna            │
-                       │ (Responses API)            │
+                       │ LLM: gemini-3.5-flash      │
+                       │ (Chat Completions)         │
                        └────────────────────────────┘
  Legend (colours appear in the image): green = retrieval · purple = generation ·
  white = side output
@@ -173,7 +173,7 @@ def pack_context(hits, budget_tokens, order="rank"):
             continue
 ```
 
-Tokens are counted with tiktoken's `o200k_base`. tiktoken has no mapping for the name `gpt-6-luna` (`encoding_for_model` raises), so this is a budgeting estimate. Billing uses the API's own `usage` numbers. A chunk is never truncated: half a table row would be worse than no row, and the citation span would cover text the model never saw.
+Tokens are counted with tiktoken's `o200k_base`. Gemini uses its own tokenizer, so this is a budgeting estimate only. Measured on the AMD prompt: o200k counts 2,644 tokens, Gemini reported 3,043, about 15% more. Billing uses the API's own `usage` numbers. A chunk is never truncated: half a table row would be worse than no row, and the citation span would cover text the model never saw.
 
 ### `citations.py`
 
@@ -195,11 +195,57 @@ Everything in a citation comes from the stored chunk. Measured on chunk set 1: f
 ### `llm.py`
 
 ```python
-        r = self.client.responses.create(model=self.model, instructions=instructions, input=user,
-                                         store=False, **self.params())
+class ChatClient:
+    """OpenAI-compatible Chat Completions client (Gemini, OpenAI, …)."""
+    def __init__(self, provider, api_key, model, base_url, max_output_tokens, temperature, reasoning_effort, ...):
+        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=0, ...)
+
+    def generate(self, instructions, user):
+        r = with_retries(lambda: self.client.chat.completions.create(
+            model=self.model, messages=self._messages(instructions, user), **self.params()), **self.retry)
 ```
 
-The Responses API takes `instructions` (system) and `input` (user) separately. `store=False` stops OpenAI keeping the conversation for later retrieval. `params()` sends `temperature` only if it's configured (default: not sent), because some current models reject it. I couldn't check `gpt-6-luna` without a key. Streaming uses `client.responses.stream(...)` and yields `response.output_text.delta` events.
+The client is the official OpenAI SDK pointed at a different `base_url`. Gemini serves an OpenAI-compatible API at `https://generativelanguage.googleapis.com/v1beta/openai/`, so the request shape (`messages` with a system and a user message) and the response shape (`choices[0].message.content`, `usage.prompt_tokens`) are unchanged. Provider, base URL, model names and the key are all settings (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_JUDGE_MODEL`, and `GEMINI_API_KEY` or `OPENAI_API_KEY`), so switching provider is an edit to `.env`.
+
+Two facts measured on the user's key shaped this code:
+
+- **Chat Completions, not the Responses API.** Phase 9's first client used OpenAI's newer Responses API. Gemini's compat endpoint answers it with **404** (T-045). Chat Completions works on both providers, and on most local servers.
+- **Thinking tokens count against `max_tokens`.** `gemini-3.5-flash` "thinks" before answering, and those hidden tokens come out of the output cap. Asked to count to five with `max_tokens=60`, it returned `'1'` with `finish_reason="length"`, having spent the rest thinking. So the cap is 2,048, `reasoning_effort` is a setting (`low` for generation), and every result carries `finish_reason`. A `"length"` stop is reported as `truncated` in the API response and counted by the eval runner, and the cache stores it (migration 0004), so a cached truncated answer stays flagged.
+
+**Choosing the models (from the key, not from memory).** `client.models.list()` on the key returned 61 models. A one-line probe of each Flash candidate on 2026-10-02 showed:
+
+```text
+gemini-3.8-flash         InternalServerError 503 'This model is currently experiencing high demand…'
+gemini-3.7-flash         InternalServerError 503 (same)
+gemini-3.5-flash         'OK'  8/1 tokens   1,491 ms
+gemini-2.5-flash         NotFoundError 404 'no longer available to new users'
+gemini-3.5-flash-lite    'OK'  8/1 tokens     816 ms
+gemini-3.1-flash-lite    'OK'  8/1 tokens   1,069 ms
+gemini-2.5-flash-lite    NotFoundError 404 (same)
+```
+
+So: `gemini-3.5-flash` for generation (the newest Flash that answered), and `gemini-3.5-flash-lite` for the judge (the newest text Flash-Lite). Moving `*-latest` aliases (`gemini-flash-latest`) were avoided on purpose: an alias can change model under you, and eval results must be reproducible. Flash-Lite rejects `reasoning_effort="none"` with HTTP 400 (T-048), so the judge sends no reasoning parameter. Prices (Gemini pricing page, paid tier, per 1M tokens, thinking billed as output): Flash $1.50 in / $9.00 out, Flash-Lite $0.30 / $2.50. A free tier also exists; its rate limits aren't on the pricing page.
+
+```python
+def with_retries(call, max_retries, base_s, max_s, sleep=time.sleep):
+    for attempt in range(max_retries + 1):
+        try:
+            return call()
+        except Exception as exc:
+            if attempt == max_retries or not retryable(exc):
+                raise
+            ...
+            sleep(backoff_s(attempt, base_s, max_s, headers.get("retry-after")))
+```
+
+Retries are ours, not the SDK's (`max_retries=0` on the SDK), so there's exactly one policy:
+
+- **Retried:** 429 rate limits, any 5xx (such as Gemini's 503 "high demand"), timeouts and dropped connections.
+- **Not retried:** 4xx client errors, and a 429 that means an empty balance (T-038), because waiting doesn't fix those.
+- **Backoff:** exponential, `1 s · 2^attempt`, capped at 30 s and scaled into [½, 1] at random. The jitter keeps many clients from retrying in lock-step. A server's `Retry-After` header wins if it's longer.
+- **Budget:** six retries means a sweep rides out up to about a minute of trouble per call. Each retry logs one line.
+
+A *stream* is retried only while opening: once text has reached the reader it can't be taken back. In the eval runner, a question whose call still fails after all retries is recorded with its error, and the run continues instead of dying and losing the questions already scored.
 
 ```python
 class CachedLLM:
@@ -208,11 +254,11 @@ class CachedLLM:
         hit = repo.llm_cache_get(self.conn, key)
 ```
 
-The key is the sha256 of {prompt version, provider, model, instructions, input, params}. A hit returns the stored text and token counts and increments `hits` (migration 0003). That makes eval re-runs free and deterministic (decision D).
+The key is the sha256 of {prompt version, provider, base URL, model, instructions, input, params}. The input contains the question *and* the packed sources, so any retrieval-config change that alters what the model sees is a different key. A hit returns the stored text, token counts and finish reason, and increments `hits` (migrations 0003, 0004). That makes eval re-runs free and deterministic (decision D). The table lives in Postgres, whose data sits on a Docker volume on disk, so it survives restarts. Measured with real Gemini: the 6-question smoke eval took 1 min 41 s and 16,572 input tokens the first time; re-run, it took 13 s and billed **0** tokens, with identical answers and judge scores.
 
 ```python
     if not key.strip():
-        raise MissingAPIKey("LLM_PROVIDER=openai but OPENAI_API_KEY is empty. Add it to .env, "
+        raise MissingAPIKey(f"LLM_PROVIDER={s.llm_provider} but {env} is empty. Add it to .env, "
                             "or set LLM_PROVIDER=fake to run offline with the deterministic fake model.")
 ```
 
@@ -430,9 +476,9 @@ With `--oracle-filter` (right filing only): context p50 2,336 tokens, max 2,729;
 **Read honestly:**
 
 - **The budget never binds.** Ten 256-token chunks take 2,144 tokens at p50 and 2,596 at most, under the 3,000 budget. So k = 10 is what decides the context size, not the budget. The budget is a safety net for larger k or larger chunks (Phase 12 ablates both).
-- **Cost estimate, not a measurement.** At the published `gpt-6-luna` prices ($0.10 / $0.50 per 1M input/output tokens), 2,388 input tokens is about $0.00024 per question. With up to 700 output tokens (the cap), that's at most about $0.0006. The real token counts come from the API in Phase 11; *not yet measured*.
+- **Cost, from real token counts.** In the 6-question Gemini smoke run, generation used 16,572 input and 135 output tokens (about 2,800 in per question). At Flash's paid price ($1.50 / $9.00 per 1M) that's about $0.0043 per question; a full 61-question run would be about $0.26, plus the judge. Thinking tokens are billed as output, and Gemini's usage numbers include them.
 - **The fake's citation numbers say the parsing works,** not that a model cites well: no invalid markers, no uncited claims, every citation mapped. Real-model faithfulness and citation precision: *not yet measured* (Phase 11).
-- **Latency:** retrieval p50 is 130 ms (hybrid + rerank). Generation latency and time-to-first-token for `gpt-6-luna`: *not yet measured*.
+- **Latency:** retrieval p50 is 130 ms (hybrid + rerank). One real `make ask` call: generation 2,458 ms with `gemini-3.5-flash`, `reasoning_effort=low`. A p50 over many questions is *not yet measured* (Phase 13).
 
 ## 7. Decisions & alternatives
 
@@ -459,7 +505,7 @@ With `--oracle-filter` (right filing only): context p50 2,336 tokens, max 2,729;
 
 **Where our choice breaks.** With larger chunks (510 tokens) or larger k, the budget starts dropping sources. They're dropped from the bottom, which is right only if the ranking is right.
 
-**The number.** Context tokens p50 2,144, max 2,596 (budget 3,000; 0 sources dropped on 28 questions). Input tokens p50 2,388, about $0.00024 at $0.10 / 1 M. Lost-in-the-middle effect on gpt-6-luna: *not yet measured*.
+**The number.** Context tokens p50 2,144, max 2,596 (budget 3,000; 0 sources dropped on 28 questions). Input tokens p50 2,388 (o200k estimate; Gemini counts about 15% more). Lost-in-the-middle effect on gpt-6-luna: *not yet measured*.
 
 **Interview script (3 sentences).** "I pack whole chunks best-first under a 3,000-token budget. Whole chunks because a citation's character span must match exactly what the model saw, and I verified that for all 7,411 chunks. Measured, ten chunks take about 2,100 tokens, so the budget is headroom. The 'sandwich' ordering for lost-in-the-middle is implemented but only gets switched on if the ablation shows an effect on this model."
 
@@ -542,9 +588,56 @@ With `--oracle-filter` (right filing only): context p50 2,336 tokens, max 2,729;
 **The trap.** Claiming the prompt "guarantees" grounding.
 <!-- card:end -->
 
+<!-- card:start id=x-llm-provider -->
+#### Decision: Gemini (3.5 Flash generates, 3.5 Flash-Lite judges) through its OpenAI-compatible endpoint, behind a provider-neutral client  (rejected: Gemini's native SDK; staying on OpenAI; a local model)
+
+**One-line defence.** It was the user's call: an API key that works (the OpenAI account had no credits, T-038), with a free tier. Going through the OpenAI-compatible endpoint means the same SDK, the same request shape and a settings-only switch back. The cost of that portability is losing Gemini-only features.
+
+**What problem is this even solving?** Generating answers and judging them needs a model API that's available, affordable for repeated eval sweeps, and replaceable without rewriting the pipeline.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Gemini via OpenAI-compatible endpoint | OpenAI SDK + `base_url` + Gemini key | Works on this key; free tier; switch = `.env` edit; same tests (mocked HTTP) | No Responses API (404); Gemini-only features (native grounding, safety settings, explicit thinking budgets) are out of reach or behave differently; compat layer may lag the native API | Now, with portability as a goal |
+| Gemini native SDK (`google-genai`) | Google's own client | Full feature set (thinking budget control, context caching, safety) | A second SDK and code path; switching back is a rewrite of `llm.py` and its tests | When a Gemini-only feature is needed |
+| Stay on OpenAI | Responses API, gpt-6-luna | Original design | Account has no credits: nothing runs | If credits are added |
+| Local model (Ollama, vLLM) via the same compat API | Same client, local `base_url` | Free per call, private | Quality and speed on an 8 GB M1; a third service to run | Offline demos, privacy-sensitive data |
+
+**What would actually change if we swapped it.**
+- **Back to OpenAI, or to another compatible provider:** four `.env` lines (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_JUDGE_MODEL`) plus the key.
+- **What doesn't port:** provider-specific parameters. `reasoning_effort` is accepted differently by different models (Flash-Lite rejects `"none"`). Token counts differ, because each provider has its own tokenizer. Error shapes differ: Gemini wraps errors in a list, and `quota_exhausted` handles both forms. Prices differ.
+- **What breaks comparability:** cached responses are keyed by provider, endpoint and model, so a switch re-pays every eval call once. Eval numbers from one generator or judge must never be compared with another's.
+- **Native SDK instead:** roughly a day to rewrite `llm.py`, its client tests and the streaming code.
+
+**The decision rule.** Talk to providers through the most common protocol you can (OpenAI Chat Completions today), and keep the provider's name, URL and models in configuration. Accept a provider-specific SDK only for a feature you've measured you need.
+
+**Where our choice breaks.**
+- **Gemini-only features** such as explicit thinking budgets, Google Search grounding and context caching would need the native SDK.
+- **The judge is weaker than the generator.** Flash-Lite grades Flash, which goes against the usual rule (card #37) of judging with a stronger model. Cheaper and faster for sweeps, but its verdicts on subtle faithfulness errors deserve a human-checked sample before small differences are trusted.
+- **Lock-in sits in the numbers, not the code.** Changing provider later costs a re-run of every eval and invalidates comparisons with earlier runs.
+
+**The number.**
+- Models available to the key: 61. Probe: 3.8 and 3.7 Flash returned 503, the 2.5 models 404; 3.5 Flash answered in 1,491 ms and 3.5 Flash-Lite in 816 ms.
+- Smoke eval: 6 questions in 1 min 41 s, 0 errors, 0 truncated; re-run in 13 s with 0 tokens billed.
+- One real answer: 3,043 input and 37 output tokens, 2,458 ms.
+- Code touched by the switch: `llm.py`, settings, the eval runner's judge construction, and the client tests. Retrieval, embeddings and every retrieval eval number are unchanged.
+
+**Interview script (3 sentences).** "The generator and judge sit behind one small client that speaks OpenAI's Chat Completions protocol, with provider, base URL, models and key in settings. Moving from OpenAI to Gemini was a client rewrite from the Responses API to Chat Completions, because Gemini's compatibility layer doesn't serve Responses, plus four lines of `.env`. The real lock-in isn't code, it's evaluation history: every number is tied to a specific generator and judge, so switching means re-running the evals and never comparing across providers."
+
+**Follow-ups they will ask:**
+- Q: Why not Gemini's own SDK? → A: Portability. One protocol works for Gemini, OpenAI and local servers. I'd take the native SDK only for a measured need, like explicit thinking budgets or Google's context caching.
+- Q: What differs between "OpenAI-compatible" providers? → A: Supported endpoints (no Responses API here), accepted parameters (`reasoning_effort` values), tokenizers and token counts, error formats, rate limits and pricing. "Compatible" means the common subset.
+- Q: Why pin `gemini-3.5-flash` instead of `gemini-flash-latest`? → A: An alias can move to a new model overnight, silently changing every eval result. A pinned name changes only when I change it.
+- Q: How do retries interact with the cache? → A: Only successful responses are cached. A failed call is retried with backoff, then recorded as an error. A rerun pays only for what failed or changed.
+- Q (the hard one): Isn't a Flash-Lite judge grading a Flash generator unreliable? → A: It's a real weakness. A weaker judge can miss subtle unsupported claims. It was chosen for cost and speed across many sweeps, so I'd validate it on a hand-graded sample, and use it to compare configurations rather than as an absolute score.
+
+**The trap.** Believing "OpenAI-compatible" means drop-in identical, or comparing eval numbers produced by different judges.
+<!-- card:end -->
+
 ## 7a. Prerequisite concepts
 
-**Context window.** The maximum tokens a model reads per request: 1.05 M for gpt-6-luna per OpenAI's model page. **Token budget** is the part *we* allow for sources (3,000).
+**Context window.** The maximum tokens a model reads per request. **Token budget** is the part *we* allow for sources (3,000).
 
 **Grounding.** Answering only from supplied evidence, as opposed to the model's own memory (*closed-book* knowledge).
 
@@ -575,7 +668,11 @@ With `--oracle-filter` (right filing only): context p50 2,336 tokens, max 2,729;
 
 | What you see | Cause | Fix |
 |---|---|---|
-| `error: LLM_PROVIDER=openai but OPENAI_API_KEY is empty` | No key in `.env` | Add it, or `LLM_PROVIDER=fake` for offline |
+| `error: LLM_PROVIDER=gemini but GEMINI_API_KEY is empty` | No key in `.env` | Add it, or `LLM_PROVIDER=fake` for offline |
+| `NotFoundError: Error code: 404` from `responses.create` | Gemini's compat endpoint has no Responses API (T-045) | Chat Completions (done) |
+| Answer is `'1'` with `finish_reason="length"` | Thinking tokens used up `max_tokens` (T-046) | Cap 2,048, `reasoning_effort` setting; `truncated` flag |
+| `503 … high demand` | Model overloaded (3.8 / 3.7 Flash on 2026-10-02) | Backoff retries; or a less loaded model (`LLM_MODEL`) |
+| `400 INVALID_ARGUMENT` on the judge | Flash-Lite rejects `reasoning_effort="none"` (T-048) | Leave `LLM_JUDGE_REASONING_EFFORT` unset |
 | A claim flagged uncited although "[1]" follows it | Marker after the period, glued to the next sentence (T-035) | Markers moved before the full stop (fixed) |
 | Answer shows "[9]" | Model cited a non-existent source | Removed from the shown text; counted as invalid |
 | Cited page differs from the printed page number | PDF page vs printed folio (43 vs 40) | Open the PDF at the page; say "PDF page" |
@@ -604,13 +701,23 @@ Expected: the table in §6.
 
 Expected: `30 passed`, with no network and no key.
 
-Once `OPENAI_API_KEY` is in `.env`:
+With `GEMINI_API_KEY` in `.env`:
 
 ```bash
 make bench-answer
 ```
 
-That fills in every *not yet measured* above, for less than a cent at the configured prices.
+Expected: real Gemini answers. A real one from 2026-10-02:
+
+```text
+In 2022, AMD's net revenue was $23.6 billion (or $23,601 million) [1][5][7].
+
+  [1] AMD 2022 10-K, p. 43 · chunk 5736 · chars 185634–186892
+  [5] AMD 2022 10-K, p. 48 · chunk 5759 · chars 208381–208797
+  [7] AMD 2022 10-K, p. 49 · chunk 5764 · chars 212094–212856
+
+  gemini / gemini-3.5-flash · sources 10 (2427 tokens, 0 dropped) · in 3043 / out 37 · retrieve 630 ms · generate 2458 ms
+```
 
 ## 10. Numbers
 
@@ -621,7 +728,10 @@ That fills in every *not yet measured* above, for less than a cent at the config
 | Chunk spans equal to stored text | 7,411 of 7,411 | shell (SQL `substr` check) |
 | Estimated input cost per question at $0.10 / 1 M | ≈ $0.00024 | arithmetic on 2,388 tokens |
 | Retrieval p50 inside the answer pipeline | 130 ms | `make bench-answer` |
-| Real-model latency, faithfulness, citation precision, refusal accuracy | *not yet measured* (no API key) | Phase 11 |
+| Real smoke (6 q, Gemini): refusals right / false refusals | 2 of 2 unanswerable refused; 1 of 4 answerable refused (G045, where retrieval missed Boeing) | `make eval NAME=smoke ARGS="--generate --judge --ids G001,G023,G045,G038,G053,G057"` |
+| Real smoke: judge faithfulness / correctness | 1.0 / 0.75 (6 questions; a smoke test, not a measurement) | same |
+| Re-run of the same smoke | 13 s vs 1 min 41 s; 0 tokens billed (cache) | same, run twice |
+| Full-set real-model faithfulness, citation precision, refusal accuracy | *not yet measured* (Phase 12) | `make eval ARGS="--generate --judge"` |
 
 ## 11. Interview talking points
 

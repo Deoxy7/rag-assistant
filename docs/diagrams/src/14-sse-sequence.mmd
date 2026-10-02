@@ -6,7 +6,7 @@ sequenceDiagram
     end
     box rgb(243,232,255) API + generation
         participant A as FastAPI /query/stream
-        participant L as LLM (OpenAI Responses API)
+        participant L as LLM (Gemini · Chat Completions)
     end
     box rgb(220,252,231) Retrieval
         participant R as Retriever (hybrid + rerank)
@@ -22,13 +22,13 @@ sequenceDiagram
     R-->>A: 10 hits after RRF + cross-encoder (~110 ms)
     Note over A: DB connection released here
     A-->>C: 200 text/event-stream · event: sources (≈100 ms)
-    A->>L: responses.stream(instructions, sources + question)
+    A->>L: chat.completions (stream) · system + user message
     loop each token group
-        L-->>A: response.output_text.delta
+        L-->>A: chunk: delta.content
         Note over A: refusal gate: hold text that<br/>could still be INSUFFICIENT_CONTEXT
         A-->>C: event: delta "Net revenue for 2022 …"
     end
-    L-->>A: response.completed (usage)
+    L-->>A: final chunk (finish_reason, usage)
     A->>P: cache put (own short connection)
     A-->>C: event: answer {citations, usage, timings}
     Note over C,A: failure after the 200 → event: error {code, status}

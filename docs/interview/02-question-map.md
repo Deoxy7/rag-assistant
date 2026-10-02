@@ -110,6 +110,9 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P11-06 | Bootstrap confidence intervals | [11](11-cs-core-touchpoints.md) | statistics | viva, ML | 3 | | |
 | P11-07 | Where retrieval fails, by question type | [04](04-retrieval.md) | retrieval | deep-dive | 3 | | |
 | P11-08 | "Did you tune on your test set?" | [14](14-honest-answers.md) | honesty | deep-dive | 3 | | |
+| P11-09 | Switching LLM providers: cost and real lock-in | [06](06-system-design.md) | design | design, deep-dive | 3 | | |
+| P11-10 | Retries for an eval sweep that can't die halfway | [06](06-system-design.md) | reliability | backend, design | 3 | | |
+| P11-11 | The model answered just "1" — why? | [06](06-system-design.md) | debugging | ML | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

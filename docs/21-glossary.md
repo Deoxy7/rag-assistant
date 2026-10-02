@@ -72,12 +72,14 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Event loop | Single-threaded scheduler for async code; a blocking call on it stalls every task. | [14](14-api-and-streaming.md) |
 | Evidence span | (document, char_start, char_end) of the text that answers a question; stored as an exact quote. | [15](15-eval-harness.md) |
 | Exhibit (10-K) | A document attached to a filing — contracts, plans, certifications — usually after the signature page. | [04](04-corpus.md) |
+| Exponential backoff | Waiting base·2^attempt (capped) between retries, so a struggling server gets progressively more room. | [13](13-prompting-and-citations.md) |
 | Expression index | An index on an expression's result (embedding::vector(384)); queries must use the same expression. | [08](08-database-schema.md) |
 | Extension (Postgres) | A package adding types, functions, operators or index types; enabled per database with `CREATE EXTENSION`. | [03](03-environment-and-infra.md) |
 | Factory pattern | One function that turns configuration into the right implementation (`get_chunker`). | [06](06-chunking.md) |
 | Faithfulness | Share of an answer's claims supported by the given sources (LLM-judged). | [15](15-eval-harness.md) |
 | False-refusal rate | Share of answerable questions the system refused. | [15](15-eval-harness.md) |
 | Fine-tuning | Continuing to train an already-trained model on new examples, changing its weights. | [01](01-what-is-rag.md) |
+| finish_reason | Why a model stopped: "stop" (done) or "length" (hit the token cap: answer truncated). | [13](13-prompting-and-citations.md) |
 | Fiscal year | A company's accounting year, which need not match the calendar year. | [04](04-corpus.md) |
 | Foreign key | A column that must match a primary key in another table. | [08](08-database-schema.md) |
 | Form 10-K | The annual report US public companies file with the SEC, with a structure fixed by regulation. | [04](04-corpus.md) |
@@ -106,6 +108,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
 | Iterative index scan | pgvector ≥ 0.8: keep walking HNSW until enough rows pass the filter. | [09](09-vector-search.md) |
 | IVFFlat | Vector index that clusters vectors into lists and searches only the nearest lists. | [08](08-database-schema.md) |
+| Jitter | Randomising each backoff wait, so many clients don't retry in lock-step. | [13](13-prompting-and-citations.md) |
 | k1 / b (BM25) | Term-frequency saturation (1.2) and length normalisation (0.75). | [10](10-keyword-search.md) |
 | Kernel | The core of an operating system: schedules processes, manages memory, talks to hardware. | [03](03-environment-and-infra.md) |
 | Keyword (lexical) search | Search that matches the words themselves after normalising them. | [01](01-what-is-rag.md); details [10](10-keyword-search.md) |
@@ -127,6 +130,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Microservices | Each component deployed as its own network service. | [02](02-architecture-overview.md) |
 | Migration | A numbered, ordered schema change applied once and recorded. | [08](08-database-schema.md) |
 | Min-max normalisation | Rescaling a list's scores to 0–1 via (s − min)/(max − min); the best hit always becomes 1.0. | [11](11-hybrid-rrf.md) |
+| Model alias | A moving name (e.g. gemini-flash-latest) that can point to a new model at any time; avoided in evals. | [13](13-prompting-and-citations.md) |
 | Modular monolith | One deployable application divided into modules with enforced boundaries. | [02](02-architecture-overview.md) |
 | MPS (Metal Performance Shaders) | PyTorch's backend for Apple GPUs. | [07](07-embeddings.md) |
 | MRR (mean reciprocal rank) | Average of 1 / rank of the first relevant result. | [15](15-eval-harness.md) |
@@ -141,6 +145,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Offline path | Work done ahead of time that nobody waits for (parsing, chunking, embedding). | [02](02-architecture-overview.md) |
 | Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
 | Online path | Work done while a user waits (search, rank, generate). | [02](02-architecture-overview.md) |
+| OpenAI-compatible endpoint | A provider's HTTP API that accepts OpenAI's request/response shapes (here Chat Completions), so the OpenAI SDK works with a different base_url. | [13](13-prompting-and-citations.md) |
 | OpenAPI | Machine-readable API description generated from the request/response models (/openapi.json, /docs). | [14](14-api-and-streaming.md) |
 | Operating point | One chosen threshold together with its error rates. | [15](15-eval-harness.md) |
 | Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
@@ -211,6 +216,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Temperature | Sampling randomness; 0 is near-greedy, not guaranteed deterministic on a hosted API. | [13](13-prompting-and-citations.md) |
 | Term frequency (tf) | Occurrences of a term in a document. | [10](10-keyword-search.md) |
 | Text extractability | How much text extraction actually yields from a page. | [04](04-corpus.md) |
+| Thinking tokens | Hidden reasoning tokens a model generates before answering; on Gemini 3.x Flash they count against max_tokens and are billed as output. | [13](13-prompting-and-citations.md) |
 | Thread pool | Worker threads where FastAPI runs sync endpoints so the event loop stays free. | [14](14-api-and-streaming.md) |
 | Throughput | How many requests per second a system can complete. | [02](02-architecture-overview.md) |
 | Tie-break | The rule ordering equal scores; RRF here uses best single rank, then chunk id, for reproducible order. | [11](11-hybrid-rrf.md) |

@@ -433,3 +433,83 @@
 **Trap.** One "latest score" in a spreadsheet, overwritten each run.
 
 **Bridge.** "Phase 12 runs the ablation matrix through exactly this runner."
+
+---
+
+## Provider-switch questions (2026-10-02)
+
+### Q: You switched LLM providers mid-project. What did it cost, and what's the real lock-in?
+**ID:** P11-09 · **Round:** system design · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "The pipeline only knows a two-method client, generate and stream, behind settings for provider, base URL, models and key. Moving from OpenAI to Gemini meant rewriting that client from OpenAI's Responses API to Chat Completions, because Gemini's compatibility endpoint answers Responses with 404, plus four `.env` lines. Retrieval, embeddings and every retrieval number were untouched. The real lock-in is evaluation history: cached responses and judge scores are tied to one generator and judge, so after a switch every judged eval is re-run, and old and new numbers are never compared."
+
+**2-minute answer.** List what 'compatible' didn't cover, all measured: no Responses API; `reasoning_effort="none"` rejected by Flash-Lite with a 400; Gemini's thinking tokens counting against `max_tokens` (an answer cut to '1'); errors wrapped in a list; different tokenizer (15% more tokens than o200k for the same prompt). Each became a setting, a flag or a test.
+
+**If they push — level 2.** *"Why not the native Gemini SDK?"* It would buy Gemini-only features (thinking budgets, context caching) at the price of a second code path. Not needed yet.
+
+**If they push — level 3.** *"How do you pick the model?"* List what the key can actually use, probe each candidate with a one-token call, and pin a dated name, not an alias. Here 3.8 and 3.7 Flash returned 503, and the 2.5 models 404.
+
+**If they push — level 4.** *"What breaks if you switch back?"* Nothing in code. Cached answers miss (provider, endpoint and model are in the key), so the first eval re-pays, and the judge changes, so judged numbers restart.
+
+**Whiteboard it.**
+```text
+ settings: LLM_PROVIDER · LLM_BASE_URL · LLM_MODEL · LLM_JUDGE_MODEL · <PROVIDER>_API_KEY
+ ChatClient (OpenAI SDK, chat.completions) ── retries ── CachedLLM (key ∋ provider, url, model, params)
+ not portable: Responses API · reasoning_effort values · tokenizer · error shapes · prices
+```
+
+**Trap.** "It's OpenAI-compatible, so it's a drop-in."
+
+**Bridge.** "That's why every result file records provider, endpoint and model."
+
+---
+
+### Q: Design retries for an eval sweep of hundreds of LLM calls so it can't die halfway.
+**ID:** P11-10 · **Round:** backend screen · system design  **Difficulty:** 3/5
+
+**30-second answer.** "Three layers. Per call: retry 429 rate limits, 5xx, timeouts and dropped connections with exponential backoff (1 s · 2^attempt, capped at 30 s, jittered into [½, 1]), honour Retry-After, and don't retry 4xx or an empty balance, because waiting doesn't fix those. Per question: if a call still fails after six retries, record the error in the row and continue. Per run: every successful response is cached by a hash of the full request, so rerunning the sweep only pays for what failed."
+
+**2-minute answer.** Explain why our own retries replace the SDK's (`max_retries=0` there): one policy, logged retries, and quota detection. Explain why a stream is retried only before its first token: text already shown can't be retracted. The measured cache effect: the 6-question smoke eval took 101 s and 16,572 input tokens the first time, and 13 s and 0 tokens on rerun.
+
+**If they push — level 2.** *"Why jitter?"* Without it, every client that failed at the same moment retries at the same moment and collides again (a thundering herd).
+
+**If they push — level 3.** *"How long can one call wait?"* 1+2+4+8+16+30 ≈ 61 s of backoff at most (times jitter), plus the 60 s timeout per attempt.
+
+**If they push — level 4.** *"Rate limits across parallel workers?"* Add a client-side token bucket matched to the provider's limit, so 429s become rare rather than retried.
+
+**Whiteboard it.**
+```text
+ retry: 429 (not quota) · 5xx · timeout · connection   no retry: 4xx · insufficient_quota
+ wait = min(30, 1·2^n) · U(½,1), ≥ Retry-After
+ run: question fails after retries → row.error, continue · rerun → cache hits, 0 tokens
+```
+
+**Trap.** Retrying everything, including auth errors and empty balances.
+
+**Bridge.** "The cache is what makes reruns cheap; retries are what make them rare."
+
+---
+
+### Q: Your model's answer came back as just "1". What happened?
+**ID:** P11-11 · **Round:** ML screen · debugging  **Difficulty:** 2/5
+
+**30-second answer.** "Gemini 3.x Flash thinks before answering, and those hidden thinking tokens come out of `max_tokens`. With a 60-token cap it spent almost all of it thinking and returned '1' with `finish_reason` 'length'. With `reasoning_effort=none` the same request gave '1, 2, 3, 4, 5' and stopped normally. So the output cap is 2,048, reasoning effort is a setting, and every result keeps its finish reason. A 'length' stop is flagged `truncated` in the API and counted in evals, even when served from the cache."
+
+**2-minute answer.** Generalise it: always check finish reasons. A truncated answer can still look plausible and even carry citations, so a silent cut becomes a silent quality bug. Thinking tokens are also billed as output, which changes cost estimates.
+
+**If they push — level 2.** *"Why not disable thinking?"* Calculation questions (margins, differences) may benefit from it. It's an ablation, and the default is 'low'.
+
+**If they push — level 3.** *"Can you see thinking tokens in usage?"* Not broken out on this endpoint: total minus prompt minus completion gives them indirectly (68 − 12 − 1 = 55).
+
+**If they push — level 4.** *"Does the judge have the same issue?"* Flash-Lite didn't show it in the probe, but its results carry the same finish reason.
+
+**Whiteboard it.**
+```text
+ max_tokens=60, effort default → finish=length, text '1', total 68 (prompt 12 + completion 1 + ~55 thinking)
+ effort=none                   → finish=stop,   text '1, 2, 3, 4, 5'
+ fix: cap 2048 · effort setting · truncated flag (cached too)
+```
+
+**Trap.** Treating every 200 response as a complete answer.
+
+**Bridge.** "finish_reason is now a column in the cache and the eval rows."

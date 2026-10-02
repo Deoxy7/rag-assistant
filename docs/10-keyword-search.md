@@ -33,7 +33,7 @@ Vector search failed in ways keyword search doesn't: asked for "16,434", vector 
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (OpenAI) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────────────┘  └────────────────────┘  └────────┘  └────────────┘
 
  Double-line box (╔═╗) = this doc explains the keyword half of the search box.

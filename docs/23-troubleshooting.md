@@ -354,3 +354,53 @@ using the API at https://platform.openai.com/settings/organization/billing/.', '
 - **Symptom:** the first summary's "best threshold" had 0 refusals.
 - **Cause:** 52 answerable vs 9 unanswerable: never refusing is 85% accurate.
 - **Fix:** report operating points (catch ≥ ⅓, ⅔, all) with their false-refusal rates.
+
+## Provider switch to Gemini (2026-10-02, between Phases 11 and 12)
+
+### T-045 · Responses API returns 404 on Gemini's OpenAI-compatible endpoint — hit
+
+```text
+responses API: NotFoundError 404 Error code: 404
+```
+
+- **Cause:** `https://generativelanguage.googleapis.com/v1beta/openai/` serves Chat Completions, models and embeddings, but not OpenAI's Responses API, which the Phase 9 client used.
+- **Fix:** the client (`ChatClient`) uses `chat.completions`, which works on both providers.
+
+### T-046 · Answer cut to "1": thinking tokens used up max_tokens — hit
+
+```text
+gemini-3.5-flash  effort=None  finish=length  text='1'  completion=1  total=68
+gemini-3.5-flash  effort=none  finish=stop    text='1, 2, 3, 4, 5'  completion=13  total=25
+```
+
+- **Cause:** Gemini 3.x Flash spends hidden "thinking" tokens out of `max_tokens` (prompt 12 + completion 1 = 13 of a total of 68). The usage object doesn't break the thinking tokens out separately.
+- **Fix:** `LLM_MAX_OUTPUT_TOKENS=2048`, `LLM_REASONING_EFFORT` as a setting, and `finish_reason` kept on every result (and in the cache, migration 0004), so a `"length"` stop is flagged `truncated` in the API and counted by the eval runner.
+
+### T-047 · Listed models that don't answer: 503 "high demand" and 404 "no longer available" — hit
+
+- **Symptom:** `gemini-3.8-flash` and `gemini-3.7-flash` → `InternalServerError 503 'This model is currently experiencing high demand'`; `gemini-2.5-flash` / `-lite` → `NotFoundError 404 'no longer available to new users'`. All appeared in `models.list()`. The first probe also hit a 60 s read timeout on `gemini-3.8-flash`.
+- **Fix:** probe before choosing (`gemini-3.5-flash` and `-flash-lite` answered); retries with backoff for transient 5xx. A later single call to `gemini-3.8-flash` succeeded after 17 s, so its 503s were transient.
+
+### T-048 · Flash-Lite rejects reasoning_effort="none" — hit
+
+```text
+gemini-3.5-flash-lite effort=none BadRequestError 400 Error code: 400 - [{'error': {'code': 400, 'message': 'Request contains an invalid argument.', 'status': 'INVALID_ARGUMENT'…
+```
+
+- **Fix:** the judge sends no reasoning parameter (`LLM_JUDGE_REASONING_EFFORT` unset). "OpenAI-compatible" covers the common subset, not every parameter value.
+
+### T-049 · `.env.example` had been reduced to one line, and I committed it — hit (found late)
+
+- **Symptom:** while adding the Gemini settings, `.env.example` contained only `OPENAI_API_KEY=`. The Phase 0 template (Postgres settings that `make up` copies to `.env`) was gone.
+- **Cause:** the file was overwritten outside my edits before Phase 9. My Phase 9 script saw the key already present, skipped its edit, and I committed the shrunken file without reading it.
+- **Fix:** restored the Phase 0 block from git history (`git show 316087f:.env.example`) and added the LLM section. A fresh clone would otherwise have started without database settings.
+
+### T-050 · Test saw another test's cached LLM response — hit
+
+- **Cause:** the `db` fixture truncated documents and chunk sets, but not `llm_cache`, so two tests using the same (provider, model, prompt) shared a cached answer.
+- **Fix:** the fixture also truncates `llm_cache`.
+
+### T-051 · `LLM_BASE_URL=` (empty) parsed as the URL "" — hit
+
+- **Cause:** pydantic keeps empty strings, and the OpenAI SDK only falls back to its default URL for `None`.
+- **Fix:** a validator turns blank optional LLM settings into `None` (`test_blank_optional_llm_settings_mean_unset`).

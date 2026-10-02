@@ -1,6 +1,6 @@
 # 14 — API and streaming
 
-**Status:** written in Phase 10 (2026-10-02). FastAPI app with `GET /health`, `GET /documents`, `POST /query` (JSON) and `POST /query/stream` (Server-Sent Events). Every example below is real output from `make serve` running with `LLM_PROVIDER=fake`. During this phase an API key was added, but the OpenAI account had **no credits** (`429 insufficient_quota`, T-038), so real-model latency is still *not yet measured*. This doc owns these terms: ASGI, endpoint, path operation, request/response model, OpenAPI, SSE, event stream, time to first token, backpressure, thread pool, event loop, request id, error envelope.
+**Status:** written in Phase 10 (2026-10-02). FastAPI app with `GET /health`, `GET /documents`, `POST /query` (JSON) and `POST /query/stream` (Server-Sent Events). Every example below is real output from `make serve`: with `LLM_PROVIDER=fake`, except one stream marked as Gemini. Since the provider switch the same day, the LLM is Gemini (`gemini-3.5-flash`) through its OpenAI-compatible endpoint; §6 adds one real streamed answer. Latency percentiles with the real model are *not yet measured* (Phase 13). This doc owns these terms: ASGI, endpoint, path operation, request/response model, OpenAPI, SSE, event stream, time to first token, backpressure, thread pool, event loop, request id, error envelope.
 
 > **Prerequisites:** [13-prompting-and-citations.md](13-prompting-and-citations.md) (`answer_question`, `stream_answer`). Numbers come from `make bench-api` against `make serve`, and from `tests/test_api.py`, run on 2026-10-02.
 
@@ -33,7 +33,7 @@ Phases 1–9 built a library. Phase 15's UI and Phase 11's eval harness need it 
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (OpenAI) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────────────┘  └────────────────────┘  └────────┘  └────────────┘
 
  Double-line boxes (╔═╗) = this doc (the API) and its client (the UI, Phase 15).
@@ -47,7 +47,7 @@ Phases 1–9 built a library. Phase 15's UI and Phase 11's eval harness need it 
 <details><summary>Same diagram as text (for terminal viewing)</summary>
 
 ```text
- Client              FastAPI /query/stream        Retriever        LLM (OpenAI)     Postgres
+ Client              FastAPI /query/stream        Retriever        LLM (Gemini)     Postgres
    │ 1 POST {question…}    │                          │                 │              │
    │──────────────────────▶│ checks: body valid (422) · LLM configured (503) ·        │
    │                       │ companies known (422) → JSON errors, before any event   │
@@ -58,12 +58,12 @@ Phases 1–9 built a library. Phase 15's UI and Phase 11's eval harness need it 
    │                       │◀─ 5 10 hits (~110 ms) ───│                 │              │
    │                       │ (DB connection released) │                 │              │
    │◀─ 6 200 event: sources│ (≈100 ms)                │                 │              │
-   │                       │ 7 responses.stream(…)    │                 │              │
+   │                       │ 7 chat.completions stream│                 │              │
    │                       │─────────────────────────────────────────▶│              │
-   │                       │◀─ 8 output_text.delta ───────────────────│ (loop)       │
+   │                       │◀─ 8 chunk: delta.content ────────────────│ (loop)       │
    │                       │  refusal gate: hold text that could still be the token  │
    │◀─ 9 event: delta "…"  │                          │                 │              │
-   │                       │◀─ 10 response.completed (usage) ─────────│              │
+   │                       │◀─ 10 final chunk (finish, usage) ────────│              │
    │                       │ 11 cache put (own short connection) ────────────────────▶│
    │◀─ 12 event: answer {citations, usage, timings}   │                 │              │
    │  failure after the 200 → event: error {code, status}              │              │
@@ -224,7 +224,32 @@ event: answer
 data: {"request_id": "1141168bf2354279", "answer": "Net revenue for 2022 was $23.6 billion, …", "refused": false, "citations": [{"n": 1, "label": "AMD 2022 10-K, p. 43", … }], … }
 ```
 
-There's one `delta` here because the answer came from the cache in one piece. The fake model streams word by word when uncached, and the OpenAI client streams token groups. `cache-control: no-cache` and `x-accel-buffering: no` stop proxies such as nginx from buffering the stream into one late lump.
+There's one `delta` here because the answer came from the cache in one piece. The fake model streams word by word when uncached, and the real client streams token groups. A real, uncached Gemini stream (Corning question below) arrived as two deltas. `cache-control: no-cache` and `x-accel-buffering: no` stop proxies such as nginx from buffering the stream into one late lump.
+
+**The same stream with the real model** (`make serve`, Gemini, an uncached question, 2026-10-02):
+
+```text
+curl -s -N -X POST http://127.0.0.1:8000/query/stream -H 'content-type: application/json' \
+  -d '{"question":"What share of Corning's total segment net sales did Display Technologies represent in 2022?",
+       "companies":["Corning"],"fiscal_years":[2022]}'
+
+event: sources
+data: [{"n": 1, "chunk_id": 4418, "doc_key": "CORNING_2022_10K", "company": "Corning", "fiscal_year": 2022, "page_number": 4, … }, … ]
+id: 1fe41c44ee864042
+
+event: delta
+data: "In 2022, the Display Technologies segment represented 22% of Corning's total segment net sales"
+
+event: delta
+data: " [1]."
+
+event: answer
+data: {"request_id": "1fe41c44ee864042", "answer": "In 2022, the Display Technologies segment represented 22% of Corning's total segment net sales [1].", "refused": false, … "citations": [{"n": 1, "label": "Corning 2022 10-K, p. 4", … }], … }
+
+[curl total 7.03 s, first byte 0.014 s]
+```
+
+curl's "first byte" (14 ms) is the response *headers*: Starlette sends the status line and headers before the generator yields its first event, so this number is not the time to the `sources` event, which wasn't timed separately in this request (`make bench-api` measures it). The whole answer took 7.0 s, most of it Gemini. The answer is correct: the golden label G009 quotes "The Display Technologies segment represented 22%…".
 
 **A refusal** (`{"question":"What is the capital of France?"}`): `sources`, then straight to `answer` with `"refused": true`. The raw `INSUFFICIENT_CONTEXT` never appears as a delta.
 
@@ -397,7 +422,8 @@ POST /query ×4 concurrent    p50  280.6 ms  p95  313.8  · throughput 13.7 req/
 |---|---|---|
 | `TypeError: 'EventSourceResponse' object is not iterable` | Route declared `response_class=EventSourceResponse` (FastAPI then expects a `yield` endpoint) but returned a response (T-039) | Declare `StreamingResponse`; return `EventSourceResponse(...)` |
 | 503 handled correctly but logged as "Exception in ASGI application" | Expected failures in the catch-all `Exception` handler, which re-raises | Dedicated handlers for known types (fixed) |
-| `503 llm_quota_exhausted` | OpenAI account has no credits (T-038) | Add credits; not fixed by retrying |
+| `503 llm_quota_exhausted` | Provider account has no credits (seen with OpenAI, T-038) | Add credits; not fixed by retrying |
+| `503 llm_unavailable` after a long wait | Provider 5xx (e.g. Gemini 503 "high demand") outlasted 6 retries with backoff | Retry later, or set `LLM_MODEL` to a less loaded model |
 | `503 llm_rate_limited` | Real rate limit | Retry with backoff (the SDK already retries twice) |
 | Stream arrives all at once at the end | A proxy buffering the response | `X-Accel-Buffering: no`, `Cache-Control: no-cache` (sent) |
 | Stream drops after a long silence | Idle timeout on a proxy or load balancer | Periodic `: ping` comments (not needed locally; not built) |

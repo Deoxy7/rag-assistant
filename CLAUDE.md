@@ -25,7 +25,7 @@ A document-grounded RAG assistant with a self-built eval harness, built phase by
 
 Python 3.11 (`python3.11`; plain `python3` on this machine is 3.14) · FastAPI + Uvicorn, SSE · Postgres 16 + pgvector (0.8.7) + native FTS · LangChain **only** `langchain-text-splitters` (offsets tested) — everything else plain Python · sentence-transformers embeddings + cross-encoder reranker (models chosen in Phases 4/8; proposed `BAAI/bge-small-en-v1.5`, `cross-encoder/ms-marco-MiniLM-L-6-v2`) · PyMuPDF + pdfplumber · self-built eval harness · Streamlit (Phase 15) · Docker Compose for Postgres via **Colima**, app on host · pytest · Mermaid (`mmdc` 12) → SVG+PNG, Graphviz fallback · DB driver psycopg 3 with plain SQL · settings via pydantic-settings in `app/config.py` only.
 
-**Generator / judge LLM: OpenAI API (user's choice).** Exact model picked in Phase 9 from OpenAI's *current* model list and pricing — don't guess from memory. The user supplies the key in `.env`; never print, log or type it.
+**Generator / judge LLM: Gemini via its OpenAI-compatible endpoint (user's choice, 2026-10-02; was OpenAI until then — the OpenAI account had no credits).** `LLM_PROVIDER=gemini`, `LLM_BASE_URL`, `LLM_MODEL=gemini-3.5-flash` (generation), `LLM_JUDGE_MODEL=gemini-3.5-flash-lite` (judge), key `GEMINI_API_KEY` in `.env` — all settings, so switching provider is a `.env` edit (card x-llm-provider). Models were picked from `models.list()` on the user's key plus a live probe — don't guess names from memory; avoid `*-latest` aliases. Client = Chat Completions (Gemini has no Responses API). Never print, log or type the key. **Don't touch the embedding model** (re-embedding would invalidate every eval number).
 
 ## Agreed changes to the original plan (Phase 0)
 

@@ -1,0 +1,600 @@
+{
+ "meta": {
+  "created_utc": "20261002T170720Z",
+  "golden_file": "eval/golden/golden_v1.jsonl",
+  "golden_sha256": "733f8fe408837256ab15b5dec52f786ccb62d0d27e667d4b7eb50c752dfc315b",
+  "git": {
+   "commit": "66d8f0b56cb4a8ce4769e24f8d6948e48f9bfff9",
+   "dirty": true
+  },
+  "python": "3.11.9",
+  "wall_s": 95.5
+ },
+ "config": {
+  "name": "smoke-gemini",
+  "mode": "hybrid",
+  "rerank": true,
+  "rerank_n": 10,
+  "rrf_k": 60,
+  "depth": 50,
+  "k": 10,
+  "chunk_strategy": "structure",
+  "chunk_size": 256,
+  "chunk_overlap": 32,
+  "generate": true,
+  "judge": true,
+  "judge_model": "gemini-3.5-flash-lite",
+  "ids": "G001,G023,G045,G038,G053,G057",
+  "chunk_set_id": 1,
+  "ks": [
+   1,
+   3,
+   5,
+   10
+  ],
+  "ef_search": 160,
+  "embedding_model": "BAAI/bge-small-en-v1.5@5c38ec7c",
+  "rerank_model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "llm_provider": "gemini",
+  "llm_base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+  "llm_model": "gemini-3.5-flash",
+  "llm_reasoning_effort": "low",
+  "limit": null
+ },
+ "summary": {
+  "questions": 6,
+  "answerable": 4,
+  "unanswerable": 2,
+  "overall": {
+   "hit@1": {
+    "mean": 0.25,
+    "ci95": [
+     0.0,
+     0.75
+    ],
+    "n": 4
+   },
+   "hit@3": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 4
+   },
+   "hit@5": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 4
+   },
+   "hit@10": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 4
+   },
+   "recall@1": {
+    "mean": 0.25,
+    "ci95": [
+     0.0,
+     0.75
+    ],
+    "n": 4
+   },
+   "recall@3": {
+    "mean": 0.875,
+    "ci95": [
+     0.625,
+     1.0
+    ],
+    "n": 4
+   },
+   "recall@5": {
+    "mean": 0.875,
+    "ci95": [
+     0.625,
+     1.0
+    ],
+    "n": 4
+   },
+   "recall@10": {
+    "mean": 0.875,
+    "ci95": [
+     0.625,
+     1.0
+    ],
+    "n": 4
+   },
+   "precision@1": {
+    "mean": 0.25,
+    "ci95": [
+     0.0,
+     0.75
+    ],
+    "n": 4
+   },
+   "precision@3": {
+    "mean": 0.4167,
+    "ci95": [
+     0.3333,
+     0.5833
+    ],
+    "n": 4
+   },
+   "precision@5": {
+    "mean": 0.3,
+    "ci95": [
+     0.2,
+     0.5
+    ],
+    "n": 4
+   },
+   "precision@10": {
+    "mean": 0.15,
+    "ci95": [
+     0.1,
+     0.25
+    ],
+    "n": 4
+   },
+   "ndcg@1": {
+    "mean": 0.25,
+    "ci95": [
+     0.0,
+     0.75
+    ],
+    "n": 4
+   },
+   "ndcg@3": {
+    "mean": 0.5501,
+    "ci95": [
+     0.3337,
+     0.6856
+    ],
+    "n": 4
+   },
+   "ndcg@5": {
+    "mean": 0.5216,
+    "ci95": [
+     0.2849,
+     0.6488
+    ],
+    "n": 4
+   },
+   "ndcg@10": {
+    "mean": 0.5085,
+    "ci95": [
+     0.2459,
+     0.6488
+    ],
+    "n": 4
+   },
+   "rr": {
+    "mean": 0.5833,
+    "ci95": [
+     0.375,
+     0.875
+    ],
+    "n": 4
+   }
+  },
+  "by_type": {
+   "factual": {
+    "hit@5": 1.0,
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "ndcg@10": 0.6309,
+    "rr": 0.5
+   },
+   "table": {
+    "hit@5": 1.0,
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "ndcg@10": 0.6548,
+    "rr": 1.0
+   },
+   "exact_token": {
+    "hit@5": 1.0,
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "ndcg@10": 0.6309,
+    "rr": 0.5
+   },
+   "multi_hop": {
+    "hit@5": 1.0,
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "ndcg@10": 0.1175,
+    "rr": 0.3333
+   }
+  },
+  "retrieve_ms_p50": 722.2,
+  "retrieval_abstention": {
+   "score": "top reranker score",
+   "auroc": 0.75,
+   "best_accuracy_threshold": {
+    "t": 4.3048,
+    "false_refusal_rate": 0.25,
+    "abstention_recall": 1.0,
+    "accuracy": 0.8333
+   },
+   "operating_points": {
+    "catch>=0.33": {
+     "t": 4.3048,
+     "false_refusal_rate": 0.25,
+     "abstention_recall": 1.0
+    },
+    "catch>=0.67": {
+     "t": 4.3048,
+     "false_refusal_rate": 0.25,
+     "abstention_recall": 1.0
+    },
+    "catch>=1.00": {
+     "t": 4.3048,
+     "false_refusal_rate": 0.25,
+     "abstention_recall": 1.0
+    }
+   }
+  },
+  "generation": {
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "abstention": {
+    "n_answerable": 4,
+    "n_unanswerable": 2,
+    "precision": 0.6666666666666666,
+    "recall": 1.0,
+    "false_refusal_rate": 0.25,
+    "false_answer_rate": 0.0
+   },
+   "cited_evidence_rate": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 3
+   },
+   "input_tokens": 16572,
+   "output_tokens": 135,
+   "errors": 0,
+   "truncated": 0
+  },
+  "judge": {
+   "model": "gemini-3.5-flash-lite",
+   "faithfulness": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 3
+   },
+   "answer_relevance": {
+    "mean": 0.5,
+    "ci95": [
+     0.1667,
+     0.8333
+    ],
+    "n": 6
+   },
+   "context_precision": {
+    "mean": 0.5231,
+    "ci95": [
+     0.1898,
+     0.8565
+    ],
+    "n": 6
+   },
+   "correctness": {
+    "mean": 0.75,
+    "ci95": [
+     0.25,
+     1.0
+    ],
+    "n": 4
+   },
+   "parse_errors": 0,
+   "judge_errors": 0
+  }
+ },
+ "rows": [
+  {
+   "id": "G001",
+   "type": "factual",
+   "answerable": true,
+   "question": "What percentage of PepsiCo's consolidated net revenue came from sales to Walmart and its affiliates in 2022?",
+   "retrieve_ms": 724.3,
+   "top_score": 7.0864,
+   "retrieved": [
+    1573,
+    1277,
+    42,
+    185,
+    1559,
+    1525,
+    1401,
+    1558,
+    5764,
+    1535
+   ],
+   "hit@1": 0.0,
+   "recall@1": 0.0,
+   "precision@1": 0.0,
+   "ndcg@1": 0.0,
+   "rr": 0.5,
+   "first_rank": 2,
+   "hit@3": 1.0,
+   "recall@3": 1.0,
+   "precision@3": 0.3333333333333333,
+   "ndcg@3": 0.6309,
+   "hit@5": 1.0,
+   "recall@5": 1.0,
+   "precision@5": 0.2,
+   "ndcg@5": 0.6309,
+   "hit@10": 1.0,
+   "recall@10": 1.0,
+   "precision@10": 0.1,
+   "ndcg@10": 0.6309,
+   "relevant_in_set": 1,
+   "refused": false,
+   "answer": "In 2022, sales to Walmart and its affiliates represented approximately 14% of PepsiCo's consolidated net revenue [1][2].",
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "input_tokens": 2773,
+   "output_tokens": 32,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": true,
+   "truncated": false,
+   "judge_faithfulness": 1.0,
+   "judge_answer_relevance": 1.0,
+   "judge_context_precision": 1.0,
+   "judge_correctness": 1.0,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G023",
+   "type": "table",
+   "answerable": true,
+   "question": "What was AMD's total net revenue in 2022?",
+   "retrieve_ms": 722.2,
+   "top_score": 4.5516,
+   "retrieved": [
+    5736,
+    5243,
+    5852,
+    5759,
+    5760,
+    6946,
+    5761,
+    3376,
+    1569,
+    1555
+   ],
+   "hit@1": 1.0,
+   "recall@1": 1.0,
+   "precision@1": 1.0,
+   "ndcg@1": 1.0,
+   "rr": 1.0,
+   "first_rank": 1,
+   "hit@3": 1.0,
+   "recall@3": 1.0,
+   "precision@3": 0.6666666666666666,
+   "ndcg@3": 0.7039,
+   "hit@5": 1.0,
+   "recall@5": 1.0,
+   "precision@5": 0.6,
+   "ndcg@5": 0.6548,
+   "hit@10": 1.0,
+   "recall@10": 1.0,
+   "precision@10": 0.3,
+   "ndcg@10": 0.6548,
+   "relevant_in_set": 5,
+   "refused": false,
+   "answer": "AMD's total net revenue in 2022 was $23.6 billion (or $23,601 million) [1][3][4].",
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "input_tokens": 3396,
+   "output_tokens": 37,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": true,
+   "truncated": false,
+   "judge_faithfulness": 1.0,
+   "judge_answer_relevance": 1.0,
+   "judge_context_precision": 0.8055555555555555,
+   "judge_correctness": 1.0,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G038",
+   "type": "exact_token",
+   "answerable": true,
+   "question": "What does the figure $404,381 represent in Boeing's FY2022 10-K?",
+   "retrieve_ms": 567.1,
+   "top_score": -0.4139,
+   "retrieved": [
+    7219,
+    6900,
+    6789,
+    6054,
+    7225,
+    6170,
+    6182,
+    6957,
+    6958,
+    6894
+   ],
+   "hit@1": 0.0,
+   "recall@1": 0.0,
+   "precision@1": 0.0,
+   "ndcg@1": 0.0,
+   "rr": 0.5,
+   "first_rank": 2,
+   "hit@3": 1.0,
+   "recall@3": 1.0,
+   "precision@3": 0.3333333333333333,
+   "ndcg@3": 0.6309,
+   "hit@5": 1.0,
+   "recall@5": 1.0,
+   "precision@5": 0.2,
+   "ndcg@5": 0.6309,
+   "hit@10": 1.0,
+   "recall@10": 1.0,
+   "precision@10": 0.1,
+   "ndcg@10": 0.6309,
+   "relevant_in_set": 1,
+   "refused": false,
+   "answer": "In Boeing's FY2022 10-K, the figure $404,381 represents Boeing's total backlog as of December 31, 2022 [1][2].",
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "input_tokens": 2570,
+   "output_tokens": 48,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": true,
+   "truncated": false,
+   "judge_faithfulness": 1.0,
+   "judge_answer_relevance": 1.0,
+   "judge_context_precision": 1.0,
+   "judge_correctness": 1.0,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G045",
+   "type": "multi_hop",
+   "answerable": true,
+   "question": "Which had higher revenue in 2022, Boeing or Corning, and by how much?",
+   "retrieve_ms": 833.9,
+   "top_score": 4.3048,
+   "retrieved": [
+    4739,
+    6957,
+    4511,
+    7005,
+    6789,
+    7010,
+    4993,
+    7015,
+    1735,
+    4694
+   ],
+   "hit@1": 0.0,
+   "recall@1": 0.0,
+   "precision@1": 0.0,
+   "ndcg@1": 0.0,
+   "rr": 0.3333333333333333,
+   "first_rank": 3,
+   "hit@3": 1.0,
+   "recall@3": 0.5,
+   "precision@3": 0.3333333333333333,
+   "ndcg@3": 0.2346,
+   "hit@5": 1.0,
+   "recall@5": 0.5,
+   "precision@5": 0.2,
+   "ndcg@5": 0.1696,
+   "hit@10": 1.0,
+   "recall@10": 0.5,
+   "precision@10": 0.1,
+   "ndcg@10": 0.1175,
+   "relevant_in_set": 9,
+   "refused": true,
+   "answer": "I can't answer that from the indexed filings: the retrieved passages don't contain the information needed.",
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "input_tokens": 2201,
+   "output_tokens": 6,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": null,
+   "truncated": false,
+   "judge_faithfulness": null,
+   "judge_answer_relevance": 0.0,
+   "judge_context_precision": 0.3333333333333333,
+   "judge_correctness": 0.0,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G053",
+   "type": "unanswerable",
+   "answerable": false,
+   "question": "What was Apple's net revenue in fiscal 2022?",
+   "retrieve_ms": 571.9,
+   "top_score": 4.1037,
+   "retrieved": [
+    5736,
+    5759,
+    1423,
+    5852,
+    3376,
+    5764,
+    5765,
+    3431,
+    6789,
+    1568
+   ],
+   "refused": true,
+   "answer": "I can't answer that from the indexed filings: the retrieved passages don't contain the information needed.",
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "input_tokens": 2901,
+   "output_tokens": 6,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": null,
+   "truncated": false,
+   "judge_faithfulness": null,
+   "judge_answer_relevance": 0.0,
+   "judge_context_precision": 0.0,
+   "judge_correctness": null,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G057",
+   "type": "unanswerable",
+   "answerable": false,
+   "question": "How many vehicles did Tesla deliver in 2022?",
+   "retrieve_ms": 688.1,
+   "top_score": 2.0153,
+   "retrieved": [
+    6909,
+    6926,
+    6920,
+    6922,
+    6431,
+    7082,
+    7136,
+    2598,
+    1266,
+    31
+   ],
+   "refused": true,
+   "answer": "I can't answer that from the indexed filings: the retrieved passages don't contain the information needed.",
+   "provider": "gemini",
+   "model": "gemini-3.5-flash",
+   "input_tokens": 2731,
+   "output_tokens": 6,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": null,
+   "truncated": false,
+   "judge_faithfulness": null,
+   "judge_answer_relevance": 0.0,
+   "judge_context_precision": 0.0,
+   "judge_correctness": null,
+   "judge_parse_errors": 0
+  }
+ ]
+}

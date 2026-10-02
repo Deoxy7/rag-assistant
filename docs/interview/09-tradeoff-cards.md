@@ -1021,7 +1021,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **Where our choice breaks.** With larger chunks (510 tokens) or larger k, the budget starts dropping sources. They're dropped from the bottom, which is right only if the ranking is right.
 
-**The number.** Context tokens p50 2,144, max 2,596 (budget 3,000; 0 sources dropped on 28 questions). Input tokens p50 2,388, about $0.00024 at $0.10 / 1 M. Lost-in-the-middle effect on gpt-6-luna: *not yet measured*.
+**The number.** Context tokens p50 2,144, max 2,596 (budget 3,000; 0 sources dropped on 28 questions). Input tokens p50 2,388 (o200k estimate; Gemini counts about 15% more). Lost-in-the-middle effect on gpt-6-luna: *not yet measured*.
 
 **Interview script (3 sentences).** "I pack whole chunks best-first under a 3,000-token budget. Whole chunks because a citation's character span must match exactly what the model saw, and I verified that for all 7,411 chunks. Measured, ten chunks take about 2,100 tokens, so the budget is headroom. The 'sandwich' ordering for lost-in-the-middle is implemented but only gets switched on if the ablation shows an effect on this model."
 
@@ -1337,9 +1337,9 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 ### Card 37 — from [15-eval-harness](../15-eval-harness.md)
 
-#### Decision: an LLM judge (a stronger model than the generator) for answer quality, labels for retrieval  (rejected: ROUGE/BLEU; human-only labels)
+#### Decision: an LLM judge (Gemini 3.5 Flash-Lite, cached) for answer quality, labels for retrieval  (rejected: ROUGE/BLEU; human-only labels; a judge stronger than the generator, for now)
 
-**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"). Humans don't scale to every run. So a pinned, cached, stronger judge model (`gpt-6.1-sol`) grades faithfulness, relevance, context precision and correctness, while retrieval, where labels exist, uses no judge at all.
+**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"). Humans don't scale to every run. So a pinned, cached judge model (`gemini-3.5-flash-lite`) grades faithfulness, relevance, context precision and correctness, while retrieval, where labels exist, uses no judge at all. The judge is a *different and smaller* model than the generator (`gemini-3.5-flash`): the user's choice for cost and speed across sweeps, and a known weakness (below).
 
 **What problem is this even solving?** Scoring free-text answers repeatedly and consistently, without paying a person per run.
 
@@ -1349,18 +1349,19 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 |---|---|---|---|---|
 | ROUGE / BLEU | n-gram overlap with a reference | Free, deterministic | Rewards wording, not facts; "$23.6 billion" vs "$23,601 million" scores low | Summarisation baselines |
 | Human labels | People grade each answer | Ground truth | Slow, costly, per run | Validating the judge; final reports |
-| ✅ LLM judge, stronger than the generator, cached | JSON verdicts per claim / answer | Scales; reads meaning; cache makes re-runs free | Bias (length, self-preference), variance, cost; needs validation | Every run, with a human-checked sample |
+| ✅ LLM judge, smaller than the generator (Flash-Lite), cached | JSON verdicts per claim / answer | Scales; reads meaning; cheap ($0.30 / $2.50 per 1M); cache makes re-runs free | Bias (length, self-preference within the Gemini family), variance; a weaker model may miss subtle unsupported claims; needs validation | Frequent sweeps, comparing configurations |
+| LLM judge stronger than the generator | Same, bigger model | More reliable verdicts | About 5× the price per token | Final reports, close calls |
 | Exact-match on extracted numbers | Parse the figure, compare | Deterministic for numeric questions | Only numeric questions; units and rounding | A cheap pre-check before the judge |
 
 **What would actually change if we swapped it.** Human grading would need a labelling UI and per-run spending. ROUGE would be one function, with misleading numbers.
 
-**The decision rule.** Use labels wherever you can (retrieval). Use a judge for free text, never the same model as the generator. Validate the judge against a human-labelled sample before trusting small differences.
+**The decision rule.** Use labels wherever you can (retrieval). Use a judge for free text, never the same model as the generator. Prefer a judge at least as strong as the generator for absolute claims; a cheaper judge is acceptable for *relative* comparisons between configurations. Validate the judge against a human-labelled sample before trusting small differences.
 
-**Where our choice breaks.** Untested so far: no API credits, so the judge has graded nothing, and its agreement with humans is unknown. The prompts are implemented and unit-tested with scripted replies (parsing, scoring, refusals, bad JSON counted, not guessed).
+**Where our choice breaks.** The judge is weaker than the model it grades, and both are Gemini models, so shared blind spots aren't caught. Its agreement with humans is unknown: it has graded only the 6-question smoke run, with 0 parse errors. The prompts are also unit-tested with scripted replies (parsing, scoring, refusals, bad JSON counted, not guessed). Fix path: hand-grade ~30 answers and measure agreement; if it's low, set `LLM_JUDGE_MODEL` to a stronger model and re-run (the cache makes only the judge calls re-pay).
 
-**The number.** 4 judge metrics implemented; judge parse errors counted per run; judge model `gpt-6.1-sol` at $2 / $10 per 1M tokens; estimated cost for 61 questions × 4 prompts about $1 (≈ 320 k input and 25 k output tokens; estimate from prompt sizes). Measured judge scores: *not yet measured*.
+**The number.** Smoke run (6 questions, `gemini-3.5-flash-lite`): 19 judge calls, 21,881 input and 414 output tokens, 0 parse errors; faithfulness 1.0, correctness 0.75 (the multi-hop G045 was refused, so it scored 0). At $0.30 / $2.50 per 1M a full 61-question judged run would cost about $0.08 (extrapolated from the smoke run's tokens). Full-set judge scores: *not yet measured*.
 
-**Interview script (3 sentences).** "For retrieval I don't need a judge: I have exact evidence spans. For free-text answers I use an LLM judge, a stronger model than the generator so it isn't grading itself, with JSON outputs, parse failures counted rather than guessed, and every verdict cached so re-runs are identical and free. Before trusting it on small differences I'd hand-grade a sample and measure agreement. That's the step still pending, along with the credits to run it."
+**Interview script (3 sentences).** "For retrieval I don't need a judge: I have exact evidence spans. For free-text answers I use an LLM judge (Gemini Flash-Lite, a different and cheaper model than the Flash generator), with JSON outputs, parse failures counted rather than guessed, and every verdict cached so re-runs are identical and free. Because the judge is smaller than the generator, I use it to compare configurations, not as an absolute score, and I'd hand-grade a sample to measure agreement before trusting small differences."
 
 **Follow-ups they will ask:**
 - Q: What biases do LLM judges have? → A: Preference for longer answers, for their own model family, and for position in pairwise comparisons; plus run-to-run variance. Mitigate with pinned models, caching, and a human-checked sample.
@@ -1580,3 +1581,50 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): How do you test SQL without an ORM's abstractions? → A: Against a real Postgres — the same one `make up` starts — with hand-computed expected values, like the smoke tests. Mocking the database would test my mock, not my SQL.
 
 **The trap.** "ORMs prevent SQL injection, raw SQL doesn't." Parameter binding prevents injection; ORMs simply bind for you. Raw SQL with bound parameters is equally safe, and an ORM with string-built `text()` fragments is not.
+
+### Card x-llm-provider — from [13-prompting-and-citations](../13-prompting-and-citations.md)
+
+#### Decision: Gemini (3.5 Flash generates, 3.5 Flash-Lite judges) through its OpenAI-compatible endpoint, behind a provider-neutral client  (rejected: Gemini's native SDK; staying on OpenAI; a local model)
+
+**One-line defence.** It was the user's call: an API key that works (the OpenAI account had no credits, T-038), with a free tier. Going through the OpenAI-compatible endpoint means the same SDK, the same request shape and a settings-only switch back. The cost of that portability is losing Gemini-only features.
+
+**What problem is this even solving?** Generating answers and judging them needs a model API that's available, affordable for repeated eval sweeps, and replaceable without rewriting the pipeline.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Gemini via OpenAI-compatible endpoint | OpenAI SDK + `base_url` + Gemini key | Works on this key; free tier; switch = `.env` edit; same tests (mocked HTTP) | No Responses API (404); Gemini-only features (native grounding, safety settings, explicit thinking budgets) are out of reach or behave differently; compat layer may lag the native API | Now, with portability as a goal |
+| Gemini native SDK (`google-genai`) | Google's own client | Full feature set (thinking budget control, context caching, safety) | A second SDK and code path; switching back is a rewrite of `llm.py` and its tests | When a Gemini-only feature is needed |
+| Stay on OpenAI | Responses API, gpt-6-luna | Original design | Account has no credits: nothing runs | If credits are added |
+| Local model (Ollama, vLLM) via the same compat API | Same client, local `base_url` | Free per call, private | Quality and speed on an 8 GB M1; a third service to run | Offline demos, privacy-sensitive data |
+
+**What would actually change if we swapped it.**
+- **Back to OpenAI, or to another compatible provider:** four `.env` lines (`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_JUDGE_MODEL`) plus the key.
+- **What doesn't port:** provider-specific parameters. `reasoning_effort` is accepted differently by different models (Flash-Lite rejects `"none"`). Token counts differ, because each provider has its own tokenizer. Error shapes differ: Gemini wraps errors in a list, and `quota_exhausted` handles both forms. Prices differ.
+- **What breaks comparability:** cached responses are keyed by provider, endpoint and model, so a switch re-pays every eval call once. Eval numbers from one generator or judge must never be compared with another's.
+- **Native SDK instead:** roughly a day to rewrite `llm.py`, its client tests and the streaming code.
+
+**The decision rule.** Talk to providers through the most common protocol you can (OpenAI Chat Completions today), and keep the provider's name, URL and models in configuration. Accept a provider-specific SDK only for a feature you've measured you need.
+
+**Where our choice breaks.**
+- **Gemini-only features** such as explicit thinking budgets, Google Search grounding and context caching would need the native SDK.
+- **The judge is weaker than the generator.** Flash-Lite grades Flash, which goes against the usual rule (card #37) of judging with a stronger model. Cheaper and faster for sweeps, but its verdicts on subtle faithfulness errors deserve a human-checked sample before small differences are trusted.
+- **Lock-in sits in the numbers, not the code.** Changing provider later costs a re-run of every eval and invalidates comparisons with earlier runs.
+
+**The number.**
+- Models available to the key: 61. Probe: 3.8 and 3.7 Flash returned 503, the 2.5 models 404; 3.5 Flash answered in 1,491 ms and 3.5 Flash-Lite in 816 ms.
+- Smoke eval: 6 questions in 1 min 41 s, 0 errors, 0 truncated; re-run in 13 s with 0 tokens billed.
+- One real answer: 3,043 input and 37 output tokens, 2,458 ms.
+- Code touched by the switch: `llm.py`, settings, the eval runner's judge construction, and the client tests. Retrieval, embeddings and every retrieval eval number are unchanged.
+
+**Interview script (3 sentences).** "The generator and judge sit behind one small client that speaks OpenAI's Chat Completions protocol, with provider, base URL, models and key in settings. Moving from OpenAI to Gemini was a client rewrite from the Responses API to Chat Completions, because Gemini's compatibility layer doesn't serve Responses, plus four lines of `.env`. The real lock-in isn't code, it's evaluation history: every number is tied to a specific generator and judge, so switching means re-running the evals and never comparing across providers."
+
+**Follow-ups they will ask:**
+- Q: Why not Gemini's own SDK? → A: Portability. One protocol works for Gemini, OpenAI and local servers. I'd take the native SDK only for a measured need, like explicit thinking budgets or Google's context caching.
+- Q: What differs between "OpenAI-compatible" providers? → A: Supported endpoints (no Responses API here), accepted parameters (`reasoning_effort` values), tokenizers and token counts, error formats, rate limits and pricing. "Compatible" means the common subset.
+- Q: Why pin `gemini-3.5-flash` instead of `gemini-flash-latest`? → A: An alias can move to a new model overnight, silently changing every eval result. A pinned name changes only when I change it.
+- Q: How do retries interact with the cache? → A: Only successful responses are cached. A failed call is retried with backoff, then recorded as an error. A rerun pays only for what failed or changed.
+- Q (the hard one): Isn't a Flash-Lite judge grading a Flash generator unreliable? → A: It's a real weakness. A weaker judge can miss subtle unsupported claims. It was chosen for cost and speed across many sweeps, so I'd validate it on a hand-graded sample, and use it to compare configurations rather than as an absolute score.
+
+**The trap.** Believing "OpenAI-compatible" means drop-in identical, or comparing eval numbers produced by different judges.

@@ -124,3 +124,12 @@ Decisions: span labels (not chunk ids); headline hit@5 + recall@10; refusal left
 Open:     answer/judge metrics and model abstention need OpenAI credits; multi-hop decomposition not built; judge not yet validated against human labels; golden set authored by the system's author (FinanceBench reported alongside).
 Next:     Phase 12 — ablations.
 
+## Provider switch — OpenAI → Gemini   [DONE 2026-10-02, user request, between Phases 11 and 12]
+
+Built:    `ChatClient` (OpenAI SDK on any compatible Chat Completions endpoint; base URL, model, key, reasoning effort, output cap from settings; finish_reason/truncated); `with_retries` (429-not-quota / 5xx / timeouts / connection; exponential backoff 1·2^n s capped 30 s, jitter, Retry-After; 6 retries; logged); `get_llm(role)` for generate/judge; `quota_exhausted` moved into `llm.py` (handles Gemini's list-wrapped errors); cache key adds base URL; migration `0004_llm_cache_finish_reason.sql`; eval runner: judge via settings (`--judge-model` override), per-question error capture, `--ids`, truncated/errors in summary; API `usage.truncated`; blank-setting validator; `.env.example` restored + LLM section (T-049); `.claude/launch.json` `api` config; tests: client/retry/truncation/settings (test_generate now 40), config +1, conftest truncates llm_cache.
+Settings: LLM_PROVIDER=gemini · LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/ · LLM_MODEL=gemini-3.5-flash · LLM_JUDGE_MODEL=gemini-3.5-flash-lite · GEMINI_API_KEY · LLM_REASONING_EFFORT=low · LLM_MAX_OUTPUT_TOKENS=2048. Embedding model unchanged.
+Docs:     doc 13 (client, model choice with probe output, retries, cache, card x-llm-provider), doc 14 (real Gemini stream), doc 15 (card #37: judge now smaller than generator, stated as a weakness), architecture diagrams relabelled; T-045…T-051; P11-09…P11-11; CLAUDE.md stack line.
+Numbers:  key lists 61 models; probe: 3.8/3.7-flash 503, 2.5-* 404, 3.5-flash 1,491 ms, 3.5-flash-lite 816 ms; Responses API 404; one real answer 3,043 in / 37 out tokens, 2,458 ms; smoke eval (6 q, --generate --judge): 101 s, 0 errors, 0 truncated, 2/2 unanswerable refused, 1/4 answerable refused (G045: retrieval miss), judge faithfulness 1.0, correctness 0.75; identical rerun 13 s, 0 tokens billed.
+Open:     full 61-question judged eval (Phase 12); judge (Flash-Lite) weaker than generator → validate on a hand-graded sample; live retry not observed (503s had cleared), covered by unit tests.
+Next:     Phase 12 — ablations.
+

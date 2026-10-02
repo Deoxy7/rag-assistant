@@ -102,7 +102,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 | Keyword search: Postgres FTS, OR + phrases, ts_rank (BM25 option) | [10](10-keyword-search.md) | 6 | ✅ built |
 | RRF fusion + `retrieval_mode` switch (vector / keyword / hybrid) | [11](11-hybrid-rrf.md) | 7 | ✅ built |
 | Rerank: cross-encoder MiniLM-L6 over fused top 10, `RERANK_ENABLED` / `RERANK_N` | [12](12-reranking.md) | 8 | ✅ built |
-| Prompt + citations + LLM (OpenAI Responses API, fake for offline; Postgres response cache) | [13](13-prompting-and-citations.md) | 9 | ✅ built (real-model numbers pending key) |
+| Prompt + citations + LLM (Gemini via OpenAI-compatible Chat Completions, provider in settings; fake for offline; Postgres response cache; retries) | [13](13-prompting-and-citations.md) | 9 | ✅ built (provider switched to Gemini 2026-10-02) |
 | FastAPI: /health, /documents, /query, /query/stream (SSE) | [14](14-api-and-streaming.md) | 10 | ✅ built |
 | Eval harness: golden set v1 (61 q), span-graded metrics, abstention, LLM judge, timestamped results | [15](15-eval-harness.md) | 11 | ✅ built |
 | Ablations | [16](16-experiments-and-ablations.md) | 12 | planned |
@@ -119,7 +119,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 <details><summary>Same diagram as text (for terminal viewing)</summary>
 
 ```text
-   User      Streamlit UI     FastAPI      Retriever     Reranker      Postgres    LLM (OpenAI)
+   User      Streamlit UI     FastAPI      Retriever     Reranker      Postgres    LLM (Gemini)
      │             │             │             │             │             │             │
      │ 1 question  │             │             │             │             │             │
      ├────────────▶│             │             │             │             │             │

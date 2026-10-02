@@ -42,7 +42,7 @@ RAG is not one box — it is the pattern the whole online path follows. The high
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ╔═══════╧══════╗  ╔════════════════════╗  ┌────────┐  ┌────────────┐
-               ║ LLM (OpenAI) ║◀═║ Prompt + citations ║◀─│ Rerank │◀─│ RRF fusion │
+               ║ LLM (Gemini) ║◀═║ Prompt + citations ║◀─│ Rerank │◀─│ RRF fusion │
                ╚══════════════╝  ╚════════════════════╝  └────────┘  └────────────┘
 
  Double-line boxes (╔═╗) = the parts this doc explains: Retrieval + Generation.

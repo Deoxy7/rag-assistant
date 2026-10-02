@@ -115,6 +115,11 @@
 | nDCG toy? | grades 0,2,1 vs ideal 2,2 → 2.393 / 4.893 = .489. |
 | Score-threshold refusal? | AUROC .66; catching all unanswerables costs 88% false refusals → model decides. |
 | Harness found? | Keyword bug (+3.9 pts) and 8 label gaps (+3.8 pts). |
+| LLM provider? | Gemini via OpenAI-compatible endpoint; gemini-3.5-flash generates, 3.5-flash-lite judges; settings-only switch. |
+| Why Chat Completions? | Gemini's compat endpoint has no Responses API (404). |
+| Thinking tokens gotcha? | Count against max_tokens: cap 60 → answer '1' (finish=length); cap now 2048, truncated flag. |
+| Retry policy? | 429 (not quota) / 5xx / timeouts: backoff 1·2^n s, cap 30, jitter, Retry-After; 6 retries. |
+| Cache proof? | Smoke eval 101 s / 16,572 tokens → rerun 13 s / 0 tokens, identical outputs. |
 
 ## Top questions so far
 

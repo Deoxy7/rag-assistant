@@ -40,7 +40,7 @@ The corpus is the input to everything: the highlighted box.
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (OpenAI) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────────────┘  └────────────────────┘  └────────┘  └────────────┘
 
  Double-line box (╔═╗) = the part this doc explains: the PDF corpus.

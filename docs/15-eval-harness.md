@@ -1,6 +1,6 @@
 # 15 — The eval harness
 
-**Status:** written in Phase 11 (2026-10-02). Golden set `eval/golden/golden_v1.jsonl` (61 questions, sha256 `733f8fe4…`). Retrieval and abstention metrics are measured. Answer metrics (LLM judge: faithfulness, answer relevance, context precision, correctness) are implemented and tested, but **not yet measured**: the OpenAI account has no credits (T-038). This doc owns these terms: golden set, evidence span, graded relevance, hit@k, recall@k, precision@k, MRR, DCG / nDCG, bootstrap confidence interval, sign test, LLM-as-judge, faithfulness, answer relevance, context precision, abstention precision / recall, false-refusal rate, AUROC, operating point, label leakage, label incompleteness.
+**Status:** written in Phase 11 (2026-10-02). Golden set `eval/golden/golden_v1.jsonl` (61 questions, sha256 `733f8fe4…`). Retrieval and abstention metrics are measured. Answer metrics (LLM judge: faithfulness, answer relevance, context precision, correctness) run on Gemini since the provider switch (2026-10-02; `gemini-3.5-flash` generates, `gemini-3.5-flash-lite` judges). They're smoke-tested on 6 questions; the full 61-question judged run is *not yet measured* (Phase 12). This doc owns these terms: golden set, evidence span, graded relevance, hit@k, recall@k, precision@k, MRR, DCG / nDCG, bootstrap confidence interval, sign test, LLM-as-judge, faithfulness, answer relevance, context precision, abstention precision / recall, false-refusal rate, AUROC, operating point, label leakage, label incompleteness.
 
 > **Prerequisites:** [12-reranking.md](12-reranking.md) (the retriever under test) and [13-prompting-and-citations.md](13-prompting-and-citations.md) (refusals and citations). Numbers come from `make eval NAME=…` (files in `eval/results/`) and `tests/test_eval.py`, run on 2026-10-02.
 
@@ -36,7 +36,7 @@ Without a fixed, labelled set, every change is judged by a few hand-picked queri
  └───────────┘  └─────────┘               └──────────────────────┬──────────────┘
                                                                  ▼
                ┌──────────────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (OpenAI) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────┬───────┘  └────────────────────┘  └────────┘  └────────────┘
                       │ answers, citations, ranked chunks
                ╔══════▼══════════════════╗
@@ -384,9 +384,9 @@ FinanceBench (28 questions, page-level labels, [12](12-reranking.md)): hybrid + 
 <!-- card:end -->
 
 <!-- card:start id=37 -->
-#### Decision: an LLM judge (a stronger model than the generator) for answer quality, labels for retrieval  (rejected: ROUGE/BLEU; human-only labels)
+#### Decision: an LLM judge (Gemini 3.5 Flash-Lite, cached) for answer quality, labels for retrieval  (rejected: ROUGE/BLEU; human-only labels; a judge stronger than the generator, for now)
 
-**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"). Humans don't scale to every run. So a pinned, cached, stronger judge model (`gpt-6.1-sol`) grades faithfulness, relevance, context precision and correctness, while retrieval, where labels exist, uses no judge at all.
+**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"). Humans don't scale to every run. So a pinned, cached judge model (`gemini-3.5-flash-lite`) grades faithfulness, relevance, context precision and correctness, while retrieval, where labels exist, uses no judge at all. The judge is a *different and smaller* model than the generator (`gemini-3.5-flash`): the user's choice for cost and speed across sweeps, and a known weakness (below).
 
 **What problem is this even solving?** Scoring free-text answers repeatedly and consistently, without paying a person per run.
 
@@ -396,18 +396,19 @@ FinanceBench (28 questions, page-level labels, [12](12-reranking.md)): hybrid + 
 |---|---|---|---|---|
 | ROUGE / BLEU | n-gram overlap with a reference | Free, deterministic | Rewards wording, not facts; "$23.6 billion" vs "$23,601 million" scores low | Summarisation baselines |
 | Human labels | People grade each answer | Ground truth | Slow, costly, per run | Validating the judge; final reports |
-| ✅ LLM judge, stronger than the generator, cached | JSON verdicts per claim / answer | Scales; reads meaning; cache makes re-runs free | Bias (length, self-preference), variance, cost; needs validation | Every run, with a human-checked sample |
+| ✅ LLM judge, smaller than the generator (Flash-Lite), cached | JSON verdicts per claim / answer | Scales; reads meaning; cheap ($0.30 / $2.50 per 1M); cache makes re-runs free | Bias (length, self-preference within the Gemini family), variance; a weaker model may miss subtle unsupported claims; needs validation | Frequent sweeps, comparing configurations |
+| LLM judge stronger than the generator | Same, bigger model | More reliable verdicts | About 5× the price per token | Final reports, close calls |
 | Exact-match on extracted numbers | Parse the figure, compare | Deterministic for numeric questions | Only numeric questions; units and rounding | A cheap pre-check before the judge |
 
 **What would actually change if we swapped it.** Human grading would need a labelling UI and per-run spending. ROUGE would be one function, with misleading numbers.
 
-**The decision rule.** Use labels wherever you can (retrieval). Use a judge for free text, never the same model as the generator. Validate the judge against a human-labelled sample before trusting small differences.
+**The decision rule.** Use labels wherever you can (retrieval). Use a judge for free text, never the same model as the generator. Prefer a judge at least as strong as the generator for absolute claims; a cheaper judge is acceptable for *relative* comparisons between configurations. Validate the judge against a human-labelled sample before trusting small differences.
 
-**Where our choice breaks.** Untested so far: no API credits, so the judge has graded nothing, and its agreement with humans is unknown. The prompts are implemented and unit-tested with scripted replies (parsing, scoring, refusals, bad JSON counted, not guessed).
+**Where our choice breaks.** The judge is weaker than the model it grades, and both are Gemini models, so shared blind spots aren't caught. Its agreement with humans is unknown: it has graded only the 6-question smoke run, with 0 parse errors. The prompts are also unit-tested with scripted replies (parsing, scoring, refusals, bad JSON counted, not guessed). Fix path: hand-grade ~30 answers and measure agreement; if it's low, set `LLM_JUDGE_MODEL` to a stronger model and re-run (the cache makes only the judge calls re-pay).
 
-**The number.** 4 judge metrics implemented; judge parse errors counted per run; judge model `gpt-6.1-sol` at $2 / $10 per 1M tokens; estimated cost for 61 questions × 4 prompts about $1 (≈ 320 k input and 25 k output tokens; estimate from prompt sizes). Measured judge scores: *not yet measured*.
+**The number.** Smoke run (6 questions, `gemini-3.5-flash-lite`): 19 judge calls, 21,881 input and 414 output tokens, 0 parse errors; faithfulness 1.0, correctness 0.75 (the multi-hop G045 was refused, so it scored 0). At $0.30 / $2.50 per 1M a full 61-question judged run would cost about $0.08 (extrapolated from the smoke run's tokens). Full-set judge scores: *not yet measured*.
 
-**Interview script (3 sentences).** "For retrieval I don't need a judge: I have exact evidence spans. For free-text answers I use an LLM judge, a stronger model than the generator so it isn't grading itself, with JSON outputs, parse failures counted rather than guessed, and every verdict cached so re-runs are identical and free. Before trusting it on small differences I'd hand-grade a sample and measure agreement. That's the step still pending, along with the credits to run it."
+**Interview script (3 sentences).** "For retrieval I don't need a judge: I have exact evidence spans. For free-text answers I use an LLM judge (Gemini Flash-Lite, a different and cheaper model than the Flash generator), with JSON outputs, parse failures counted rather than guessed, and every verdict cached so re-runs are identical and free. Because the judge is smaller than the generator, I use it to compare configurations, not as an absolute score, and I'd hand-grade a sample to measure agreement before trusting small differences."
 
 **Follow-ups they will ask:**
 - Q: What biases do LLM judges have? → A: Preference for longer answers, for their own model family, and for position in pairwise comparisons; plus run-to-run variance. Mitigate with pinned models, caching, and a human-checked sample.
@@ -564,7 +565,7 @@ Expected: `15 passed`.
 | Retrieval-only abstention AUROC | 0.662 | same |
 | Catch all unanswerables by score → false refusals | 88% | same |
 | Run time, 61 questions, retrieval only | 11.9 s | same |
-| Answer metrics (faithfulness, relevance, context precision, correctness), model abstention | *not yet measured* (no API credits) | `make eval ARGS="--generate --judge"` |
+| Answer metrics on the full set (faithfulness, relevance, context precision, correctness), model abstention | *not yet measured* (Phase 12); smoke run on 6 questions works, §6 of doc 13 | `make eval ARGS="--generate --judge"` |
 
 ## 11. Interview talking points
 
