@@ -83,12 +83,18 @@ make test
 | `make ingest` | parses, chunks, embeds and indexes the corpus (default chunking from settings) |
 | `make bench-vector` | vector search: recall vs exact, ef_search, filter modes, quantisation |
 | `make bench-keyword` | keyword ranking (ts_rank, ts_rank_cd, BM25) vs vector on FinanceBench questions |
+| `make bench-hybrid` / `bench-rerank` / `bench-answer` / `bench-api` / `bench-latency` | the benchmarks behind docs 11, 12, 13, 14 and 17 |
+| `make eval NAME=…` | scores the golden set; `ARGS="--generate --judge"` adds answer quality (doc 15) |
+| `make ask Q="…"` | answers one question in the terminal |
+| `make serve` | runs the API on http://127.0.0.1:8000 (`/docs` for OpenAPI) |
+| `make ui` | the Streamlit UI on http://127.0.0.1:8501 (needs `make serve`) |
+| `make demo` | four scripted questions through the running API (doc 20) |
 | `make diagrams` | renders every diagram to SVG + PNG |
 | `make docs` | renders diagrams, mirrors Decision Cards, checks every link, image and ASCII twin |
 | `make down` | stops the database (data kept) |
 | `make db-reset` | **deletes** the database volume; the next `make up` starts fresh |
 
-What each command does inside, and every error you might hit: [03-environment-and-infra.md](03-environment-and-infra.md).
+What each command does inside, and every error you might hit: [03-environment-and-infra.md](03-environment-and-infra.md). Running from a fresh clone, with isolation from an existing checkout, and the five-minute demo: [20-deployment-and-demo.md](20-deployment-and-demo.md). The two-page project write-up: [WRITEUP.md](WRITEUP.md).
 
 ## Reading order and status
 
@@ -113,7 +119,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [17](17-cost-and-observability.md) | Cost and observability | 13 | ✅ written |
 | [18](18-security-prompt-injection.md) | Security and prompt injection | 14 | ✅ written |
 | [19](19-frontend.md) | Frontend | 15 | ✅ written |
-| [20](20-deployment-and-demo.md) | Deployment and demo | 16 | not yet written |
+| [20](20-deployment-and-demo.md) | Deployment and demo | 16 | ✅ written |
 | [21](21-glossary.md) | Glossary | every phase | ✅ started |
 | [22](22-interview-prep.md) | Interview prep | 12, 16 | ✅ first version (Phase 12) |
 | [23](23-troubleshooting.md) | Troubleshooting log | every phase | ✅ started |

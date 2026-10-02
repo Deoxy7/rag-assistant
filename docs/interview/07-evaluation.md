@@ -499,3 +499,32 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Building an admin API for read-only files.
 
 **Bridge.** "Results are evidence; evidence shouldn't be mutable."
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: Your reproduction differs in one retrieved result. Is the eval broken?
+**ID:** P16-04 · **Round:** ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "No metric changed: hit, recall, nDCG and MRR agree on all 61 questions, and the top reranker scores match exactly. One question, G042, has a different chunk at rank 10. I'm not sure of the cause; the likeliest are a near-tie at the bottom of the fused list resolved differently, or a slightly different HNSW graph in the new database. I'd report it rather than hide it, and check by comparing the two databases' fused scores."
+
+**2-minute answer.** Explain why approximate search can differ: HNSW graph construction depends on insertion order and build parallelism, and ties are broken by implementation detail. The eval's tolerance is what matters: a metric change would require the evidence chunk to cross a cutoff, which didn't happen.
+
+**If they push — level 2.** *"Make it deterministic?"* Exact search for evals (filter_mode exact), or a secondary sort key by chunk id in fusion.
+
+**If they push — level 3.** *"Would it ever matter?"* At a cutoff boundary, yes: hit@10 could flip for one question. That's ±1/52 = 0.019.
+
+**If they push — level 4.** *"How often?"* 1 of 61 lists here; one run isn't a rate.
+
+**Whiteboard it.**
+```text
+ G042 rank 10: chunk 19 (published) vs 1254 (fresh); metrics 0 diffs; top score Δ 0.0
+ worst-case effect at a cutoff: 1/52 = 0.019 on hit@10
+```
+
+**Trap.** Either hiding the difference or declaring the eval unreliable.
+
+**Bridge.** "Same honesty as the ablation's winner's-curse caveat."

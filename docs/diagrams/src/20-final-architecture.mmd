@@ -1,0 +1,38 @@
+%% Owner: docs/20-deployment-and-demo.md — the system as built at the end of Phase 16, with the measured defaults.
+flowchart TB
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef evalc fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    pdf["10 SEC 10-K PDFs<br/>2,224 pages, sha256-pinned"]:::io
+    parse["Parse: PyMuPDF + pdfplumber<br/>canonical text · page + char offsets · block boxes"]:::ingest
+    chunk["Chunk: structure-aware, 256 tokens<br/>7,411 chunks"]:::ingest
+    embed["Embed: bge-small-en-v1.5<br/>384-d, local"]:::ingest
+    pg[("Postgres 16<br/>pgvector HNSW · full-text tsvector<br/>llm_cache · request_log")]:::store
+    ui["Streamlit UI<br/>HTTP only"]:::io
+    api["FastAPI<br/>validation · SSE · /stats · page.png"]:::io
+    hybrid["Hybrid retrieval<br/>vector + keyword (50 each) → RRF k=60"]:::retrieve
+    rerank["Rerank: MiniLM-L6 cross-encoder<br/>reorders the 10"]:::retrieve
+    guard["Guards: screen + fence (template 2)"]:::generate
+    llm["Generator: qwen3.8-27b on Groq<br/>(OpenAI-compatible)"]:::generate
+    cite["Citations + output policy<br/>[n] → chunk, page, char span"]:::generate
+    evalh["Eval harness: 61 golden questions<br/>judge gpt-oss-120b · ablation 57 configs"]:::evalc
+    legend["Legend: blue = ingestion · grey = storage · green = retrieval · purple = generation · orange = eval · white = IO"]:::legend
+
+    pdf -->|"bytes"| parse
+    parse -->|"blocks + offsets"| chunk
+    chunk -->|"chunks"| embed
+    embed -->|"vectors + text"| pg
+    ui -->|"question, filters"| api
+    api -->|"query"| hybrid
+    pg -.->|"nearest vectors, matching words"| hybrid
+    hybrid -->|"fused top 10"| rerank
+    rerank -->|"10 chunks, reranked"| guard
+    guard -->|"fenced sources"| llm
+    llm -->|"tokens"| cite
+    cite -->|"SSE: sources, deltas, answer"| api
+    evalh -->|"same pipeline, scored"| hybrid

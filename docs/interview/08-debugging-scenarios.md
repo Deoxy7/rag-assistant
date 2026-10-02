@@ -715,3 +715,32 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Trusting a test that's more forgiving than production.
 
 **Bridge.** "Same lesson as the eval: measure with the real thing."
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: A fresh checkout's tests pass, but they're running against your old database. How?
+**ID:** P16-03 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "Docker Compose identifies a project by name, and my compose file sets name: rag-assistant. A second checkout in another directory gets the same project name, so make up attaches to the existing container and volume, already ingested. Tests pass and prove nothing. The fix for a real isolation test: COMPOSE_PROJECT_NAME=rag-fresh and a different POSTGRES_PORT in that checkout's .env, which gives a new container and an empty volume."
+
+**2-minute answer.** Generalise: anything with a fixed name is shared between checkouts: compose projects, ports, volumes, model caches, temp directories. A reproducibility test must rename each. I caught this before running, by reading the compose file, not by noticing suspicious green tests.
+
+**If they push — level 2.** *"How would you detect it after the fact?"* The fresh run's ingest step would say 'already ingested', or row counts would appear before ingest ran.
+
+**If they push — level 3.** *"Port collision instead?"* Two containers on 5432 fail loudly; a shared project fails silently. Silent is worse.
+
+**If they push — level 4.** *"In CI?"* Each runner is fresh, so it doesn't arise; it's a local-machine trap.
+
+**Whiteboard it.**
+```text
+ compose name: rag-assistant → clone attaches to same db volume (silent!)
+ fix: COMPOSE_PROJECT_NAME=rag-fresh · POSTGRES_PORT=5433 → empty volume
+```
+
+**Trap.** Trusting green tests from a 'fresh' environment you didn't verify is fresh.
+
+**Bridge.** "Isolation is part of the measurement."

@@ -143,6 +143,8 @@
 | UI perceived latency? | live gpt-oss-20b: sources 514 ms · first token 940 ms · done 1,019 ms (client clock). |
 | Citation preview? | GET /chunks/{id}/page.png: blocks overlapping the span drawn on the page; sha256-checked PDF. |
 | UI boundary? | HTTP only (test-enforced); Streamlit radio views; AppTest headless test. |
+| Fresh clone? | 483 s clone→eval · 479/479 tests · hit@5 0.769 identical · 60/61 lists identical (G042 rank 10). |
+| Pins? | 111 packages == · DB image by digest · PDFs sha256 · model revision · golden sha256 in every result. |
 
 ## Top questions so far
 

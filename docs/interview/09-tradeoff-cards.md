@@ -83,7 +83,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **The number.** Not yet measured. Phase 1 measures the corpus size in tokens (does it even fit in a context window?). Phase 12 will run a **closed-book baseline** — the same golden questions with retrieval switched off — against RAG, which is the direct evidence for this card. (Proposed addition to the Phase 12 matrix; see [PROGRESS.md](../../PROGRESS.md).)
 
-**Interview script (3 sentences).** "I used RAG because every answer has to come from a specific filing and cite the exact passage, and the filings change. Fine-tuning changes how a model behaves but is unreliable for storing exact figures and can't cite; stuffing the whole corpus costs every token of it on every question. I measured RAG against a closed-book baseline on my golden set: ⟨number from Phase 12⟩."
+**Interview script (3 sentences).** "I used RAG because every answer has to come from a specific filing and cite the exact passage, and the filings change. Fine-tuning changes how a model behaves but is unreliable for storing exact figures and can't cite; stuffing the whole corpus costs every token of it on every question. I measured RAG against a closed-book baseline on my golden set: correctness 0.721 with retrieval vs 0.067 closed book (same model, 37 questions won vs 4), and the closed-book model answered 3 of 9 questions about filings that aren't in the corpus."
 
 **Follow-ups they will ask:**
 - Q: Context windows are a million tokens now. Isn't RAG obsolete? → A: Not for this workload. Stuffing pays for the whole corpus on every question, latency grows with prompt length, and models use the middle of long inputs worst. RAG also lets you send only chunks a user is *allowed* to see — stuffing would need per-user document sets. For a corpus of a few documents queried rarely, I'd agree stuffing is fine; Phase 1's token count tells us where we are.
@@ -341,7 +341,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **The number.** At 256 tokens: fixed 5,604 chunks (p50 256), recursive 6,538 (p50 223), structure 7,411 (p50 196, 1,061 under 64 tokens). Retrieval quality per strategy: not yet measured — Phase 12.
 
-**Interview script (3 sentences).** "I built three chunkers behind one interface — fixed windows, LangChain's recursive splitter, and a structure-aware one that groups whole blocks within a 10-K section — all with exact character offsets. Structure-aware is the default because these filings have reliable headings, and its chunks never mix two Items. Which one actually retrieves best is a measured result in my ablation, not an assumption: ⟨Phase 12⟩."
+**Interview script (3 sentences).** "I built three chunkers behind one interface — fixed windows, LangChain's recursive splitter, and a structure-aware one that groups whole blocks within a 10-K section — all with exact character offsets. Structure-aware is the default because these filings have reliable headings, and its chunks never mix two Items. Which one actually retrieves best is a measured result in my ablation, not an assumption: it was the weakest strategy on average (0.542 vs 0.607 for fixed windows), but its 256-token hybrid + rerank cell tied for best (hit@5 0.769), so I kept it with a winner's-curse caveat and fixed256-hybrid-rr as the candidate to re-test."
 
 **Follow-ups they will ask:**
 - Q: Why not semantic chunking? → A: It needs an embedding per sentence at ingest and a similarity threshold to tune, and its boundaries are hard to explain when they're wrong. 10-Ks already mark topic boundaries with headings, which are free and explainable. If my structure chunks underperformed on prose-heavy sections, semantic chunking is what I'd try next.
@@ -1907,3 +1907,42 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): An attacker writes "visit acme dot example slash login". → A: That passes. Text-level social engineering needs the screen (A6's wording trips `addresses_model`) or a classifier, not URL regexes.
 
 **The trap.** Cleaning only the final answer in a streaming UI.
+
+### Card x-local-deploy — from [20-deployment-and-demo](../20-deployment-and-demo.md)
+
+#### Decision: local-first packaging (Make + Docker Compose for Postgres, app on the host), verified by a fresh-clone run  (rejected for now: full Docker image of the app; a cloud deployment; a hosted demo)
+
+**One-line defence.** The deliverable is reproducible numbers on a laptop. A fresh clone with no key and no cache reaches the same retrieval scores using the same Make targets I used. Measured: 479/479 tests and identical retrieval metrics on all 61 questions.
+
+**What problem is this even solving?** Letting a reviewer rebuild the system and the measurements without my machine, my keys or my judgement calls.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Make + Compose (DB only), app on host | Pinned venv + DB container by digest | Fast edit-run loop; MPS GPU usable; small VM (2 GB) | Needs Python 3.11, Colima and Docker on the host; macOS-tested only | Development, teaching, demos |
+| App in Docker too | A Dockerfile for API + UI | One command anywhere; closer to production | No MPS GPU inside the Linux VM, so CPU-only embedding and reranking (slower; doc 07); a larger VM on an 8 GB machine | Linux servers, CI |
+| Cloud deploy (e.g. a VM + managed Postgres) | Public URL | Demo without setup | Cost; secrets management; the corpus licence and the API key are now internet-facing; injection guards become essential | A product |
+| Hosted demo (Streamlit Community Cloud) | Push and share | Zero setup for viewers | Needs the DB and models hosted somewhere; free tiers are small | Showing the UI only |
+
+**What would actually change if we swapped it.** A Dockerfile per service, a compose service for the API and the UI, model weights baked into the image or a volume (~200 MB), and a CPU-only torch wheel. Query embedding on CPU was 21–38 ms after idle vs 84–226 ms on an idle MPS GPU (doc 17), so latency might even improve for single queries. Batch ingest would be ~2.5× slower (Phase 4: 116 vs 46 chunks/s).
+
+**The decision rule.** Containerise what must be identical everywhere (the database, pinned by digest). Leave on the host what benefits from the host (the GPU) while there's one developer. Containerise the app when there's a second machine to deploy to.
+
+**Where our choice breaks.**
+- On Linux or Windows hosts, which aren't tested (MPS is macOS-only; the code falls back to CPU, but that path isn't benchmarked).
+- For anyone without Python 3.11.
+- **Migration path:** add the app Dockerfile and a CI job that runs the fresh-clone script on every push.
+
+**The number.** Fresh clone → scored eval in 483 s; 479/479 tests; hit@5 0.769 = published; 0 differences across 18 metrics × 61 questions; 60/61 retrieved lists identical (`eval/results/20261002T231122Z_fresh-clone.json`).
+
+**Interview script (3 sentences).** "Everything that affects a number is pinned: packages with `==`, the Postgres image by digest, the PDFs by sha256, the embedding model by revision, the golden set by hash in every result file. I proved it by cloning the repo into an empty directory with its own database and no API key, and running install, ingest, tests and the eval. All 479 tests passed and every retrieval metric matched the published baseline on all 61 questions; one retrieved list differed at rank 10 without changing any score."
+
+**Follow-ups they will ask:**
+- Q: Why isn't the app in Docker? → A: On this Mac, Docker runs in a Linux VM with no access to the Apple GPU, so embedding and reranking would be CPU-only. It's the right next step for CI or a server; it's the wrong trade on an 8 GB laptop for development.
+- Q: What did the fresh clone catch? → A: Nothing broken this time, which is the useful result, plus one honest difference: G042's 10th result differs (no metric changes). It also forced the isolation fix: without `COMPOSE_PROJECT_NAME` the clone would have silently used my existing database. The pip comment bug (T-070) was caught by the same kind of clean install one phase earlier.
+- Q: How do you keep secrets out of the repo? → A: `.env` is git-ignored, keys are `SecretStr` (never in repr or logs), and before every push I scan the outgoing history for key patterns. The fresh clone ran with no keys at all, on the deterministic fake model.
+- Q: Is the eval deterministic? → A: Retrieval is: same pins, same scores, and the fresh-clone run is the check. LLM answers are made reproducible by the response cache, keyed by the full prompt; a fresh clone has an empty cache, so its generated answers would differ in wording.
+- Q (the hard one): Would this work on a colleague's Linux laptop? → A: I believe so: the code falls back to CPU, and Compose is the same. But I haven't run it. "I believe so" is exactly what a CI job on Linux would turn into a fact.
+
+**The trap.** Claiming reproducibility without having reproduced anything from a clean checkout.

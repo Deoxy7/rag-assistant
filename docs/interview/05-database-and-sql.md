@@ -372,3 +372,32 @@
 **Trap.** Calling an application WHERE clause "isolation".
 
 **Bridge.** "Card #40 has the full trade-off."
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: Why pin the Postgres image by digest and not just by tag?
+**ID:** P16-05 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "A tag like pgvector:0.8.7-pg16-bookworm is a pointer the publisher can move to a new build; a digest is the hash of the exact image bytes and can't change. Pinning the digest means a fresh clone gets the same Postgres and pgvector binaries I measured with. The tag stays next to it so humans can read what was meant."
+
+**2-minute answer.** Same principle at every layer: versions for packages, sha256 for PDFs, revision hashes for models. A rebuilt base image could change the OS libraries, collation behaviour or extension build, and with them performance or even text-search results.
+
+**If they push — level 2.** *"Downside?"* Security patches don't arrive automatically; you bump the digest deliberately, with a test run.
+
+**If they push — level 3.** *"How do you update?"* Pull the new tag, read its digest, change one line, run the suite and the eval.
+
+**If they push — level 4.** *"Same for Python wheels?"* pip --require-hashes would do it; not yet used.
+
+**Whiteboard it.**
+```text
+ image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0a…
+ tag = intent (movable) · digest = bytes (immutable)
+```
+
+**Trap.** Thinking a version tag is immutable.
+
+**Bridge.** "Every layer that can drift needs its own pin."

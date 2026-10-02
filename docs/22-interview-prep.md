@@ -1,6 +1,6 @@
 # 22 — Interview prep
 
-**Status:** first filled in Phase 12 (2026-10-02/03) with the measured retrieval, ablation and real-model generation numbers; refreshed in Phase 16. Every number below has a command in the doc it links to.
+**Status:** first filled in Phase 12 (2026-10-02/03); refreshed in Phase 16 (2026-10-03) with the cost, security, UI and fresh-clone results. Every number below has a command in the doc it links to.
 
 The detailed bank (150+ questions, each with 30-second / 2-minute answers and push-backs) lives in [docs/interview/](interview/00-how-interviews-go.md); this page is the short version to read the night before.
 
@@ -12,7 +12,7 @@ The detailed bank (150+ questions, each with 30-second / 2-minute answers and pu
 - Parse them into text with exact character offsets.
 - Chunk into 256-token pieces that respect document structure: 7,411 chunks.
 - Embed with bge-small (384 dimensions) into Postgres + pgvector, with Postgres full-text search alongside.
-- At query time, run vector and keyword search, fuse the two lists with RRF, rerank the top 10 with a cross-encoder, and ask Gemini to answer *only* from numbered sources.
+- At query time, run vector and keyword search, fuse the two lists with RRF, rerank the top 10 with a cross-encoder, and ask a Groq-hosted model (Qwen 3.8 27B) to answer *only* from numbered sources, fenced so a document can't forge them.
 - Map each `[n]` it writes back to the stored chunk, page and character span.
 
 A self-built eval harness measures every stage. → [02](02-architecture-overview.md)
@@ -37,6 +37,8 @@ A self-built eval harness measures every stage. → [02](02-architecture-overvie
 
 → [23-troubleshooting.md](23-troubleshooting.md) T-042, T-046, T-052
 
+**8b. "Is it secure?"** Every retrieved chunk is attacker-controllable text. My seven-attack suite on a real model went from 6 of 28 successes to 1. Four layers did it: quarantining chunks that address the model, fences a document can't close or forge, a trust-boundary prompt, and an output policy that strips links and images even from streamed tokens. The survivor is a planted false figure, now cited to the poisoned upload instead of a real filing. → [18](18-security-prompt-injection.md)
+
 **9. "How would you scale it?"** The measured bottleneck is the model passes, not the database. With 4 concurrent clients, throughput went 6.8 → 13.7 req/s, because embedding and reranking are serialised by a lock on one GPU. Next steps: a batched model-serving process, concurrent vector and keyword searches, a connection pool, and async streaming once open streams approach the thread-pool limit (40). → [14](14-api-and-streaming.md)
 
 **10. "Why not LangChain / a vector DB / RAGAS?"** Each core piece is short, owned code I can test exactly: span-graded metrics, offset-exact citations, plain-SQL retrieval in one Postgres. LangChain's splitter returned wrong character offsets (T-019), which is exactly the detail citations depend on. → cards #15, #34, #35
@@ -54,7 +56,8 @@ A self-built eval harness measures every stage. → [02](02-architecture-overvie
 | Exact figures | vector 0/50 in the top 5 → hybrid 50/50 |
 | Reranker | MiniLM-L6, N = 10, 77 ms MPS; bge-base 6× slower, no better |
 | Right-filing filter | FinanceBench hit@10 0.286 → 0.607 |
-| Latency | retrieval ~320 ms in the server (idle-GPU embed 158 ms) · first token 402 ms · full answer 862 ms (Qwen on Groq, unthrottled) · throttled: 16 s of retry waits |
+| Latency | retrieval ~320 ms in the server (idle-GPU embed 158 ms) · first token 402 ms · full answer 862 ms (Qwen on Groq, unthrottled) · throttled: 16 s of retry waits · UI client clock (gpt-oss-20b): first token 940 ms |
+| Security | injection suite 6/28 → 1/28 · laundered citations 1 → 0 · pattern list 0/69,176 false positives · Prompt Guard 2 caught 1/7 vs 5/7 |
 | Cost | ~$0.0016–0.0026 per answer at list price, $2.60 per 1k · billed $0 (free tier) |
 | Generator / judge | qwen/qwen3.8-27b / openai/gpt-oss-120b, both on Groq (different families; README "Models") |
 | RAG vs closed book | correctness 0.721 vs 0.067 (37 vs 4 questions won) · unanswerable refused 9/9 vs 6/9 |
@@ -77,12 +80,17 @@ The full list is in [interview/16-rapid-revision.md](interview/16-rapid-revision
 | API, SSE | [14](14-api-and-streaming.md) | P10-xx |
 | Eval harness | [15](15-eval-harness.md) | P11-xx |
 | Ablations | [16](16-experiments-and-ablations.md) | P12-xx |
+| Cost, observability | [17](17-cost-and-observability.md) | P13-xx |
+| Security, prompt injection | [18](18-security-prompt-injection.md) | P14-xx |
+| UI | [19](19-frontend.md) | P15-xx |
+| Reproducibility, demo | [20](20-deployment-and-demo.md) | P16-xx |
 | Every question by id | — | [interview/02-question-map.md](interview/02-question-map.md) |
 
 ## 4. Weak spots (be ready for these)
 
 - **The judge hasn't been checked against human grades**, and it called one cited-but-wrong number "faithful" (G032). Correctness against references caught it.
 - **The generator changed three times** (OpenAI → Gemini → Qwen on Groq) because of quotas and billing. Answer numbers belong to Qwen + gpt-oss; retrieval numbers don't depend on the LLM.
+- **Template 2 (the security default) hasn't been re-scored on the golden set**, and the injection suite ran on gpt-oss-20b, not Qwen: the generator's daily quota ran out (T-063).
 - **My test set flatters keyword search.** Know the −0.53 correlation and the explanation.
 - **Multi-hop retrieval is weak** (recall@5 0.33); the planned fix, query decomposition, isn't built.
 - **The default is the best cell of the weakest chunking strategy.** That's a winner's-curse risk, and fixed256-hybrid-rr is the candidate to re-test.

@@ -9,7 +9,7 @@
 
 **30-second answer.** "Because the answers have to come from specific filings and cite the exact passage, and filings change. Fine-tuning changes a model's weights — good for teaching behaviour like format or tone, unreliable for storing exact figures, and it can't point back to a source. RAG looks the passage up at question time, so it's citable and updating a document means re-indexing, not retraining."
 
-**2-minute answer.** Add: the distinction between **parametric memory** (in the weights) and **non-parametric memory** (an index you can search, update and cite), from the paper that named RAG (Lewis et al., 2020). Fine-tuning writes into parametric memory, which has three problems for this workload: no citations, unreliable recall of facts seen a few times (comparisons of the two approaches for adding new knowledge favour retrieval — Ovadia et al., 2023), and every corrected filing means another training run. The number that settles it for *this* system is the closed-book vs RAG comparison on the golden set: ⟨Phase 12⟩.
+**2-minute answer.** Add: the distinction between **parametric memory** (in the weights) and **non-parametric memory** (an index you can search, update and cite), from the paper that named RAG (Lewis et al., 2020). Fine-tuning writes into parametric memory, which has three problems for this workload: no citations, unreliable recall of facts seen a few times (comparisons of the two approaches for adding new knowledge favour retrieval — Ovadia et al., 2023), and every corrected filing means another training run. The number that settles it for *this* system is the closed-book vs RAG comparison on the golden set: correctness 0.067 vs 0.721, with the same model ([16](../16-experiments-and-ablations.md)).
 
 **If they push — level 2.** *"So is fine-tuning useless here?"* No — it's the wrong tool for *facts*, the right one for *behaviour*. If Phase 11 shows the model often breaks the citation format, a small fine-tune on correctly formatted answers (with RAG still supplying facts) is a legitimate fix. They're complementary.
 
@@ -457,3 +457,32 @@
 **Trap.** Treating widgets like callback handlers.
 
 **Bridge.** "That's also why the UI's state is explicit and tested with AppTest."
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: Reproducibility vs repeatability: which does your project achieve?
+**ID:** P16-06 · **Round:** viva  **Difficulty:** 2/5
+
+**30-second answer.** "Both, for retrieval. Repeatable: rerunning on my machine gives identical rows, 61 of 61, since Phase 11. Reproducible: a clean clone with its own database reached the same hit@5, 0.769, with zero per-question metric differences. For generated answers only repeatable, through the response cache; a remote sampled model can't be reproduced from a clone."
+
+**2-minute answer.** Explain what each needs: repeatable needs determinism; reproducible needs every input pinned and nothing hidden on the original machine. The fresh clone is the cheap stand-in for another person.
+
+**If they push — level 2.** *"What would break reproducibility first?"* A package installed by hand; tests/test_environment.py catches that.
+
+**If they push — level 3.** *"Across machines?"* Not tested; MPS vs CPU vectors differ by up to 3.3e-7, which could reorder near-ties.
+
+**If they push — level 4.** *"Seeds?"* Bootstrap CIs use a fixed seed; retrieval has no randomness except index construction.
+
+**Whiteboard it.**
+```text
+ repeatable: same machine, same result (61/61 rows)
+ reproducible: fresh clone, same result (hit@5 0.769, 0 diffs)
+```
+
+**Trap.** Using the words interchangeably.
+
+**Bridge.** "That's what the fresh-clone run measured."

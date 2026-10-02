@@ -35,7 +35,7 @@ A deep-dive interviewer takes one thing you said and asks "why" or "how" until y
 - *Strong:* "The index returns the nearest candidates and the filter runs on them afterwards, so if most neighbours belong to other companies you can get fewer than k rows — a recall cliff. pgvector 0.8 added iterative index scans that keep searching until enough rows pass the filter." (Card #18, Phase 5.)
 
 **Level 4 — "Show me the number."**
-- *Strong:* "With the filter on, plain HNSW returned ⟨n⟩ of 5 rows on ⟨query⟩; with iterative scan, 5 of 5 at ⟨latency⟩ ms. Command: ⟨…⟩." (Filled in Phase 5.)
+- *Strong:* "Filtered to Corning 2021, plain HNSW with post-filtering returned 3.8 of 10 requested rows on average at ef_search 40, and 133 of 150 queries came back short (31 with zero rows); with iterative scan, 10.0 of 10 and none short. Command: `make bench-vector`." (Doc 09.)
 - *If you're at your floor:* "I measured it on my corpus only. Beyond that I'd expect the cliff to worsen as the filter gets more selective, because the fraction of neighbours that survive shrinks — but I haven't measured that curve." Saying where your knowledge ends, with reasoning, scores better than bluffing.
 
 The lesson: an answer that only says *what* fails at level 2. Every doc in this repo is written to survive three pushes — learn the push, not just the first answer.

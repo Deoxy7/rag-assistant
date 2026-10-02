@@ -86,3 +86,31 @@ H1–H5 each get an honest-answer section here once their evidence exists (Phase
 **Trap.** Claiming the golden-set score is an unbiased estimate.
 
 **Bridge.** "Phase 12's write-up keeps the dev/test caveat next to every winner."
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: What are the weakest parts of this project?
+**ID:** P16-07 · **Round:** behavioural · deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Four, all measured. My golden set is small and self-written, and it flatters keyword search: Spearman −0.53 against FinanceBench. The LLM judge hasn't been checked against human grades and once called a wrong cited figure faithful. Multi-hop retrieval finds only a third of the needed evidence. And the security-default prompt hasn't been re-scored on the golden set because the free-tier quota ran out."
+
+**2-minute answer.** For each, say what you'd do: questions written by someone who hasn't read the filings; hand-grade 30 answers; query decomposition; rerun when the quota resets. Interviewers value knowing where your numbers stop more than the numbers.
+
+**If they push — level 2.** *"Which matters most?"* The test-set bias: every other number is measured with it.
+
+**If they push — level 3.** *"Why not fix it?"* Time-boxed; the fix needs a second person writing questions.
+
+**If they push — level 4.** *"Anything you got wrong?"* Structure-aware chunking: I expected it to win; on average it was the weakest strategy.
+
+**Whiteboard it.**
+```text
+ test-set bias (−0.53) · judge uncalibrated · multi-hop recall@5 0.333 · template 2 un-scored
+```
+
+**Trap.** Answering with fake weaknesses ("I work too hard").
+
+**Bridge.** "Doc WRITEUP.md lists them with next steps."

@@ -702,3 +702,56 @@
 **Trap.** Showing the chunk text and calling it a citation preview.
 
 **Bridge.** "This is where Phase 2's offsets pay off."
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: How do you know someone else can reproduce your numbers?
+**ID:** P16-01 · **Round:** project deep-dive · system design  **Difficulty:** 3/5
+
+**30-second answer.** "I tested it: cloned the repo from GitHub into an empty directory with its own Postgres container on another port, no API key and no cache, and ran install, ingest, tests and the eval. It took 483 seconds; 479 of 479 tests passed, and hit@5 was 0.769, identical to the published run, with zero per-question metric differences. One retrieved list differed at rank 10, and I wrote that up."
+
+**2-minute answer.** List the pinning layers: packages with ==, the DB image by digest, PDFs by sha256, the model by revision, the golden file by sha256 in every result. Then the isolation: the compose project name is fixed, so without COMPOSE_PROJECT_NAME the clone would have quietly reused my database and proved nothing.
+
+**If they push — level 2.** *"Why not CI?"* No runner configured; the fresh-clone script is the CI job waiting to be added.
+
+**If they push — level 3.** *"Different OS?"* Not tested. MPS is macOS-only; the CPU fallback exists but isn't benchmarked.
+
+**If they push — level 4.** *"Generated answers?"* Not reproducible from a clone: sampled remote model, empty cache. Reproducible on my machine via the response cache.
+
+**Whiteboard it.**
+```text
+ clone(3 s) → install(40) → up(6) → corpus(18, sha256) → ingest(360) → test(38: 479/479) → eval(18)
+ hit@5 0.769 = published · 0 per-question diffs · 60/61 lists identical
+```
+
+**Trap.** "It works on my machine" presented as reproducibility.
+
+**Bridge.** "Pins are what turn an anecdote into a measurement."
+
+---
+
+### Q: Walk me through your 5-minute demo.
+**ID:** P16-02 · **Round:** behavioural · deep-dive  **Difficulty:** 1/5
+
+**30-second answer.** "Start with the closed-book baseline: the same model without documents is correct 6.7% of the time. Then ask a Verizon headcount question: sources arrive, the answer streams, I open citation [1] and the PDF page appears with the paragraph highlighted. Ask about Apple, which isn't in the corpus: it refuses. Then the eval view: 0.769 hit@5, 0.721 correctness, the ablation table. End with security: poisoned documents, 6 of 28 attacks before, 1 after."
+
+**2-minute answer.** The order is deliberate: problem, proof of grounding, honesty (refusal), evidence (eval), then robustness. Everything on screen is live or read from write-once result files, and the footer shows the model and cost, so nothing is staged.
+
+**If they push — level 2.** *"What if the API is down?"* The UI says so with the command to start it; make demo prints the same check.
+
+**If they push — level 3.** *"What if the quota is out?"* Answers are cached; a repeated question is served from cache and labelled 'cached'.
+
+**If they push — level 4.** *"Which part impresses most?"* The highlighted page: it's the citation design made visible.
+
+**Whiteboard it.**
+```text
+ closed book 0.067 → ask (stream) → [1] → highlighted page → refusal → eval 0.769/0.721 → 6→1 attacks
+```
+
+**Trap.** Demoing only the happy path.
+
+**Bridge.** "The demo script is in doc 20."

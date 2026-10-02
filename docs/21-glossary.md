@@ -49,6 +49,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Cold GPU | An idle accelerator at lowered clocks: the first work after idle runs slower. | [17](17-cost-and-observability.md) |
 | Colima | Open-source tool that runs a small Linux VM with a Docker engine on macOS. | [03](03-environment-and-infra.md) |
 | Column gutter | A vertical strip no text crosses, separating two columns of text. | [05](05-pdf-parsing.md) |
+| Compose project name | The name Docker Compose groups containers and volumes under; shared names mean shared databases. | [20](20-deployment-and-demo.md) |
 | Confounder | Something that changes along with the factor studied (e.g. chunk size changes the number of relevant chunks). | [16](16-experiments-and-ablations.md) |
 | Container | Isolated processes sharing the host's kernel, with their own view of files, network and processes. | [03](03-environment-and-infra.md) |
 | Content hash (sha256) | A 64-hex-character fingerprint of a file's bytes; any change alters it. | [04](04-corpus.md) |
@@ -96,6 +97,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Fiscal year | A company's accounting year, which need not match the calendar year. | [04](04-corpus.md) |
 | Foreign key | A column that must match a primary key in another table. | [08](08-database-schema.md) |
 | Form 10-K | The annual report US public companies file with the SEC, with a structure fixed by regulation. | [04](04-corpus.md) |
+| Fresh-clone run | Cloning into an empty directory with its own database and no cache or keys, then rebuilding and re-measuring. | [20](20-deployment-and-demo.md) |
 | Generated column | A column Postgres computes from other columns of the row (tsv from text). | [08](08-database-schema.md) |
 | GIN index | Generalized Inverted Index: maps each element (lexeme) to the rows containing it. | [08](08-database-schema.md) |
 | Glyph | A drawn character shape from a font; mapped back to Unicode during extraction. | [05](05-pdf-parsing.md) |
@@ -116,6 +118,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Identity column | Auto-assigned increasing id; values consumed by failed/conflicting inserts leave gaps. | [08](08-database-schema.md) |
 | IDF (inverse document frequency) | ln(1 + (N − df + 0.5)/(df + 0.5)): high for rare terms. | [10](10-keyword-search.md) |
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
+| Image digest | The sha256 of a container image's bytes; unlike a tag, it can never point to a different build. | [20](20-deployment-and-demo.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
 | Indirect prompt injection | Instructions hidden in content the system retrieves (a document), not typed by the user. | [18](18-security-prompt-injection.md) |
 | Interaction effect | A factor's effect depends on another factor's level. | [16](16-experiments-and-ablations.md) |
@@ -184,6 +187,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | pgvector | Postgres extension adding a `vector` type, distance operators and HNSW / IVFFlat indexes. | [03](03-environment-and-infra.md) |
 | Phrase query | Terms that must be adjacent and in order: 'net' <-> 'revenu'. | [10](10-keyword-search.md) |
 | Pinning | Fixing a dependency to an exact version (`==`) so installs are reproducible. | [03](03-environment-and-infra.md) |
+| Pinning layers | Each thing that can drift pinned separately: code, packages, images, data, models, labels. | [20](20-deployment-and-demo.md) |
 | Pipeline / stage | A sequence of steps where each step's output feeds the next; each step is a stage. | [02](02-architecture-overview.md) |
 | Pooling | Turning per-token vectors into one text vector (bge: the [CLS] vector). | [07](07-embeddings.md) |
 | Port publishing | Making a container's port reachable from the host, e.g. `127.0.0.1:5432:5432`. | [03](03-environment-and-infra.md) |
@@ -207,6 +211,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Recall ceiling | Share of queries whose evidence is anywhere in a stage's input; no later stage can exceed it. | [12](12-reranking.md) |
 | Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
 | Recall@k | Share of the needed evidence items covered by the top k. | [15](15-eval-harness.md) |
+| Reproducibility vs repeatability | Someone else gets the result from the artefacts vs you get it again on your machine. | [20](20-deployment-and-demo.md) |
 | Request id | Short id per request, returned in x-request-id and logged, to match user reports to logs. | [14](14-api-and-streaming.md) |
 | Request/response model | A pydantic class describing a body; FastAPI validates and documents it. | [14](14-api-and-streaming.md) |
 | Rerank depth N | How many first-stage candidates the reranker reads (10 here). | [12](12-reranking.md) |

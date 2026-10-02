@@ -147,6 +147,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P15-06 | Helping a user check a wrong answer | [04](04-retrieval.md) | citations | deep-dive | 2 | | |
 | P15-07 | Eval results from files, not an API | [07](07-evaluation.md) | eval | design | 2 | | |
 | P15-08 | What UI time-to-first-token measures | [11](11-cs-core-touchpoints.md) | latency | ML, backend | 2 | | |
+| P16-01 | Proving others can reproduce your numbers | [06](06-system-design.md) | reproducibility | deep-dive, design | 3 | | |
+| P16-02 | The 5-minute demo | [06](06-system-design.md) | demo | behavioural | 1 | | |
+| P16-03 | Fresh checkout silently uses the old database | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P16-04 | Reproduction differs in one retrieved result | [07](07-evaluation.md) | eval | ML | 3 | | |
+| P16-05 | Image digest vs tag | [05](05-database-and-sql.md) | infra | backend | 2 | | |
+| P16-06 | Reproducibility vs repeatability | [03](03-fundamentals.md) | reproducibility | viva | 2 | | |
+| P16-07 | The weakest parts of the project | [14](14-honest-answers.md) | honesty | behavioural | 3 | | |
+| P16-08 | A provider failed you mid-project | [12](12-behavioral-stories.md) | behavioural | behavioural | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

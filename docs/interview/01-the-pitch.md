@@ -1,6 +1,6 @@
 # 01 — The pitch
 
-**Status:** first draft in Phase 0 (2026-10-02). Numbers are placeholders ⟨like this⟩ naming the phase that measures them; **never say a placeholder out loud** — say "I'm measuring that" instead. Rewritten with real numbers in Phases 12 and 16. The corpus is described as SEC annual reports (10-Ks) — the Phase 1 proposal; revise if Phase 1 picks something else.
+**Status:** first draft in Phase 0 (2026-10-02); every number filled in from measurements in Phase 16 (2026-10-03). Each number links back through [22-interview-prep](../22-interview-prep.md) to the command that produced it.
 
 Four lengths, each written out to be said verbatim. **[pause]** marks a natural place for the interviewer to cut in — stop there and let them.
 
@@ -18,7 +18,7 @@ Offline, I parse each PDF and record the page and character offsets of every tex
 
 Online, a question runs vector search and keyword search in parallel, the two rankings are fused with reciprocal rank fusion, a cross-encoder reranks the top few, and the LLM answers only from those chunks with character-level citations — or refuses. It streams over FastAPI with server-sent events. **[pause]**
 
-The differentiator is the eval harness: ⟨N — Phase 11⟩ golden questions with known evidence locations, retrieval metrics like recall@k and MRR that I implemented myself, and LLM-judged faithfulness. The ablation table showed ⟨headline finding — Phase 12⟩."
+The differentiator is the eval harness: 61 golden questions with known evidence locations, retrieval metrics like recall@k and MRR that I implemented myself, and LLM-judged faithfulness. The evidence is in the top 5 for 77% of questions; with retrieval, answers are correct 72% of the time against 7% for the same model without it. The 57-configuration ablation showed the reranker is the one choice that helps almost everywhere, and that my own test set flatters keyword search."
 
 ## 5 minutes — project deep-dive opener
 
@@ -36,9 +36,9 @@ Draw this while talking (practise it in [10-whiteboard-drills.md](10-whiteboard-
 1. **The problem (30 s).** "Annual reports are long, structured, full of tables, and nearly identical year to year. A plain LLM can't cite them and will invent figures. I wanted a system whose answers can be checked." **[pause]**
 2. **The workload (30 s).** "About ten filings, rarely changing, one user, citations required to the character, refuse when unsure, and first-token latency matters for the UI." **[pause]**
 3. **Ingestion (60 s).** "PyMuPDF for text blocks with page and offsets, pdfplumber for tables. The offsets are captured at parse time on purpose — citations and the highlight-in-PDF feature depend on them, and adding them later would mean re-ingesting everything." **[pause]**
-4. **Retrieval (90 s).** "Two retrievers because they fail differently: vectors catch paraphrases, keywords catch exact figures and section numbers. RRF fuses by rank, because the raw scores aren't comparable. A cross-encoder reranks the top ⟨N — Phase 8⟩, which cost ⟨ms — Phase 8⟩ per query." **[pause]**
-5. **Evaluation (60 s).** "Golden questions with evidence spans, so labels survive re-chunking. Retrieval measured before generation. The finding: ⟨Phase 12⟩." **[pause]**
-6. **What I'd change (30 s).** "⟨Phase 16⟩."
+4. **Retrieval (90 s).** "Two retrievers because they fail differently: vectors catch paraphrases, keywords catch exact figures and section numbers. RRF fuses by rank, because the raw scores aren't comparable. A cross-encoder reranks the top 10, which costs about 77 ms per query and improved hit@5 in 23 of 27 paired configurations." **[pause]**
+5. **Evaluation (60 s).** "Golden questions with evidence spans, so labels survive re-chunking. Retrieval measured before generation. The finding: nothing beat my default significantly, 30 configurations were significantly worse, and golden-set and FinanceBench scores were negatively correlated (−0.53), so I chose the configuration that holds up on both rather than my test set's winner." **[pause]**
+6. **What I'd change (30 s).** "Three things: query decomposition for multi-hop questions, which are the weakest type at a third of evidence found; hand-grading 30 answers to calibrate the LLM judge; and questions written by someone who hasn't read the filings, to break my test set's vocabulary bias."
 
 ## 15 minutes — full walkthrough, interrupt-driven
 

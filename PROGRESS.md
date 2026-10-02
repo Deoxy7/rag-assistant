@@ -180,3 +180,13 @@ Numbers:  live (gpt-oss-20b, 3 questions, client clock): sources 514–1,300 ms,
 Open:     UI not load-tested; screenshots use gpt-oss-20b (qwen quota, T-063); no user feedback button.
 Next:     Phase 16 — packaging, fresh-clone verification, final README.
 
+## Phase 16 — Packaging, fresh-clone verification, final README   [DONE 2026-10-03]
+
+Built:    `scripts/demo.py` (`make demo`: four questions through the API via ui/client.py); `docs/diagrams/src/20-final-architecture.mmd`; fresh-clone procedure (COMPOSE_PROJECT_NAME + POSTGRES_PORT isolation, LLM_PROVIDER=fake, no keys).
+Verified: fresh clone of `https://github.com/Deoxy7/rag-assistant` at `984758c` into an empty directory with its own Postgres container (`rag-fresh`, port 5433): clone 3 s · install 40 s (warm pip cache) · up 6 s · corpus 18 s (12 files sha256-verified) · ingest 360 s · test 38 s (**479 passed**) · eval 18 s → `eval/results/20261002T231122Z_fresh-clone.json`: hit@5 0.769, recall@10 0.760, nDCG@10 0.523, MRR 0.535, AUROC 0.662 — identical to `20261002T163255Z_phase11-baseline.json`; 0 per-question metric differences; 60/61 retrieved lists identical (G042 rank 10: chunk 19 vs 1254, cause not established).
+Docs:     final `README.md` (headline metrics, architecture, quick start, models); `docs/20-deployment-and-demo.md` (card x-local-deploy, five-minute demo talk track); `docs/WRITEUP.md`; refreshed 00 and 22; every remaining ⟨placeholder⟩ in docs and the pitch filled with measured numbers; 8 interview questions (P16-01…P16-08).
+Diagrams: `20-final-architecture`.
+Open (needs the Groq qwen daily quota, T-063): re-score template 2 on the golden set (`python -m eval.run --name gen-v3-template2 --generate --judge`); rerun `python -m eval.injection` on qwen/qwen3.8-27b. Also: hand-grade 30 answers to calibrate the judge; query decomposition for multi-hop; Linux / CI run of the fresh-clone script; app Dockerfile.
+
+**Project status: all 16 phases done.**
+

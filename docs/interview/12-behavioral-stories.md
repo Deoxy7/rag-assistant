@@ -59,3 +59,32 @@
 - **What I did:** measured reranked accuracy next to the recall ceiling for N = 10…100 and for two models, then looked at the top results question by question.
 - **Outcome number:** the ceiling rose from 0.29 to 0.71, but reranked top-10 fell to 0.25. The top results were the right topic from the wrong company or year. One more experiment (filter to the right filing) doubled top-10 to 0.607. I chose the smallest N and the small model, and moved company/year filters up the plan.
 - **Lesson:** measure each stage's ceiling separately. The fix was metadata, not a bigger model.
+
+---
+
+## Phase 16 questions
+
+---
+
+### Q: Tell me about a time a provider or dependency failed you mid-project.
+**ID:** P16-08 · **Round:** behavioural  **Difficulty:** 2/5
+
+**30-second answer.** "The LLM provider changed three times in two days. OpenAI had no credits; Gemini's free tier allowed 20 requests a day when a full eval needs 61, then returned 402 'prepayment credits depleted'; I moved to Qwen on Groq's free tier. Because the client was already OpenAI-compatible and every provider detail was configuration, each switch was a .env change plus measurements, and the response cache kept completed work."
+
+**2-minute answer.** What I changed in the code as a result: telling a rate limit (retry) from a daily quota or payment failure (stop), reporting retry waits as their own latency stage, and recording the model in every result file, so numbers from different providers can't be mixed silently.
+
+**If they push — level 2.** *"What would you do differently?"* Budget quota up front: 61 questions × 3 judge calls was known on day one.
+
+**If they push — level 3.** *"Lock-in?"* Low by design: card x-llm-provider in doc 13.
+
+**If they push — level 4.** *"Did numbers change?"* Answer numbers belong to Qwen + gpt-oss; retrieval numbers don't depend on the LLM.
+
+**Whiteboard it.**
+```text
+ OpenAI (no credits) → Gemini (20 RPD, then 402) → Groq qwen + gpt-oss judge
+ each switch: .env change · cache kept · model recorded in results
+```
+
+**Trap.** Blaming the provider.
+
+**Bridge.** "That's also why the generator and judge are different families."
