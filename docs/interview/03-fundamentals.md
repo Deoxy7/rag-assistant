@@ -372,3 +372,30 @@
 **Trap.** Claiming a RAG accuracy without knowing the closed-book accuracy.
 
 **Bridge.** "It's the first run once there's quota for 61 generation calls."
+
+---
+
+## Phase 13 questions
+
+### Q: Why log a hash of the question instead of the question?
+**ID:** P13-07 · **Round:** viva · backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "Users type anything into a question box, including names, account numbers and other personal data. Logs are copied, retained and read widely, so the text would spread. A sha256 still lets you count repeated questions and join a user's report to a request, and the length catches outliers. The request id ties a support ticket to the row without the text."
+
+**2-minute answer.** Data minimisation: store what you need for the question you're asking. For debugging answer quality, keep an opt-in, access-controlled sample instead of logging everything. Note that hashes of short, guessable inputs can be reversed by brute force; for strong protection, use a keyed hash (HMAC).
+
+**If they push — level 2.** *"Can a hash leak?"* For common questions, yes, by dictionary attack. An HMAC with a secret key fixes that.
+
+**If they push — level 3.** *"Answers?"* Answers quote filings, which is less sensitive, but they can echo the question. Not logged in the line either.
+
+**If they push — level 4.** *"Retention?"* Put a TTL on request_log rows (e.g. 30 days), plus a delete-by-request-id path.
+
+**Whiteboard it.**
+```text
+ log: request_id · question_sha256 · question_chars · tokens · cost · timings
+ not logged: question text, answer text
+```
+
+**Trap.** "It's just logs."
+
+**Bridge.** "Security is next, in Phase 14."

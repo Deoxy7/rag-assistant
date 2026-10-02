@@ -450,7 +450,7 @@ Expected: `1 failed, 1 passed` with `store -> api` in the message.
 | What | Value | Produced by |
 |---|---|---|
 | Tests in the suite after Phase 0 | 238 passed in 0.23 s (most are per-doc checks parametrized over every Markdown file) | `make test` (2026-10-02) |
-| Per-stage latency of a query | not yet measured | Phase 13 |
+| Per-stage latency of a query | retrieval ~320 ms (embed 158 · vector 23 · keyword 32 · fuse 0.4 · rerank 105) · first token 402 · full answer 862 ms (median of 4, unthrottled) | Phase 13, [17](17-cost-and-observability.md) |
 | Retrieval quality per configuration | not yet measured | Phases 11–12 |
 
 ## 11. Interview talking points

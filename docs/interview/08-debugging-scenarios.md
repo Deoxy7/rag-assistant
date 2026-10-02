@@ -557,3 +557,55 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Retrying every 429 with backoff.
 
 **Bridge.** "That's also the quota the full judged run hit."
+
+---
+
+## Phase 13 questions
+
+### Q: Your dashboard shows traffic from a model you don't run in production. Debug.
+**ID:** P13-05 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "This happened: /stats counted requests from 'fake-extractive-1' and 'script-1', my test doubles. The API tests use the app's default database connection, so once request logging existed, test requests wrote to the real request_log. My first fix covered only one fixture; two other tests still wrote. The robust fix is an autouse fixture that disables request logging in every test, with the one logging test pointed at the throwaway test database. The polluted rows were deleted by their test-only model names."
+
+**2-minute answer.** The general rule: side effects to shared systems (databases, queues, external APIs) must be opt-in in tests, not opt-out per test. A default-deny fixture is safer than remembering each time. Also check what telemetry records about tests, since it can mislead capacity and cost decisions.
+
+**If they push — level 2.** *"Why not a separate DB for all API tests?"* The end-to-end test needs the real ingested corpus. Isolating writes is cheaper than duplicating it.
+
+**If they push — level 3.** *"How would you have caught it sooner?"* A test asserting the real request_log is unchanged by the suite, or tagging rows with an environment.
+
+**If they push — level 4.** *"Production analogue?"* Synthetic monitoring traffic mixed into business metrics. Tag it and filter it.
+
+**Whiteboard it.**
+```text
+ test → app.connect() → real DB → request_log rows (fake-extractive-1, script-1)
+ fix: autouse fixture request_log_enabled=False · logging test → test DB · delete polluted rows
+```
+
+**Trap.** Fixing one test at a time.
+
+**Bridge.** "Telemetry is only useful if it's trustworthy."
+
+---
+
+### Q: Latency looked like 20 s per answer. The model is fast. What's going on?
+**ID:** P13-06 · **Round:** ML screen · backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "Retries. Groq's free tier allows 8k tokens per minute per model; one answer sends ~1.5–2.8k. After three answers in a minute, calls get 429 with a Retry-After of 12–27 s, and my client retried inside the timed call, so the sleep showed up as 'time to first token'. Now each wait is reported as stage `llm.retry_wait`: one answer spent 16,000 of 16,771 ms waiting, and its model time was ~590 ms."
+
+**2-minute answer.** Throughput, not latency, is the binding constraint: about 3 answers per minute on the free tier. The fixes are budget-side: a paid tier, fewer input tokens (smaller k, shorter headers), or client-side pacing with a token bucket so requests queue instead of bouncing.
+
+**If they push — level 2.** *"Why retry at all?"* For an eval sweep, waiting beats failing. The cache keeps completed work.
+
+**If they push — level 3.** *"Interactive users?"* Fail fast with a clear 503 rather than make a user wait 20 s. Interactive and batch callers can have different retry budgets.
+
+**If they push — level 4.** *"Fairness?"* A shared token bucket per provider and model in front of all requests.
+
+**Whiteboard it.**
+```text
+ 8k TPM ÷ ~2.7k tokens/answer ≈ 3 answers/min
+ answer 6411bb78: first_token 16,591 = retry_wait 16,000 + model ~590
+```
+
+**Trap.** Profiling the code when the time is spent sleeping.
+
+**Bridge.** "That's the case for reporting retries as their own stage."

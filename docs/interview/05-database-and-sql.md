@@ -291,3 +291,30 @@
 **Trap.** One connection per request for the request's whole lifetime, with streaming.
 
 **Bridge.** "Phase 13 logs per-stage timings, which shows where connections are actually held."
+
+---
+
+## Phase 13 questions
+
+### Q: Compute per-stage p95 latency from a log table in SQL.
+**ID:** P13-04 · **Round:** backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "Each request row stores its stage timings as jsonb. For one stage: `percentile_cont(0.95) WITHIN GROUP (ORDER BY (timings_ms->>'rerank')::float8)`, filtered by a time window and by `timings_ms ? 'rerank'` so requests where the stage didn't run aren't counted as zero. percentile_cont interpolates between rows; percentile_disc would return an actual observed value."
+
+**2-minute answer.** Mention the index on ts for the window, and that the question text is not stored, only a sha256 and length. At high volume, pre-aggregate per minute into a rollup table, or use histograms in a metrics system.
+
+**If they push — level 2.** *"Why jsonb, not a column per stage?"* Stages get added (`llm.retry_wait` appeared mid-phase). jsonb needs no migration, and the `?` operator handles missing keys.
+
+**If they push — level 3.** *"Cost of percentile_cont?"* It sorts the window, O(n log n). Fine for thousands of rows; at millions, use approximate quantiles (t-digest) or rollups.
+
+**If they push — level 4.** *"Time zones?"* `timestamptz` stores UTC, and windows use `now() - make_interval(...)`, so client time zones don't matter.
+
+**Whiteboard it.**
+```text
+ SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY (timings_ms->>'rerank')::float8)
+ FROM request_log WHERE ts > now() - interval '24 hours' AND timings_ms ? 'rerank';
+```
+
+**Trap.** Averaging latencies, or counting missing stages as 0 ms.
+
+**Bridge.** "That query is what GET /stats runs per stage."

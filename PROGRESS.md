@@ -152,3 +152,13 @@ Numbers:  RAG correctness 0.721 [0.60–0.84] vs closed book 0.067 [0.02–0.12]
 Docs:     doc 16 generation section, card #37 rewritten, doc 13 status, doc 22 numbers, P12-09/P12-10, T-054/T-055.
 Next:     Phase 13 — cost & observability.
 
+## Phase 13 — Cost & observability   [DONE 2026-10-03]
+
+Built:    `app/telemetry/` (`trace.py` contextvar Trace + `stage()`/`count()`, `cost.py` list vs billed, `logs.py` JSON formatter); stages in vector (+ `.embed`), keyword, fuse, rerank, pack; embedder cache counters; LLM `retry_wait_ms`/`retries` (`with_retries(on_wait=…)`) → stage `llm.retry_wait`; Answer `counters`, `list_usd`, `billed_usd`; migration `0005_request_log.sql`; `repo.log_request`, `repo.request_stats` (percentile_cont over jsonb); API: JSON request log line per request, request_log row per /query and /query/stream (failures included, question hashed), `GET /stats?hours=`; usage `list_usd`/`billed_usd`, `counters` in responses; settings log_format/log_level/request_log_enabled, list prices + free-tier flags (qwen 0.80/4.00, gpt-oss 0.15/0.60); `scripts/bench_latency.py` (`make bench-latency`) + waterfall chart; tests: `test_telemetry.py` (4), logging/stats API test on the test DB, autouse no-request-log fixture.
+Docs:     `docs/17-cost-and-observability.md` (cards #33, x-observability); 8 interview questions (P13-01…P13-08); T-056…T-058.
+Diagrams: `17-token-accounting`, generated `17-where-it-sits`; chart `17-latency-waterfall.png`.
+Numbers:  unthrottled (median of 4): retrieval ~320 ms (vector incl. embed 181, embed 158, keyword 32, fuse 0.4, rerank 105, pack 2.5), first token 402, generate 862; client sources 365 / first delta 704 / end 1,303 ms; one throttled request 16,000 ms retry wait (2 retries); first bench 6/8 requests 11–25 s (before separation); cost ~$0.0016–0.0026/answer, $2.60/1k (list), billed $0; Phase 12 at list ≈ $0.17; embedding MPS 17 warm / 84–226 after idle / 392 first new-thread call vs CPU 21–38.
+Decisions: exact-match caches only (no semantic cache); in-house tracing + request table (OTel later); question text never logged; CPU query embedding left as a measured option (not switched).
+Open:     request_log has no TTL; CPU-query-embedding ablation; client-side pacing for the 8k TPM limit.
+Next:     Phase 14 — security.
+

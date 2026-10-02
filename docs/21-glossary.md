@@ -43,6 +43,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Closed-book / open-book | Answering from memory alone vs answering with the documents available. | [01](01-what-is-rag.md) |
 | Closed-book baseline | The same golden questions answered with retrieval switched off; measures what retrieval adds. | [01](01-what-is-rag.md) |
 | ColBERT / late interaction | Retrieval with one vector per token, scored by MaxSim (each query token's best match, summed). | [12](12-reranking.md) |
+| Cold GPU | An idle accelerator at lowered clocks: the first work after idle runs slower. | [17](17-cost-and-observability.md) |
 | Colima | Open-source tool that runs a small Linux VM with a Docker engine on macOS. | [03](03-environment-and-infra.md) |
 | Column gutter | A vertical strip no text crosses, separating two columns of text. | [05](05-pdf-parsing.md) |
 | Confounder | Something that changes along with the factor studied (e.g. chunk size changes the number of relevant chunks). | [16](16-experiments-and-ablations.md) |
@@ -52,6 +53,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Context packing | Choosing which retrieved chunks go into the prompt, in what order, under a token budget. | [13](13-prompting-and-citations.md) |
 | Context precision | Rank-aware share of retrieved chunks judged useful (average precision over useful positions). | [15](15-eval-harness.md) |
 | Context window | The maximum number of tokens (input + output) a model can handle in one call. | [01](01-what-is-rag.md) |
+| Contextvar | Python variable private to the current thread or async task; used to find the active trace. | [17](17-cost-and-observability.md) |
 | Contrastive training | Training that pulls matching pairs' vectors together and pushes non-matching ones apart. | [07](07-embeddings.md) |
 | Controlled experiment | Only the studied factors vary; everything else is held fixed. | [16](16-experiments-and-ablations.md) |
 | COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
@@ -125,6 +127,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Learned fusion | Combining retrievers with a model trained on labelled queries (features: scores, ranks, query type). | [11](11-hybrid-rrf.md) |
 | Lexeme | A normalised word form stored by Postgres full-text search (e.g. "revenue" → `revenu`). | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Lifespan | FastAPI startup/shutdown hook; here it loads and warms the models once. | [14](14-api-and-streaming.md) |
+| List vs billed cost | What tokens cost at the paid price vs what was actually paid (0 on a free tier). | [17](17-cost-and-observability.md) |
 | LLM (large language model) | A neural network trained to predict the next token of text. | [01](01-what-is-rag.md) |
 | LLM-as-reranker | Using a generative model to score or order retrieved candidates. | [12](12-reranking.md) |
 | Logit | A model's raw, unbounded output score before a sigmoid/softmax. | [12](12-reranking.md) |
@@ -147,6 +150,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Non-parametric memory | Knowledge stored outside the model in a searchable index (term from Lewis et al., 2020). | [01](01-what-is-rag.md) |
 | Norm | A vector's length: ‖[3,4]‖ = 5. | [07](07-embeddings.md) |
 | Normalisation (vectors) | Dividing a vector by its norm so its length is 1. | [07](07-embeddings.md) |
+| Observability | Being able to answer new questions about a running system from what it records (logs, traces, metrics). | [17](17-cost-and-observability.md) |
 | OCR (optical character recognition) | Recovering text from an image of text; needed only for scanned pages. | [04](04-corpus.md) |
 | Offline path | Work done ahead of time that nobody waits for (parsing, chunking, embedding). | [02](02-architecture-overview.md) |
 | Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
@@ -155,6 +159,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | OpenAPI | Machine-readable API description generated from the request/response models (/openapi.json, /docs). | [14](14-api-and-streaming.md) |
 | Operating point | One chosen threshold together with its error rates. | [15](15-eval-harness.md) |
 | Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
+| p50 / p95 | Median / 95th-percentile latency: half are faster than p50, 1 in 20 slower than p95. | [17](17-cost-and-observability.md) |
 | Paired comparison | Comparing two systems on the same items, counting only where they differ. | [16](16-experiments-and-ablations.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
@@ -183,6 +188,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Query routing | Sending each query to the retriever suited to its type (e.g. figures → keyword) instead of fusing. | [11](11-hybrid-rrf.md) |
 | RAG (Retrieval-Augmented Generation) | Retrieve relevant passages at question time, then have the LLM answer from them with citations. | [01](01-what-is-rag.md) |
 | Rank fusion | Merging several ranked lists into one ranking. | [11](11-hybrid-rrf.md) |
+| Rate limit vs quota | Per-minute limit (retry in seconds) vs per-day quota or payment failure (stop). | [17](17-cost-and-observability.md) |
 | Re-embedding migration | Recomputing every vector for a new model, side by side, before switching queries. | [07](07-embeddings.md) |
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
 | Recall ceiling | Share of queries whose evidence is anywhere in a stage's input; no later stage can exceed it. | [12](12-reranking.md) |
@@ -218,6 +224,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Stemming | Rule-based cutting of words to a stem; can err ('Corning' → 'corn'). | [10](10-keyword-search.md) |
 | Stop word | A very common word ("the", "were") dropped by full-text search. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Strategy pattern | Interchangeable implementations behind one interface (the three chunkers). | [06](06-chunking.md) |
+| Structured logging | One machine-readable object (JSON) per log line, filterable by field. | [17](17-cost-and-observability.md) |
 | Structured output | An API mode that constrains the model's response to a JSON schema. | [13](13-prompting-and-citations.md) |
 | Tag (image) | A movable, human-readable name for an image version. | [03](03-environment-and-infra.md) |
 | Tail latency | The slow end of the latency distribution (p95, p99) that averages hide. | [02](02-architecture-overview.md) |
@@ -233,6 +240,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Token budget | How many tokens of sources we allow in the prompt (3,000 here). | [13](13-prompting-and-citations.md) |
 | Tokenizer | The program that splits text into a model's tokens. | [01](01-what-is-rag.md) |
 | Top-k | The k highest-scoring results of a search. | [01](01-what-is-rag.md) |
+| Trace / span | Everything one request did / one timed part of it (here, a stage). | [17](17-cost-and-observability.md) |
 | Training cutoff | The date a model's training data ends. | [01](01-what-is-rag.md) |
 | Transaction | A group of statements that all happen or none do. | [03](03-environment-and-infra.md) |
 | Transitive dependency | A package required by your packages rather than by your code directly. | [03](03-environment-and-infra.md) |

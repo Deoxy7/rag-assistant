@@ -445,3 +445,23 @@ APIStatusError: Error code: 402 - [{'error': {'code': 402, 'message': 'Your prep
 - **Symptom:** in the first full judged run, 4 RAG answers and 4 closed-book answers explained first and then wrote the token, or bracketed it. `is_refusal` only accepted the bare token, so they were scored as answers (correctness 0, faithfulness 0).
 - **Effect:** before the fix, RAG faithfulness was 0.859 and false refusals 15%; after it, 0.923 and 23%. Correctness was unchanged at 0.721, since these were 0 either way.
 - **Fix:** the token anywhere as a whole word, in a response with no citation markers, is a refusal; a stray token next to a cited answer is removed from the displayed text. Tests cover both forms and the near-miss "INSUFFICIENT_CONTEXTUAL".
+
+## Phase 13
+
+### T-056 · Test traffic appeared in the real request log — hit (my bug)
+
+- **Symptom:** after a test run, `/stats` counted requests from models `fake-extractive-1` and `script-1` (22 rows, then 3 more).
+- **Cause:** the API tests talk to the app's default database connection. Once request logging existed, every test request wrote a row to the *real* `request_log`. My first fix only covered the `client` fixture; the missing-key and end-to-end tests still wrote.
+- **Fix:** an autouse fixture in `tests/conftest.py` disables request logging for every test. The one logging test re-enables it and points `main.connect` at the throwaway test database. The polluted rows (identified by their test-only model names) were deleted.
+
+### T-057 · "Time to first token" of 20 s was mostly rate-limit sleeping — hit
+
+- **Symptom:** the first latency benchmark showed `first_token` medians of 21 s on Groq, whose unthrottled first token takes ~0.4 s.
+- **Cause:** retries on 429s (8k tokens/min free-tier limit) slept inside the timed LLM call.
+- **Fix:** `with_retries(on_wait=…)` reports each wait; results carry `retry_wait_ms` / `retries`; answers record stage `llm.retry_wait` and counter `llm_retries`. One request: 16,000 of its 16,771 ms were waits.
+
+### T-058 · Query embedding 150–260 ms in the server vs 17 ms in a script — hit (investigated)
+
+- **Measured:** after 2–10 s idle, MPS embedding of one question takes 84–226 ms (warm: 17 ms); the first MPS call on a new worker thread takes 392 ms; CPU after idle: 21–38 ms. A per-input-length recompile was tested and ruled out.
+- **Cause:** most likely the Apple GPU lowering clocks when idle (the server is idle between requests while the LLM answers). I'm not sure of the exact mechanism.
+- **Action:** documented as a measured option (CPU query embeddings) to ablate; not switched, to avoid any change to the published eval numbers.

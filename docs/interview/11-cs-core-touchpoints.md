@@ -403,3 +403,32 @@
 **Trap.** Reporting the best configuration's score as its expected performance.
 
 **Bridge.** "Which is why the next step is a fresh question set, not more tuning."
+
+---
+
+## Phase 13 questions
+
+### Q: Why was embedding a short question slower on the GPU than the CPU in the server?
+**ID:** P13-03 · **Round:** viva · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "Measured: back to back, both take ~17 ms. But after the GPU sits idle 2–10 seconds, which happens between requests while the LLM answers, one embedding takes 84–226 ms on MPS and 21–38 ms on the CPU. The first MPS call from a new worker thread took 392 ms. I tested and ruled out a recompile per input length. The likely cause is the GPU lowering its clocks when idle, though I'm not certain of the mechanism. For batch ingest the GPU is still 2.5× faster."
+
+**2-minute answer.** The general lesson: accelerators have warm-up and power-state costs that dominate tiny, infrequent workloads, while throughput benchmarks hide them. The design response is to split devices by workload (CPU for single queries, GPU for batches) or keep the GPU warm. Either needs an ablation that confirms the eval numbers don't move.
+
+**If they push — level 2.** *"Why not just switch?"* CPU and MPS vectors differ by up to 3.3e-7, which could reorder near-ties. It's cheap to check, but it's a measured change, not a silent one.
+
+**If they push — level 3.** *"Keep-warm?"* A background no-op embed every second costs power and complicates the process. Measure whether it beats the CPU path.
+
+**If they push — level 4.** *"At high traffic?"* The GPU stays busy, so the effect disappears and batching wins. The right device depends on the request rate.
+
+**Whiteboard it.**
+```text
+            warm    idle 2 s    idle 5–10 s   new thread
+ MPS        17 ms   93 ms       84–226 ms     392 ms (once)
+ CPU        15 ms   34 ms       21–38 ms
+ ingest batch: MPS 116 vs CPU 46 chunks/s
+```
+
+**Trap.** "GPU is always faster."
+
+**Bridge.** "Measuring each stage is what surfaced it at all."

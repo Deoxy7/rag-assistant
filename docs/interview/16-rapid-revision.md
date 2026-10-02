@@ -129,6 +129,11 @@
 | Real-model answers? | Qwen 27B (Groq) generates, gpt-oss-120B judges: correctness .721, faithfulness .923, 9/9 unanswerable refused. |
 | Closed book? | Same model, no retrieval: correctness .067; answered 3 unanswerables from memory. |
 | Refusal format drift? | 4/61 answers appended the token after an explanation → detector now accepts it (T-055). |
+| Unthrottled answer? | retrieval ~320 ms + model ~860 ms (first token ~400 ms). |
+| Throttled answer? | 16 s of 16.8 s were rate-limit sleeps (llm.retry_wait); free tier 8k TPM ≈ 3 answers/min. |
+| Cost per answer? | ~$0.0016–0.0026 at list price ($2.60/1k); billed $0 (free tier). |
+| Idle-GPU embedding? | MPS 84–226 ms after idle vs 17 warm; CPU 21–38 ms. |
+| What's logged? | request_id, question sha256 + length, tokens, cost, stage timings; never the text. |
 
 ## Top questions so far
 

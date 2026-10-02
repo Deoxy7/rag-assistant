@@ -54,7 +54,8 @@ A self-built eval harness measures every stage. → [02](02-architecture-overvie
 | Exact figures | vector 0/50 in the top 5 → hybrid 50/50 |
 | Reranker | MiniLM-L6, N = 10, 77 ms MPS; bge-base 6× slower, no better |
 | Right-filing filter | FinanceBench hit@10 0.286 → 0.607 |
-| Latency | retrieval ~110 ms · API p50 143 ms (fake LLM) · one Gemini answer 2.5 s |
+| Latency | retrieval ~320 ms in the server (idle-GPU embed 158 ms) · first token 402 ms · full answer 862 ms (Qwen on Groq, unthrottled) · throttled: 16 s of retry waits |
+| Cost | ~$0.0016–0.0026 per answer at list price, $2.60 per 1k · billed $0 (free tier) |
 | Generator / judge | qwen/qwen3.8-27b / openai/gpt-oss-120b, both on Groq (different families; README "Models") |
 | RAG vs closed book | correctness 0.721 vs 0.067 (37 vs 4 questions won) · unanswerable refused 9/9 vs 6/9 |
 | RAG answers | faithfulness 0.923 · 92.5% cite an evidence passage · false refusals 23% |

@@ -541,3 +541,56 @@
 **Trap.** One-factor-at-a-time on a single test set.
 
 **Bridge.** "The external check is what turned this from a leaderboard into a finding."
+
+---
+
+## Phase 13 questions
+
+### Q: How would you find out why one answer took 17 seconds?
+**ID:** P13-01 · **Round:** system design · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "Every request carries a trace. Stages time themselves into a contextvar: query embedding, vector search, keyword search, fusion, rerank, packing, time to first token, the full answer, and time spent sleeping on retries. That lands in the response, a JSON log line and a Postgres row, keyed by request id. For the real 17-second answer the receipt said 16,000 ms of `llm.retry_wait` over two retries: free-tier rate limiting, not a slow model. Its retrieval took 143 ms."
+
+**2-minute answer.** Explain why a whole-request stopwatch fails here: before retry waits were separated, 'time to first token' read 20 s and looked like model latency. Then aggregate with `/stats`: per-stage p50/p95 from jsonb in SQL, errors by code, cost per 1k requests.
+
+**If they push — level 2.** *"Why contextvars?"* So retrievers, embedder and reranker time themselves without a timing parameter, and concurrent requests can't mix their traces.
+
+**If they push — level 3.** *"OpenTelemetry?"* `stage()` maps one-to-one onto spans. With more than one service, I'd export them. For one process on a laptop, a request table is enough.
+
+**If they push — level 4.** *"Tail latency?"* p95 total was 25 s, all retry waits. The SLO conversation is about quota and token budget, not code.
+
+**Whiteboard it.**
+```text
+ receipt 6411bb78: total 16,771 ms
+   retrieve 143 (embed 18 · vector 35 · keyword 19 · fuse 0.4 · rerank 88) · pack 1
+   first_token 16,591 = llm.retry_wait 16,000 (2 retries) + ~590 model
+```
+
+**Trap.** Reading 'time to first token' as model speed.
+
+**Bridge.** "Which is also why the cost report has a list price next to the free-tier $0."
+
+---
+
+### Q: What does one answer cost, and how do you report cost on a free tier?
+**ID:** P13-02 · **Round:** system design  **Difficulty:** 2/5
+
+**30-second answer.** "Tokens come from the provider's usage field, times the paid list price: for Qwen 3.8 27B on Groq, $0.80 per million in and $4.00 out. A typical answer is ~1.5–2.8k input tokens and ~100 output: about $0.0016–0.0026, or $2.60 per thousand requests from /stats. On the free tier the billed cost is $0, so I report both: billed is what we pay, list is what we'd pay when the free tier runs out. A cache hit costs zero on both."
+
+**2-minute answer.** Work the receipt: 1,548 × 0.80/1M + 100 × 4.00/1M = $0.0016384. Then the levers: fewer chunks or shorter headers (fewer input tokens), caching repeats, a cheaper model for the judge. The judge is 5× cheaper per token.
+
+**If they push — level 2.** *"Why not count tokens yourself?"* Each provider tokenises differently (o200k was 15% off Gemini's count). Bill with their numbers.
+
+**If they push — level 3.** *"Whole Phase 12?"* 122 generator and 273 judge calls: about $0.17 at list price, billed $0.
+
+**If they push — level 4.** *"What breaks the free tier?"* 8k tokens per minute per model: about 3 answers per minute. That's a throughput ceiling, not a cost.
+
+**Whiteboard it.**
+```text
+ list = in × $0.80/1M + out × $4.00/1M   billed = 0 (free tier)   cached = 0
+ 1,548 in + 100 out → $0.0016384   ·   /stats: $2.60 per 1k requests
+```
+
+**Trap.** Reporting "$0" as the cost of the system.
+
+**Bridge.** "The receipts also feed the latency breakdown."

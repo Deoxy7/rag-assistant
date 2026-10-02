@@ -414,3 +414,30 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Trusting that the model follows the exact output format.
 
 **Bridge.** "Measured compliance belongs in the eval report next to quality."
+
+---
+
+## Phase 13 questions
+
+### Q: How do you make sure caching doesn't distort your latency and cost numbers?
+**ID:** P13-08 · **Round:** ML screen · project deep-dive  **Difficulty:** 2/5
+
+**30-second answer.** "Every receipt records `cached`, and a cache hit has zero list and billed cost. Latency benchmarks use questions that aren't in the cache: the bench takes an `--offset` past questions answered before. /stats reports the cache hit rate (0.0 on the benchmark's fresh questions). An eval re-run from cache is labelled as such and its latency is never reported as model speed: the 61-question judged rerun took 26 s purely from cache."
+
+**2-minute answer.** The general rule: measurement conditions must be part of the record. For latency, cold vs warm cache (and cold vs warm GPU, as Phase 13 found) changes the numbers by orders of magnitude.
+
+**If they push — level 2.** *"Would you report cached latency anywhere?"* As user-perceived latency for repeat questions, labelled, separately.
+
+**If they push — level 3.** *"Embedding cache?"* Also counted (`query_embedding_cache_hit`), because it removes a 17–226 ms stage.
+
+**If they push — level 4.** *"Production?"* Report latency split by cache hit/miss, because the mix changes with traffic.
+
+**Whiteboard it.**
+```text
+ receipt.cached → cost 0 · bench --offset past cached questions · /stats cache_hit_rate
+ eval rerun from cache: 26 s, 0 tokens (labelled, not a latency number)
+```
+
+**Trap.** Celebrating a 26 s "61-question eval".
+
+**Bridge.** "Every number in the docs says how it was measured."

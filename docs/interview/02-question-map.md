@@ -123,6 +123,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P12-08 | Closed-book baseline: what and why | [03](03-fundamentals.md) | eval | ML, viva | 2 | | |
 | P12-09 | What the closed-book baseline showed | [07](07-evaluation.md) | eval | deep-dive, ML | 3 | | |
 | P12-10 | Refusal token not alone: effect on the numbers | [07](07-evaluation.md) | debugging | ML | 2 | | |
+| P13-01 | Why did one answer take 17 s? Tracing | [06](06-system-design.md) | observability | design, backend | 3 | | |
+| P13-02 | Cost per answer on a free tier | [06](06-system-design.md) | cost | design | 2 | | |
+| P13-03 | GPU slower than CPU for one query embedding | [11](11-cs-core-touchpoints.md) | hardware | viva, ML | 3 | | |
+| P13-04 | Per-stage p95 from a log table in SQL | [05](05-database-and-sql.md) | DB | backend | 3 | | |
+| P13-05 | Dashboard shows a model you don't run — debug | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P13-06 | 20 s latency with a fast model | [08](08-debugging-scenarios.md) | debugging | ML, backend | 2 | | |
+| P13-07 | Log a hash, not the question | [03](03-fundamentals.md) | privacy | viva, backend | 2 | | |
+| P13-08 | Keeping caches out of latency/cost numbers | [07](07-evaluation.md) | eval | ML, deep-dive | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

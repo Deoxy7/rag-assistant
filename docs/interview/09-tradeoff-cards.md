@@ -42,7 +42,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 30 | FastAPI vs Flask vs Django vs Express | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
 | 31 | SSE vs WebSockets vs polling vs plain JSON | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
 | 32 | Async vs sync; where CPU-bound work goes | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
-| 33 | Caching: exact-match vs semantic vs embedding cache; invalidation | 13 | not yet written |
+| 33 | Caching: exact-match vs semantic vs embedding cache; invalidation | 13 | ✅ [17-cost-and-observability](../17-cost-and-observability.md) |
 | 34 | LangChain vs plain Python vs LlamaIndex | 0 | ✅ [02-architecture-overview](../02-architecture-overview.md) |
 | 35 | Self-built eval harness vs RAGAS vs TruLens vs DeepEval | 11 | ✅ [15-eval-harness](../15-eval-harness.md) |
 | 36 | Retrieval metrics: recall@k vs precision@k vs MRR vs nDCG | 11 | ✅ [15-eval-harness](../15-eval-harness.md) |
@@ -1208,6 +1208,44 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **The trap.** "async makes it faster."
 
+### Card 33 — from [17-cost-and-observability](../17-cost-and-observability.md)
+
+#### Decision: exact-match response cache (Postgres) + in-process query-embedding cache; no semantic cache  (rejected: semantic cache; no cache)
+
+**One-line defence.** An exact-match cache keyed by the whole request can never return an answer to a different question. It made every eval re-run free (101 s → 13 s smoke; full judged run 26 s, 0 tokens) and survived the provider switches, because provider, endpoint and model are in the key. A semantic cache would serve "AMD revenue 2021" for "AMD revenue 2022", which is this corpus's main hard negative.
+
+**What problem is this even solving?** Not paying, or waiting, twice for the same work: LLM calls (seconds, tokens, quota) and query embeddings (17–226 ms).
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| No cache | Every call goes to the model | Always fresh | Every eval re-pays; quota burns (Phase 12 hit 8k TPM constantly) | Never for evals |
+| ✅ Exact-match response cache | sha256(prompt version, provider, URL, model, instructions, input incl. sources, params) → stored text, tokens, finish reason | Deterministic re-runs; 0 tokens on hits; invalidates itself when anything in the key changes | Misses paraphrases; grows forever (no TTL) | Evals, repeated questions |
+| ✅ Query-embedding cache (LRU, in process) | text → vector, 4,096 entries | Skips the 17–226 ms embed for repeats | Per process; lost on restart | Repeated questions |
+| Semantic cache | Embed the question; reuse an answer if a past question is within a similarity threshold | Hits paraphrases | Serves wrong-year / wrong-company answers (hard negatives); threshold tuning; stale answers | FAQ-style traffic with no near-duplicate entities |
+
+**What would actually change if we swapped it.** Semantic: an embedding lookup per request plus a vector index of past questions, a threshold, and the risk of confidently serving the 2021 answer to a 2022 question.
+
+**The decision rule.** Cache exactly when wrong answers are expensive. Use semantic caching only where near-duplicate questions really do have the same answer, and validate the threshold on hard negatives.
+
+**Where our choice breaks.**
+- **No expiry.** If a filing were re-ingested with corrected text, its chunks change, so the input and the key change too: that case is safe. But a provider silently changing a pinned model would serve stale answers.
+- **No hit-rate benefit for real users** unless they repeat questions: `/stats` measured a 0.0 cache hit rate on the benchmark's fresh questions.
+
+**The number.** Smoke eval: 101 s / 16,572 tokens → 13 s / 0 tokens on re-run. Full judged RAG run from cache: 26 s, 0 tokens. `/stats` cache hit rate on fresh benchmark questions: 0.0. Embedding on an idle GPU: 84–226 ms, so the embedding cache saves that on repeats.
+
+**Interview script (3 sentences).** "I cache LLM responses by an exact hash of everything that determines them, including the retrieved sources and the model. Re-running a 61-question judged eval costs nothing and returns identical results. I deliberately didn't add a semantic cache: in a corpus where the 2021 and 2022 filings say nearly the same thing, 'close enough' questions are exactly the ones with different answers."
+
+**Follow-ups they will ask:**
+- Q: How does the cache invalidate? → A: Implicitly. The key includes the prompt version, model, endpoint, params and full input, so any change is a new key. There's no TTL, which is a gap for silently-updated models.
+- Q: Why Postgres, not Redis? → A: It's already there, durable, and the cached responses are part of the eval record. Lookups cost milliseconds next to seconds of LLM time.
+- Q: Would a semantic cache help real users? → A: For an FAQ, maybe. Here, near-identical questions differ by year or company, so similarity is the wrong signal.
+- Q: What's the embedding cache for? → A: A repeated question skips the encoder: 17 ms when the GPU is warm, up to 226 ms when it's idle.
+- Q (the hard one): Doesn't caching hide real latency in your benchmarks? → A: It would, so every receipt records `cached`, and latency benchmarks use uncached questions (`--offset` past the cached ones).
+
+**The trap.** Adding a semantic cache because it sounds smarter, in a domain full of near-duplicates with different answers.
+
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 
 #### Decision: Plain Python for the data path; LangChain only for its text splitter  (rejected: LangChain end-to-end, LlamaIndex, Haystack)
@@ -1668,3 +1706,39 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): So which configuration is actually best? → A: I don't know for real users. That needs a question set in their words. What I can say is which choice is robust (hybrid + rerank), which consistently hurts (128-token structure chunks, vector-only on exact tokens), and that my own test set is biased toward keyword matching.
 
 **The trap.** Declaring the top row of an ablation table the winner.
+
+### Card x-observability — from [17-cost-and-observability](../17-cost-and-observability.md)
+
+#### Decision: in-house tracing (contextvar stages) + JSON logs + a Postgres request log, served by `/stats`  (rejected for now: OpenTelemetry + a tracing backend; Prometheus metrics; LangSmith-style LLM tracing SaaS)
+
+**One-line defence.** One small module gives per-stage timings, token cost and error codes for every request, queryable with SQL, with no new services on an 8 GB laptop. It was enough to find the two surprises (rate-limit waits and idle-GPU embedding) on day one.
+
+**What problem is this even solving?** Knowing where time and money go, per request and in aggregate, without adding infrastructure the project can't run locally.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Contextvar trace + JSON logs + request_log table | Stages time themselves; one row per request; SQL percentiles | No new services; SQL-queryable; privacy-aware (no question text) | Single process; no cross-service spans; DB write per request | One service, low traffic |
+| OpenTelemetry → Jaeger/Tempo | Standard spans exported to a tracing backend | Industry standard; cross-service; flame graphs | Collector + backend to run; more config | Multiple services, production |
+| Prometheus metrics + Grafana | Counters/histograms scraped over HTTP | Cheap aggregates, alerting | No per-request detail; two more services | Alerting on SLOs |
+| LLM tracing SaaS | Send prompts and outputs to a vendor | Prompt-level debugging UI | Sends user data to a third party; cost | Teams that accept the data flow |
+
+**What would actually change if we swapped it.** OpenTelemetry: `stage()` becomes a span (same call sites), plus an exporter and a backend container. The receipts and `/stats` could stay.
+
+**The decision rule.** Start with structured per-request records you can query. Add a tracing backend when there's more than one service to follow a request through, and metrics when you need alerts.
+
+**Where our choice breaks.** Write load: one INSERT per request is fine for tens per second, not thousands. `/stats` scans by time index. And cross-process work isn't stitched together; there's only one process now.
+
+**The number.** 10 stages timed per request; `/stats` over 12 requests returned per-stage p50/p95; the request_log write is best-effort, outside the response's timings.
+
+**Interview script (3 sentences).** "Every request carries a trace: stages time themselves into a contextvar, so no timing objects are threaded through the code. The result, with tokens and cost at list and billed price, goes into a JSON log line and a Postgres row, and `/stats` computes percentiles in SQL. It's deliberately not OpenTelemetry yet: one process on a laptop doesn't need a collector, and the stage names map one-to-one onto spans when it does."
+
+**Follow-ups they will ask:**
+- Q: Why contextvars and not passing a trace object? → A: Retrievers, the embedder and the reranker would all need a new parameter. With a contextvar they call `stage()` and stay independent of who's measuring.
+- Q: Are contextvars safe with threads? → A: Each thread has its own context. The trace is activated and reset within one worker-thread call, so concurrent requests can't mix.
+- Q: Why not log the question? → A: It can contain personal data. A sha256 and the length cover dedup and outliers.
+- Q: What did it find? → A: Rate-limit sleeps of 16 s hiding inside "time to first token", and query embedding on an idle GPU taking up to 226 ms.
+- Q (the hard one): Is a DB write per request a bottleneck? → A: Not at this scale. At high volume I'd batch the rows, or log to a file and load them, or move to OTel plus metrics.
+
+**The trap.** Shipping a tracing stack before you know what question you're asking of it, or logging raw prompts by default.

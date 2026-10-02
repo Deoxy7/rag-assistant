@@ -1,0 +1,29 @@
+%% Owner: docs/17-cost-and-observability.md — how one request's tokens, cost and timings are recorded.
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    req["POST /query/stream<br/>request_id"]:::io
+    trace["Trace (contextvar)<br/>stage timers: retrieve.vector, keyword, fuse, rerank, pack"]:::retrieve
+    llm["LLM call (Groq)<br/>usage: prompt / completion tokens · retries · finish_reason"]:::generate
+    cache{"response cache hit?"}:::generate
+    price["cost()<br/>list = tokens × paid price · billed = 0 on free tier · cached = 0"]:::generate
+    answer["Answer<br/>timings_ms · counters · tokens · list_usd · billed_usd"]:::io
+    logline["JSON log line<br/>event=answer (no question text)"]:::io
+    row[("request_log row<br/>question sha256 + length, tokens, cost, timings jsonb")]:::store
+    stats["GET /stats?hours=…<br/>p50/p95 per stage · tokens · $/1k requests · error codes"]:::io
+    legend["Legend<br/>green = retrieval · purple = generation · grey = storage · white = input / output"]:::legend
+
+    req --> trace
+    trace -->|timings_ms| answer
+    req --> cache
+    cache -->|miss| llm
+    cache -->|hit: 0 tokens billed| price
+    llm -->|tokens| price
+    price -->|list_usd, billed_usd| answer
+    answer --> logline
+    answer --> row
+    row -->|percentile_cont over jsonb| stats
