@@ -18,9 +18,9 @@ flowchart LR
     fixed["Held fixed<br/>bge-small embeddings · k = 10 · RRF k = 60 ·<br/>depth 50 · ef_search 160 · golden_v1"]:::io
     eval["eval.run per config<br/>61 golden questions (52 answerable)<br/>+ 28 FinanceBench questions"]:::evalc
     out["ablation table + charts<br/>hit@1/5 · recall@10 · MRR · nDCG · by type ·<br/>p50 ms · sign test vs baseline"]:::evalc
-    gen["generation ablations (Gemini)<br/>closed-book · judged answers"]:::generate
-    block["blocked: free tier = 20 Flash<br/>requests / day (T-052)"]:::bad
-    legend["Legend<br/>blue = ingestion · green = retrieval · purple = generation · orange = eval ·<br/>white = fixed inputs · red dashed = not run"]:::legend
+    gen["generation runs (61 q each)<br/>RAG vs closed-book · judged answers"]:::generate
+    models["Qwen 3.8-27B generates · gpt-oss-120B judges<br/>(Groq; Gemini blocked: quota T-052, 402 T-054)"]:::io
+    legend["Legend<br/>blue = ingestion · green = retrieval · purple = generation · orange = eval ·<br/>white = fixed inputs / models"]:::legend
 
     strat --> eval
     size --> eval
@@ -29,4 +29,5 @@ flowchart LR
     extra --> eval
     fixed -.-> eval
     eval -->|57 result files| out
-    gen -.-> block
+    models -.-> gen
+    gen -->|2 result files| out

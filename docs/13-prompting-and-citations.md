@@ -1,6 +1,6 @@
 # 13 — Prompting and citations
 
-**Status:** written in Phase 9 (2026-10-02); **provider switched to Gemini the same day** (user's decision; card x-llm-provider). Generation and the eval judge now call Gemini's OpenAI-compatible Chat Completions endpoint: `gemini-3.5-flash` generates, `gemini-3.5-flash-lite` judges. Pipeline numbers below were measured with the deterministic fake model. Real-model numbers come from a 6-question smoke run; the full 61-question real-model eval is *not yet measured* (Phase 12). This doc owns these terms: context window, token budget, context packing, lost in the middle, grounding, citation marker, citation span, refusal / abstention, temperature, structured output, prompt version, response cache, OpenAI-compatible endpoint, thinking tokens, exponential backoff.
+**Status:** written in Phase 9 (2026-10-02). Providers: OpenAI (no credits) → Gemini (2026-10-02) → **Groq since 2026-10-03**: `qwen/qwen3.8-27b` generates and `openai/gpt-oss-120b` judges, both through OpenAI-compatible Chat Completions. Gemini's free tier allowed 20 Flash requests/day (T-052), and the project then returned 402 (T-054). The client sections below were written for Gemini and apply unchanged to Groq: only settings differ. Pipeline numbers were measured with the deterministic fake model; real-model numbers are in [16](16-experiments-and-ablations.md). Owns: context window, token budget, context packing, lost in the middle, grounding, citation marker, citation span, refusal / abstention, temperature, structured output, prompt version, response cache, OpenAI-compatible endpoint, thinking tokens, exponential backoff.
 
 > **Prerequisites:** [12-reranking.md](12-reranking.md) (the ranked hits that become sources). Numbers come from `make bench-answer ARGS="--provider fake"`, `make ask`, `scripts/render_citation_example.py` and `tests/test_generate.py`, run on 2026-10-02.
 
@@ -39,7 +39,7 @@ The instructions address all three. The citation check makes the first two visib
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ╔═══════╧══════╗  ╔════════════════════╗  ┌────────┐  ┌────────────┐
-               ║ LLM (Gemini) ║◀─║ Prompt + citations ║◀─│ Rerank │◀─│ RRF fusion │
+               ║ LLM (Groq)   ║◀─║ Prompt + citations ║◀─│ Rerank │◀─│ RRF fusion │
                ╚══════════════╝  ╚════════════════════╝  └────────┘  └────────────┘
 
  Double-line boxes (╔═╗) = this doc.
@@ -589,7 +589,10 @@ With `--oracle-filter` (right filing only): context p50 2,336 tokens, max 2,729;
 <!-- card:end -->
 
 <!-- card:start id=x-llm-provider -->
+
 #### Decision: Gemini (3.5 Flash generates, 3.5 Flash-Lite judges) through its OpenAI-compatible endpoint, behind a provider-neutral client  (rejected: Gemini's native SDK; staying on OpenAI; a local model)
+
+*Update 2026-10-03: the generator is now `qwen/qwen3.8-27b` and the judge `openai/gpt-oss-120b`, both on Groq. The switch from Gemini was another `.env`-only change plus a separate judge provider setting, which supports this card's argument; the Gemini numbers below are kept as the record of that step.*
 
 **One-line defence.** It was the user's call: an API key that works (the OpenAI account had no credits, T-038), with a free tier. Going through the OpenAI-compatible endpoint means the same SDK, the same request shape and a settings-only switch back. The cost of that portability is losing Gemini-only features.
 

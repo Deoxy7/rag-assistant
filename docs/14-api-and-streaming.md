@@ -33,7 +33,7 @@ Phases 1–9 built a library. Phase 15's UI and Phase 11's eval harness need it 
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Groq)   │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────────────┘  └────────────────────┘  └────────┘  └────────────┘
 
  Double-line boxes (╔═╗) = this doc (the API) and its client (the UI, Phase 15).
@@ -47,7 +47,7 @@ Phases 1–9 built a library. Phase 15's UI and Phase 11's eval harness need it 
 <details><summary>Same diagram as text (for terminal viewing)</summary>
 
 ```text
- Client              FastAPI /query/stream        Retriever        LLM (Gemini)     Postgres
+ Client              FastAPI /query/stream        Retriever        LLM (Groq)       Postgres
    │ 1 POST {question…}    │                          │                 │              │
    │──────────────────────▶│ checks: body valid (422) · LLM configured (503) ·        │
    │                       │ companies known (422) → JSON errors, before any event   │

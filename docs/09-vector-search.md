@@ -33,7 +33,7 @@ Keyword search can't find paraphrases (doc [01](01-what-is-rag.md) showed "grew"
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Groq)   │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────────────┘  └────────────────────┘  └────────┘  └────────────┘
 
  Double-line box (╔═╗) = this doc explains the vector half of the search box.

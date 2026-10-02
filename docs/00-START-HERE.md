@@ -109,7 +109,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [13](13-prompting-and-citations.md) | Prompting and citations | 9 | ✅ written (Gemini since 2026-10-02) |
 | [14](14-api-and-streaming.md) | API and streaming | 10 | ✅ written |
 | [15](15-eval-harness.md) | Evaluation harness | 11 | ✅ written (full judged run in Phase 12) |
-| [16](16-experiments-and-ablations.md) | Experiments and ablations | 12 | ✅ written (generation ablations pending LLM quota) |
+| [16](16-experiments-and-ablations.md) | Experiments and ablations | 12 | ✅ written |
 | [17](17-cost-and-observability.md) | Cost and observability | 13 | not yet written |
 | [18](18-security-prompt-injection.md) | Security and prompt injection | 14 | not yet written |
 | [19](19-frontend.md) | Frontend | 15 | not yet written |

@@ -6,7 +6,7 @@ sequenceDiagram
     end
     box rgb(243,232,255) API + generation
         participant A as FastAPI /query/stream
-        participant L as LLM (Gemini · Chat Completions)
+        participant L as LLM (Groq · Chat Completions)
     end
     box rgb(220,252,231) Retrieval
         participant R as Retriever (hybrid + rerank)

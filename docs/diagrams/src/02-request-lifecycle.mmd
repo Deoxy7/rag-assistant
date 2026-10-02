@@ -14,7 +14,7 @@ sequenceDiagram
         participant DB as Postgres
     end
     box rgb(243,232,255) Generation
-        participant LLM as LLM (Gemini, OpenAI-compatible API)
+        participant LLM as LLM (Groq · Qwen, OpenAI-compatible API)
     end
 
     Note over U,LLM: Legend: white = user / IO · green = retrieval · grey = storage · purple = generation

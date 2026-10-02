@@ -1,6 +1,6 @@
 # 15 — The eval harness
 
-**Status:** written in Phase 11 (2026-10-02). Golden set `eval/golden/golden_v1.jsonl` (61 questions, sha256 `733f8fe4…`). Retrieval and abstention metrics are measured. Answer metrics (LLM judge: faithfulness, answer relevance, context precision, correctness) run on Gemini since the provider switch (2026-10-02; `gemini-3.5-flash` generates, `gemini-3.5-flash-lite` judges). They're smoke-tested on 6 questions; the full 61-question judged run is *not yet measured* (Phase 12). This doc owns these terms: golden set, evidence span, graded relevance, hit@k, recall@k, precision@k, MRR, DCG / nDCG, bootstrap confidence interval, sign test, LLM-as-judge, faithfulness, answer relevance, context precision, abstention precision / recall, false-refusal rate, AUROC, operating point, label leakage, label incompleteness.
+**Status:** written in Phase 11 (2026-10-02). Golden set `eval/golden/golden_v1.jsonl` (61 questions, sha256 `733f8fe4…`). Retrieval and abstention metrics are measured. Answer metrics are judged by `openai/gpt-oss-120b` on Groq, a different family from the `qwen/qwen3.8-27b` generator. Faithfulness is checked against cited sources, and context precision is computed from labels. The full 61-question judged run is in [16](16-experiments-and-ablations.md). This doc owns these terms: golden set, evidence span, graded relevance, hit@k, recall@k, precision@k, MRR, DCG / nDCG, bootstrap confidence interval, sign test, LLM-as-judge, faithfulness, answer relevance, context precision, abstention precision / recall, false-refusal rate, AUROC, operating point, label leakage, label incompleteness.
 
 > **Prerequisites:** [12-reranking.md](12-reranking.md) (the retriever under test) and [13-prompting-and-citations.md](13-prompting-and-citations.md) (refusals and citations). Numbers come from `make eval NAME=…` (files in `eval/results/`) and `tests/test_eval.py`, run on 2026-10-02.
 
@@ -36,7 +36,7 @@ Without a fixed, labelled set, every change is judged by a few hand-picked queri
  └───────────┘  └─────────┘               └──────────────────────┬──────────────┘
                                                                  ▼
                ┌──────────────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Groq)   │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────┬───────┘  └────────────────────┘  └────────┘  └────────────┘
                       │ answers, citations, ranked chunks
                ╔══════▼══════════════════╗
@@ -384,39 +384,40 @@ FinanceBench (28 questions, page-level labels, [12](12-reranking.md)): hybrid + 
 <!-- card:end -->
 
 <!-- card:start id=37 -->
-#### Decision: an LLM judge (Gemini 3.5 Flash-Lite, cached) for answer quality, labels for retrieval  (rejected: ROUGE/BLEU; human-only labels; a judge stronger than the generator, for now)
+#### Decision: an LLM judge from a different model family than the generator (`openai/gpt-oss-120b` on Groq, cached), labels wherever they exist  (rejected: ROUGE/BLEU; human-only labels; a same-family judge)
 
-**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"). Humans don't scale to every run. So a pinned, cached judge model (`gemini-3.5-flash-lite`) grades faithfulness, relevance, context precision and correctness, while retrieval, where labels exist, uses no judge at all. The judge is a *different and smaller* model than the generator (`gemini-3.5-flash`): the user's choice for cost and speed across sweeps, and a known weakness (below).
+**One-line defence.** Overlap metrics punish a correct answer worded differently ("$23.6 billion" vs "$23,601 million"), and humans don't scale to every run. So a pinned, cached judge grades free-text answers: faithfulness, relevance and correctness. Retrieval and context precision, where golden labels exist, are computed from the labels with no judge at all. The judge comes from a different family (OpenAI open-weights) than the generator (Alibaba's Qwen), and it's the larger model (120B vs 27B).
 
-**What problem is this even solving?** Scoring free-text answers repeatedly and consistently, without paying a person per run.
+**What problem is this even solving?** Scoring free-text answers repeatedly, consistently and cheaply, without the grader sharing the generator's blind spots.
 
 **The options, compared.**
 
 | Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
 |---|---|---|---|---|
-| ROUGE / BLEU | n-gram overlap with a reference | Free, deterministic | Rewards wording, not facts; "$23.6 billion" vs "$23,601 million" scores low | Summarisation baselines |
+| ROUGE / BLEU | n-gram overlap with a reference | Free, deterministic | Rewards wording, not facts | Summarisation baselines |
 | Human labels | People grade each answer | Ground truth | Slow, costly, per run | Validating the judge; final reports |
-| ✅ LLM judge, smaller than the generator (Flash-Lite), cached | JSON verdicts per claim / answer | Scales; reads meaning; cheap ($0.30 / $2.50 per 1M); cache makes re-runs free | Bias (length, self-preference within the Gemini family), variance; a weaker model may miss subtle unsupported claims; needs validation | Frequent sweeps, comparing configurations |
-| LLM judge stronger than the generator | Same, bigger model | More reliable verdicts | About 5× the price per token | Final reports, close calls |
-| Exact-match on extracted numbers | Parse the figure, compare | Deterministic for numeric questions | Only numeric questions; units and rounding | A cheap pre-check before the judge |
+| Same-family LLM judge (e.g. Gemini judging Gemini) | JSON verdicts | Same API, simple | Self-preference, shared blind spots | Never for headline numbers |
+| ✅ Different-family, larger LLM judge, cached | gpt-oss-120b grades Qwen 27B answers | Independent ruler; stays fixed while the generator changes; free tier; cache makes re-runs free | Still biased (length, plausibility); missed a cited-but-wrong number (G032); not validated against humans | Every run, comparing configurations |
+| Labels instead of a judge | Grade against golden evidence spans | Exact, free | Only where labels exist | Retrieval and context precision (used) |
 
-**What would actually change if we swapped it.** Human grading would need a labelling UI and per-run spending. ROUGE would be one function, with misleading numbers.
+**What would actually change if we swapped it.** Judge: `LLM_JUDGE_PROVIDER`, `LLM_JUDGE_BASE_URL` and `LLM_JUDGE_MODEL` in `.env`. Changing it re-pays every judge call once (the cache key includes the model), and judged numbers before and after are not comparable.
 
-**The decision rule.** Use labels wherever you can (retrieval). Use a judge for free text, never the same model as the generator. Prefer a judge at least as strong as the generator for absolute claims; a cheaper judge is acceptable for *relative* comparisons between configurations. Validate the judge against a human-labelled sample before trusting small differences.
+**The decision rule.** Labels wherever you can. For free text, a judge that is not the generator's family and is at least its size. Validate the judge on a human-graded sample before trusting small differences.
 
-**Where our choice breaks.** The judge is weaker than the model it grades, and both are Gemini models, so shared blind spots aren't caught. Its agreement with humans is unknown: it has graded only the 6-question smoke run, with 0 parse errors. The prompts are also unit-tested with scripted replies (parsing, scoring, refusals, bad JSON counted, not guessed). Fix path: hand-grade ~30 answers and measure agreement; if it's low, set `LLM_JUDGE_MODEL` to a stronger model and re-run (the cache makes only the judge calls re-pay).
+**Where our choice breaks.** Faithfulness is "supported by the cited source", and a wrong line item from the right table passes it. In G032 the judge said faithful (1.0), and only correctness against the reference caught it. Agreement with human grades hasn't been measured.
 
-**The number.** Smoke run (6 questions, `gemini-3.5-flash-lite`): 19 judge calls, 21,881 input and 414 output tokens, 0 parse errors; faithfulness 1.0, correctness 0.75 (the multi-hop G045 was refused, so it scored 0). At $0.30 / $2.50 per 1M a full 61-question judged run would cost about $0.08 (extrapolated from the smoke run's tokens). Full-set judge scores: *not yet measured*.
+**The number.** Full 61-question run: faithfulness 0.923 (40 answered), correctness 0.721 [0.60–0.84], relevance 0.769 (answerable), 0 parse errors, 0 judge errors; closed book correctness 0.067. The judge used 89,507 tokens over 273 calls, under Groq's 200k/day per-model limit, because faithfulness sees only the cited sources and context precision comes from labels.
 
-**Interview script (3 sentences).** "For retrieval I don't need a judge: I have exact evidence spans. For free-text answers I use an LLM judge (Gemini Flash-Lite, a different and cheaper model than the Flash generator), with JSON outputs, parse failures counted rather than guessed, and every verdict cached so re-runs are identical and free. Because the judge is smaller than the generator, I use it to compare configurations, not as an absolute score, and I'd hand-grade a sample to measure agreement before trusting small differences."
+**Interview script (3 sentences).** "Retrieval is graded against exact evidence spans, so it needs no LLM at all. Free-text answers are graded by a judge from a different family than the generator, OpenAI's open-weights 120B grading a 27B Qwen, so it isn't grading its own style or sharing its blind spots. It's still an imperfect ruler: it called one cited-but-wrong backlog figure 'faithful', which is why correctness against a reference answer is a separate metric."
 
 **Follow-ups they will ask:**
-- Q: What biases do LLM judges have? → A: Preference for longer answers, for their own model family, and for position in pairwise comparisons; plus run-to-run variance. Mitigate with pinned models, caching, and a human-checked sample.
-- Q: Why is faithfulness different from correctness? → A: Faithful means supported by the sources given; correct means it matches the truth. An answer can be faithful to a wrong retrieved passage.
-- Q: How is context precision computed? → A: The judge marks each retrieved chunk useful or not; average precision over the useful positions, so useful chunks ranked higher score more.
-- Q (the hard one): Why not compare numbers directly? → A: For numeric questions I would, as a pre-check. But units, rounding and multi-part answers make pure exact match brittle, so the judge stays for the general case.
+- Q: Why a different family? → A: Models favour their own outputs and repeat the same mistakes. A different family is a more independent check, and a fixed judge setting keeps the ruler constant while the generator changes.
+- Q: Why is faithfulness not enough? → A: An answer can faithfully quote the wrong number from a correctly cited table, as in G032. Correctness against a reference catches that.
+- Q: Why compute context precision from labels? → A: The labels are exact, and they make it free. The LLM-judged version stays as an opt-in (`--judge-context`) for unlabelled questions.
+- Q: Judge biases? → A: Length, plausibility, self-preference (reduced here by the family split). Pin the model, cache verdicts, and check against human grades.
+- Q (the hard one): How do you know the judge is right? → A: I don't yet: agreement with humans isn't measured. The judge is used to compare configurations, and its one visible mistake (G032) is documented.
 
-**The trap.** Reporting judge scores as ground truth without validating the judge.
+**The trap.** Reporting judge scores as ground truth, or letting the generator grade itself.
 <!-- card:end -->
 
 <!-- card:start id=38 -->
@@ -565,7 +566,7 @@ Expected: `15 passed`.
 | Retrieval-only abstention AUROC | 0.662 | same |
 | Catch all unanswerables by score → false refusals | 88% | same |
 | Run time, 61 questions, retrieval only | 11.9 s | same |
-| Answer metrics on the full set (faithfulness, relevance, context precision, correctness), model abstention | *not yet measured* (Phase 12); smoke run on 6 questions works, §6 of doc 13 | `make eval ARGS="--generate --judge"` |
+| Answer metrics on the full set: faithfulness / correctness / unanswerable refused | 0.923 / 0.721 / 9 of 9 (details in doc 16) | `make eval ARGS="--generate --judge"` |
 
 ## 11. Interview talking points
 

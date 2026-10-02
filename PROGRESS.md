@@ -133,7 +133,7 @@ Numbers:  key lists 61 models; probe: 3.8/3.7-flash 503, 2.5-* 404, 3.5-flash 1,
 Open:     full 61-question judged eval (Phase 12); judge (Flash-Lite) weaker than generator → validate on a hand-graded sample; live retry not observed (503s had cleared), covered by unit tests.
 Next:     Phase 12 — ablations.
 
-## Phase 12 — Ablations   [retrieval DONE 2026-10-02; generation ablations BLOCKED on LLM quota]
+## Phase 12 — Ablations   [DONE 2026-10-03]
 
 Built:    8 new chunk sets (3 strategies × 128/256/510, overlap size // 8; 61–107 s each; DB 66 → 418 MB; embedding model unchanged); `eval/ablate.py` (54-cell grid + 3 extras through eval.run, resumable by golden sha, FinanceBench page-hit@10 per config, paired sign test vs baseline, winner per metric, CSV + MD, charts); `eval/run.py`: `run()` returns the result path, `--rank-function`, `--closed-book` (+ `eval/closed_book.py`), quota stop; judge `closed_book` mode; daily-quota detection + server-delay cap in `with_retries` (`server_retry_delay_s`, `quota_exhausted` PerDay); GitHub remote pushed.
 Docs:     `docs/16-experiments-and-ablations.md` (card x-default-after-ablation), `docs/22-interview-prep.md` first version; 8 interview questions (P12-01…P12-08); T-052, T-053.
@@ -143,4 +143,12 @@ Numbers:  baseline structure256-hybrid-rr golden hit@5 0.769 (tied best; fixed25
 Decisions: keep the default (no significant winner; test sets disagree; hybrid robust on both).
 Open:     closed-book baseline and full 61-question judged runs need 61+ gemini-3.5-flash requests; free tier allows 20/day → user decision (billing / wait / judge-model swap); fresh questions in users' wording to re-test fixed256-hybrid-rr.
 Next:     generation ablations once quota allows; Phase 13 — cost & observability.
+
+### Phase 12 addendum — generation runs (2026-10-03)
+
+Changed:  generator `qwen/qwen3.8-27b` and judge `openai/gpt-oss-120b` on Groq (user's decision after Gemini 402, T-054); separate judge provider settings (`LLM_JUDGE_PROVIDER`, `LLM_JUDGE_BASE_URL`, `GROQ_API_KEY`); faithfulness judged against cited sources; context precision from labels (`--judge-context` for the LLM version); `quota_exhausted` covers HTTP 402 and Groq per-day limits; `server_retry_delay_s` parses Groq "try again in"; refusal = token anywhere in an uncited answer (T-055); README "Models" section (why generator ≠ judge); `.env.example` for Groq; CLAUDE.md stack line.
+Results:  `eval/results/20261002T205049Z_gen-v2-rag.json` and `20261002T205101Z_closed-book.json` (UTC stamps; run 2026-10-03 local).
+Numbers:  RAG correctness 0.721 [0.60–0.84] vs closed book 0.067 [0.02–0.12] (37 vs 4, p ≈ 1e-7); unanswerable refused 9/9 vs 6/9; false refusals 23% vs 42%; RAG faithfulness 0.923 [0.84–0.99], 92.5% of answers cite evidence, relevance 0.769; multi-hop correctness 0.167 (6/9 refused); 0 truncated, 0 invalid markers, 0 judge parse errors; Groq usage: generator 122 calls 160,279/5,307 tokens, judge 273 calls 72,418/17,089 — $0 (free tier); per-minute 429s retried (12–27 s waits).
+Docs:     doc 16 generation section, card #37 rewritten, doc 13 status, doc 22 numbers, P12-09/P12-10, T-054/T-055.
+Next:     Phase 13 — cost & observability.
 

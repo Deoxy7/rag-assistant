@@ -425,3 +425,23 @@ quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier
 
 - **Cause:** a zsh loop did `set -- $cfg` to split "structure 128 16". zsh doesn't word-split unquoted variables, so `--size` got nothing.
 - **Fix:** a shell function with explicit positional arguments (`ing structure 128 16`).
+
+### T-054 · Every Gemini model returned HTTP 402 "prepayment credits are depleted" — hit
+
+```text
+APIStatusError: Error code: 402 - [{'error': {'code': 402, 'message': 'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.…
+```
+
+- **Context:** after switching the generator to `gemini-3.5-flash-lite`, all Gemini models (3.5 Flash, 3.5 Flash-Lite, 3.1 Flash-Lite) returned 402. A billing state on the AI Studio project; only the account owner can change it.
+- **Bug it exposed:** 402 wasn't treated as a quota, so the runner called Gemini once per question and recorded six errors.
+- **Fix:** `quota_exhausted()` treats HTTP 402 as exhausted (the run stops, the API answers `503 llm_quota_exhausted`). Following the user's decision, generation moved to Groq (`qwen/qwen3.8-27b`) with the judge on a separate provider setting (`openai/gpt-oss-120b`).
+
+### T-055 · Refusals counted as wrong answers: the token wasn't alone — hit (measurement bug)
+
+```text
+'…none include an employee headcount.\n\nINSUFFICIENT_CONTEXT'      '[INSUFFICIENT_CONTEXT]'
+```
+
+- **Symptom:** in the first full judged run, 4 RAG answers and 4 closed-book answers explained first and then wrote the token, or bracketed it. `is_refusal` only accepted the bare token, so they were scored as answers (correctness 0, faithfulness 0).
+- **Effect:** before the fix, RAG faithfulness was 0.859 and false refusals 15%; after it, 0.923 and 23%. Correctness was unchanged at 0.721, since these were 0 either way.
+- **Fix:** the token anywhere as a whole word, in a response with no citation markers, is a refusal; a stray token next to a cited answer is removed from the displayed text. Tests cover both forms and the near-miss "INSUFFICIENT_CONTEXTUAL".

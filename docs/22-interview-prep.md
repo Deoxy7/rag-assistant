@@ -1,6 +1,6 @@
 # 22 — Interview prep
 
-**Status:** first filled in Phase 12 (2026-10-02) with the measured retrieval and ablation numbers; refreshed in Phase 16. Real-model answer-quality numbers on the full set are *not yet measured* (Gemini free-tier daily quota, T-052). Every number below has a command in the doc it links to.
+**Status:** first filled in Phase 12 (2026-10-02/03) with the measured retrieval, ablation and real-model generation numbers; refreshed in Phase 16. Every number below has a command in the doc it links to.
 
 The detailed bank (150+ questions, each with 30-second / 2-minute answers and push-backs) lives in [docs/interview/](interview/00-how-interviews-go.md); this page is the short version to read the night before.
 
@@ -17,7 +17,7 @@ The detailed bank (150+ questions, each with 30-second / 2-minute answers and pu
 
 A self-built eval harness measures every stage. → [02](02-architecture-overview.md)
 
-**2. "How good is it?"** On my 61-question golden set (52 answerable), the evidence is in the top 5 for **76.9% of questions, 95% CI 65–88%**: 91% for single facts, 62% for tables, and 56% for multi-hop questions, where only 33% of the needed pieces are found. On FinanceBench's 28 analyst questions, page-hit@10 is 0.286. I report both, because they disagree (question 5). → [15](15-eval-harness.md), [16](16-experiments-and-ablations.md)
+**2. "How good is it?"** Retrieval: on my 61-question golden set (52 answerable), the evidence is in the top 5 for **76.9% of questions, 95% CI 65–88%**: 91% for single facts, 62% for tables, and 56% for multi-hop questions, where only 33% of the needed pieces are found. On FinanceBench's 28 analyst questions, page-hit@10 is 0.286. Answers, with real models (Qwen 27B generates, gpt-oss-120B judges): **correctness 0.721 [0.60–0.84]**, faithfulness to cited sources 0.923, all 9 unanswerable questions refused, and 23% of answerable questions refused, mostly where retrieval missed. The same model **without retrieval scores 0.067**. → [15](15-eval-harness.md), [16](16-experiments-and-ablations.md)
 
 **3. "Why hybrid search?"** Vector search found 0 of 50 exact figures in its top 5; keyword search found 50. Fusing with RRF keeps both. In the ablation, hybrid is the only mode that holds up on both test sets: golden 0.649 and FinanceBench 0.302 on average, while vector-only scores 0.453 / 0.401 and keyword-only 0.638 / 0.183. → [11](11-hybrid-rrf.md), [16](16-experiments-and-ablations.md)
 
@@ -27,7 +27,7 @@ A self-built eval harness measures every stage. → [02](02-architecture-overvie
 
 **6. "How do citations work, and can the model fake one?"** The model writes only `[n]`. Code maps `n` to the chunk it was shown: document, PDF page, character span, and on-page bounding boxes. I verified that all 7,411 chunk spans equal the stored text exactly. Invalid numbers are removed and uncited claims flagged. → [13](13-prompting-and-citations.md)
 
-**7. "What happens when the answer isn't in the documents?"** The model is told to reply with a fixed token, `INSUFFICIENT_CONTEXT`, which the API turns into a clean refusal (and holds back while streaming). I also tested refusing when the reranker's top score is low: AUROC 0.66, and catching all 9 unanswerable questions would refuse 88% of answerable ones. So refusal stays with the model. In the 6-question Gemini smoke run, both unanswerable questions were refused. → [15](15-eval-harness.md) card #3
+**7. "What happens when the answer isn't in the documents?"** The model is told to reply with a fixed token, `INSUFFICIENT_CONTEXT`, which the API turns into a clean refusal. In the full run it refused **9 of 9** unanswerable questions; the closed-book model answered 3 of them from memory (Apple, Tesla, and an AMD fiscal 2024 figure). The model ignored the exact format about 1 time in 15 (token appended after an explanation), which the detector now handles. A score threshold was tested and rejected (AUROC 0.66). → [15](15-eval-harness.md) card #3
 
 **8. "What broke, and how did you find it?"**
 - The eval found a keyword bug: a question containing a figure matched nothing, because the query required another word too. Fixing it moved hit@5 0.692 → 0.731.
@@ -55,8 +55,10 @@ A self-built eval harness measures every stage. → [02](02-architecture-overvie
 | Reranker | MiniLM-L6, N = 10, 77 ms MPS; bge-base 6× slower, no better |
 | Right-filing filter | FinanceBench hit@10 0.286 → 0.607 |
 | Latency | retrieval ~110 ms · API p50 143 ms (fake LLM) · one Gemini answer 2.5 s |
-| Generator / judge | gemini-3.5-flash / gemini-3.5-flash-lite (OpenAI-compatible endpoint) |
-| Cache | smoke eval 101 s → identical rerun 13 s, 0 tokens |
+| Generator / judge | qwen/qwen3.8-27b / openai/gpt-oss-120b, both on Groq (different families; README "Models") |
+| RAG vs closed book | correctness 0.721 vs 0.067 (37 vs 4 questions won) · unanswerable refused 9/9 vs 6/9 |
+| RAG answers | faithfulness 0.923 · 92.5% cite an evidence passage · false refusals 23% |
+| Cache | smoke eval 101 s → identical rerun 13 s, 0 tokens · full judged rerun 26 s |
 
 The full list is in [interview/16-rapid-revision.md](interview/16-rapid-revision.md).
 
@@ -78,8 +80,8 @@ The full list is in [interview/16-rapid-revision.md](interview/16-rapid-revision
 
 ## 4. Weak spots (be ready for these)
 
-- **Answer quality with the real model isn't measured on the full set.** Only a 6-question smoke run exists (faithfulness 1.0, correctness 0.75). Say so; don't extrapolate.
-- **The judge is weaker than the generator** (Flash-Lite grades Flash) and hasn't been checked against human grades.
+- **The judge hasn't been checked against human grades**, and it called one cited-but-wrong number "faithful" (G032). Correctness against references caught it.
+- **The generator changed three times** (OpenAI → Gemini → Qwen on Groq) because of quotas and billing. Answer numbers belong to Qwen + gpt-oss; retrieval numbers don't depend on the LLM.
 - **My test set flatters keyword search.** Know the −0.53 correlation and the explanation.
 - **Multi-hop retrieval is weak** (recall@5 0.33); the planned fix, query decomposition, isn't built.
 - **The default is the best cell of the weakest chunking strategy.** That's a winner's-curse risk, and fixed256-hybrid-rr is the candidate to re-test.

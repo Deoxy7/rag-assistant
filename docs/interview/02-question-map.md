@@ -121,6 +121,8 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P12-06 | Eval sweep stuck on 429 retries — debug | [08](08-debugging-scenarios.md) | debugging | backend | 3 | | |
 | P12-07 | The winner's curse | [11](11-cs-core-touchpoints.md) | statistics | viva, ML | 2 | | |
 | P12-08 | Closed-book baseline: what and why | [03](03-fundamentals.md) | eval | ML, viva | 2 | | |
+| P12-09 | What the closed-book baseline showed | [07](07-evaluation.md) | eval | deep-dive, ML | 3 | | |
+| P12-10 | Refusal token not alone: effect on the numbers | [07](07-evaluation.md) | debugging | ML | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

@@ -361,3 +361,56 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** "My test set says X, so X."
 
 **Bridge.** "The same bias is why I'd never tune the reranker on the golden set alone."
+
+---
+
+### Q: What did the closed-book baseline show?
+**ID:** P12-09 · **Round:** project deep-dive · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "With retrieval, answers were judged correct on 72.1% of answerable questions; the same model with no documents got 6.7%. That's 37 questions won to 4 in a paired test. So the filings, not the model's memory, provide almost all the accuracy: the specific figures in a 10-K aren't memorised. And without sources, the model answered 3 unanswerable questions from memory or guesswork, including an AMD fiscal 2024 revenue figure. With sources and the refusal rule, it refused all 9."
+
+**2-minute answer.** Explain why it matters for any RAG claim: a high RAG score means little if the model already knew the answers. Name what closed book could still answer (Boeing ending 747 production, partly the companies' total revenue), and that it refused 42% of answerable questions, where RAG refused 23%.
+
+**If they push — level 2.** *"Is 0.067 a fair baseline?"* Same questions, same judge, same generator; only retrieval differs, plus a prompt that allows refusal. It's the fair comparison.
+
+**If they push — level 3.** *"What about a bigger model closed-book?"* It would know more famous numbers, but segment shares and headcounts by year are unlikely. Measure it rather than assume.
+
+**If they push — level 4.** *"Could memory leak into the RAG answers?"* Possibly. That's why faithfulness is checked against cited sources (0.923), and why correctness is checked separately.
+
+**Whiteboard it.**
+```text
+                RAG     closed book
+ correct        .721    .067     (37 vs 4, p < 1e-6)
+ refused unans  9/9     6/9      (answered Apple, Tesla, AMD FY2024)
+ false refusals 23%     42%
+```
+
+**Trap.** Reporting RAG accuracy without the no-retrieval number.
+
+**Bridge.** "And the RAG failures that remain are mostly retrieval misses, which is where the next work goes."
+
+---
+
+### Q: The model sometimes wrote an explanation and then the refusal token. How did that affect your numbers?
+**ID:** P12-10 · **Round:** ML screen · debugging  **Difficulty:** 2/5
+
+**30-second answer.** "The prompt says to reply with exactly INSUFFICIENT_CONTEXT, but about 1 time in 15 the model explained first and appended the token, or put it in brackets: 4 of 61 RAG answers and 4 of 61 closed-book answers. My detector only accepted the bare token, so those refusals were scored as wrong answers, and faithfulness read 0.859 instead of 0.923. Now the token anywhere, in an answer with no citations, counts as a refusal, and a stray token beside a cited answer is stripped."
+
+**2-minute answer.** The lesson: a model's format compliance is a measured rate, not an assumption, so parsers must tolerate drift. And the first pass of an evaluation is not the result: read the failures before reporting. Correctness was unaffected (0.721 both times), because these answers scored 0 either way.
+
+**If they push — level 2.** *"Why not JSON output to force the format?"* It's possible, and it would make refusal a field. The cost is streaming and output tokens (card #29). A tolerant parser plus measurement was cheaper.
+
+**If they push — level 3.** *"Streaming?"* The refusal gate holds text only while it could be the bare token. An explanation streams before the token arrives, but the final `answer` event marks it refused. The UI should replace the text then.
+
+**If they push — level 4.** *"Could the new rule misfire?"* On a substring like "INSUFFICIENT_CONTEXTUAL": no, it requires a whole word (tested). On an answer that cites and also refuses: it's treated as an answer, with the token removed.
+
+**Whiteboard it.**
+```text
+ '…none include an employee headcount.\n\nINSUFFICIENT_CONTEXT'  → was "answer", now refusal
+ '[INSUFFICIENT_CONTEXT]'                                       → was "answer", now refusal
+ faithfulness .859 → .923 · false refusals 15% → 23% · correctness .721 (unchanged)
+```
+
+**Trap.** Trusting that the model follows the exact output format.
+
+**Bridge.** "Measured compliance belongs in the eval report next to quality."

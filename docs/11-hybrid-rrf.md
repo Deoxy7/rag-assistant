@@ -38,7 +38,7 @@ A system that picks only one of them gives up one of these columns. Fusion is th
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ┌────────┐  ╔════════════╗
-               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─║ RRF fusion ║
+               │ LLM (Groq)   │◀─│ Prompt + citations │◀─│ Rerank │◀─║ RRF fusion ║
                └──────────────┘  └────────────────────┘  └────────┘  ╚════════════╝
 
  Double-line box (╔═╗) = this doc. RRF = Reciprocal Rank Fusion.

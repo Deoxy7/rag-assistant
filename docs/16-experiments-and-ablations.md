@@ -1,8 +1,8 @@
 # 16 — Experiments and ablations
 
-**Status:** written in Phase 12 (2026-10-02). The **retrieval ablation is complete**: 54 grid configurations plus 3 extras, each scored on the 61-question golden set and the 28 FinanceBench questions. The **generation ablations** (closed-book baseline, judged answers on the full set) are *not yet measured*: Gemini's free tier allows 20 `gemini-3.5-flash` requests per day per model, and a full run needs 61 (T-052). Owns: ablation, controlled experiment, confounder, interaction effect, paired comparison, multiple comparisons, winner's curse, external validity.
+**Status:** written in Phase 12 (2026-10-02/03). Two parts, both complete. **Retrieval ablation:** 54 grid configurations plus 3 extras, each scored on the 61-question golden set and the 28 FinanceBench questions. **Generation:** the RAG system and a closed-book baseline, 61 questions each, with real answers from `qwen/qwen3.8-27b` judged by `openai/gpt-oss-120b`, both on Groq. Gemini was the plan, but its free tier allows 20 Flash requests/day (T-052) and the project then returned 402 (T-054); see README "Models". Owns: ablation, controlled experiment, confounder, interaction effect, paired comparison, multiple comparisons, winner's curse, external validity, closed-book baseline.
 
-> **Prerequisites:** [15-eval-harness.md](15-eval-harness.md) (the metrics and the golden set). Numbers come from `python -m eval.ablate --tag v1` → `eval/results/20261002T175959Z_ablation-v1.{csv,md}` (57 result files `*_abl-v1-*.json`), run on 2026-10-02.
+> **Prerequisites:** [15-eval-harness.md](15-eval-harness.md) (the metrics and the golden set). Numbers come from `python -m eval.ablate --tag v1` → `eval/results/20261002T175959Z_ablation-v1.{csv,md}` (57 result files `*_abl-v1-*.json`), and from `make eval NAME=gen-v2-rag ARGS="--generate --judge"` → `20261002T205049Z_gen-v2-rag.json` and `make eval NAME=closed-book ARGS="--closed-book --judge"` → `20261002T205101Z_closed-book.json`.
 
 ---
 
@@ -38,7 +38,7 @@ Every earlier decision (structure-aware chunking, 256 tokens, hybrid search, rer
  └───────────┘  └─────────┘               └──────────────────────┬──────────────┘
                                                                  ▼
                ┌──────────────┐  ┌────────────────────┐  ┌────────┐  ┌────────────┐
-               │ LLM (Gemini) │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
+               │ LLM (Groq)   │◀─│ Prompt + citations │◀─│ Rerank │◀─│ RRF fusion │
                └──────┬───────┘  └────────────────────┘  └────────┘  └────────────┘
                       │ every configuration of the boxes above, one at a time
                ╔══════▼══════════════════╗
@@ -78,12 +78,14 @@ Every earlier decision (structure-aware chunking, 256 tokens, hybrid search, rer
  │ ablation table + charts + sign tests  │
  └───────────────────────────────────────┘
 
- ┌───────────────────────────────────────┐        ┌───────────────────────────────┐
- │ generation ablations (Gemini):        │┄┄┄┄┄┄┄▶│ blocked: free tier = 20 Flash │
- │ closed-book · judged answers          │        │ requests / day (T-052)        │
- └───────────────────────────────────────┘        └───────────────────────────────┘
+ ┌────────────────────────────────────────────┐   ┌───────────────────────────────────────┐
+ │ Qwen 3.8-27B generates · gpt-oss-120B      │┄┄▶│ generation runs (61 q each):          │
+ │ judges (Groq; Gemini blocked: T-052, T-054)│   │ RAG vs closed book · judged answers   │
+ └────────────────────────────────────────────┘   └──────────────────┬────────────────────┘
+                                                                     │ 2 result files
+                                                                     ▼ (into the same table)
  Legend (colours appear in the image): blue = ingestion · green = retrieval ·
- purple = generation · orange = eval · white = fixed inputs · red dashed = not run
+ purple = generation · orange = eval · white = fixed inputs / models
 ```
 </details>
 
@@ -225,6 +227,45 @@ strategy fixed         0.607            0.302
 7. **Latency:** vector-only, no rerank: 4 ms p50. Keyword or hybrid, no rerank: 22–48 ms. Reranking adds about 50–80 ms at 128–256 tokens (it reads 10 pairs) and 120–140 ms at 510 tokens, because longer pairs cost more per pass.
 8. **Multiple comparisons.** With 57 configurations, a few "p < 0.05" differences would appear by chance. Here 30 configurations are significantly *worse* than the baseline at p < 0.05, 20 of them at p ≤ 0.01, mostly vector modes and 128-token structure chunks; that's far more than chance would produce. **None** is significantly *better*.
 
+### Generation: the RAG system vs the closed-book baseline (61 questions, real models)
+
+Same 61 questions. **RAG** = the default pipeline (hybrid + rerank, k = 10, citations). **Closed book** = the same generator with no retrieval and its own prompt (`eval/closed_book.py`), answering from what it learned in training, allowed to refuse. Both are judged by the same model (`openai/gpt-oss-120b`), against the reference answers.
+
+```text
+                                        RAG (hybrid + rerank)     closed book (no retrieval)
+answerable questions (52)
+  correctness (judge)                   0.721 [0.60–0.84]         0.067 [0.02–0.12]
+  answer relevance (judge)              0.769 [0.63–0.88]         0.567 [0.43–0.70]
+  refused (false refusals)              12 / 52 (23%)             22 / 52 (42%)
+  faithfulness to cited sources         0.923 [0.84–0.99] (40)    — (no sources)
+  answers citing an evidence passage    92.5% (37 of 40)          —
+  context precision (labels)            0.521 [0.41–0.63]         —
+unanswerable questions (9)
+  refused                               9 / 9                     6 / 9
+  answered from memory or guesswork     0                         3: Apple FY2022 revenue, AMD FY2024 revenue,
+                                                                     Tesla 2022 deliveries
+paired sign test on correctness         RAG better on 37 questions, closed book on 4: p < 0.000001
+by type: correctness (refused)
+  factual (22)                          0.909 (2)                 0.045 (11)
+  table (13)                            0.769 (2)                 0.077 (1)
+  exact token (8)                       0.750 (2)                 0.062 (5)
+  multi-hop (9)                         0.167 (6)                 0.111 (5)
+answers truncated / invalid [n] markers 0 / 0                     0 / —
+```
+
+**Read honestly:**
+
+1. **The documents do the work.** Without retrieval the same model gets 6.7% of answerable questions right; with retrieval it gets 72.1% (37 vs 4 questions won, paired). The figures in a 10-K (headcounts, segment shares, backlog values) are mostly not memorised. Where the closed-book model did score, it was well-known facts: it got Boeing ending 747 production fully right, and PepsiCo's and Boeing's 2022 revenue partly right.
+2. **Closed book also guesses on what the corpus can't answer.** It gave Apple's FY2022 revenue and Tesla's 2022 deliveries (real public numbers it knows), and an AMD fiscal 2024 revenue figure, a year after its sources end. RAG refused all 9 unanswerable questions. The refusal contract only works when the model is told what its evidence is.
+3. **Refusal is cautious, and that costs answerable questions.** RAG refused 12 of 52 answerable questions. Of these, 8 are retrieval misses: the evidence wasn't in the top 10, so refusing was the correct response. The other 4 are refusals despite relevant evidence in the top 10: G040 (exact token), and G045, G051 and G052, multi-hop questions where only one of the two needed facts was retrieved. Multi-hop is the weak type again: 6 of 9 refused, correctness 0.167. It's the same retrieval weakness Phase 11 found, now visible end to end.
+4. **The dangerous errors are cited and wrong, and the judge can miss them.**
+   - G032 "What was Boeing's total backlog at the end of 2022?" was answered "$54,373 million [2]", a number from the cited table but a different line item; the reference is $404,381 million. The judge scored it **faithful (1.0)**, because the number does appear in the source, and **incorrect** on correctness.
+   - G048 took the 2021 column as 2022 (wrong-year misattribution), with faithfulness 0.25.
+
+   Faithfulness alone would have hidden G032. That's why correctness against a reference is measured separately (card #37).
+5. **The model ignores the exact refusal format about one time in 15.** In 4 RAG answers and 4 closed-book answers, it explained first and then wrote `INSUFFICIENT_CONTEXT`, or wrapped the token in brackets. The first scoring counted those as wrong *answers*, giving false refusals 15% and faithfulness 0.859. The detector now accepts the token anywhere in an uncited response (T-055), giving the corrected 23% and 0.923 above. A measurement bug the eval itself exposed: the first pass of a judged run is not the result.
+6. **Cost of these runs: $0**, on Groq's free tier. All Groq calls today, from the llm_cache table: generator `qwen/qwen3.8-27b` made 122 calls with 160,279 input and 5,307 output tokens (RAG, closed book and smoke runs); judge `gpt-oss-120b` made 273 calls with 72,418 in and 17,089 out. Both are under the 200k tokens/day per-model cap. The binding limit was 8k tokens per minute. Every batch hit 12–15 per-minute 429s, each retried once after Groq's `Retry-After` (12–27 s), and the four RAG batches took 4–5 minutes each.
+
 ### What the ablation says about earlier decisions
 
 | Decision (card) | Ablation verdict |
@@ -337,7 +378,11 @@ That runs the whole grid again under a new tag: about 8 minutes, no LLM calls. R
 | Spearman(golden hit@5, FB hit@10) | −0.53 over 54 configurations | shell on the CSV |
 | Mode averages, golden / FB | vector 0.453 / 0.401 · keyword 0.638 / 0.183 · hybrid 0.649 / 0.302 | same |
 | BM25 / rerank N=20 on the baseline | 0.692 (p 0.12) / 0.673 (p 0.12) | ablation table |
-| Closed-book baseline; judged answers on 61 questions | *not yet measured* (Gemini free tier: 20 Flash requests/day, T-052) | `make eval NAME=closed-book ARGS="--closed-book --judge"` |
+| RAG vs closed-book correctness (52 answerable) | 0.721 vs 0.067 (37 vs 4 questions won, p < 0.000001) | `make eval NAME=gen-v2-rag ARGS="--generate --judge"`, `make eval NAME=closed-book ARGS="--closed-book --judge"` |
+| Unanswerable refused: RAG / closed book | 9 of 9 / 6 of 9 | same |
+| False refusals: RAG / closed book | 23% / 42% | same |
+| RAG faithfulness to cited sources · answers citing evidence | 0.923 · 92.5% | same |
+| Refusal-format misses (token not alone) | 4 of 61 RAG, 4 of 61 closed book | T-055 |
 
 ## 11. Interview talking points
 
@@ -345,6 +390,7 @@ That runs the whole grid again under a new tag: about 8 minutes, no LLM calls. R
 - "The reranker is the robust win: +0.067 hit@5, better in 23 of 27 pairs."
 - "My own test set and FinanceBench rank configurations in opposite orders (Spearman −0.53), because my questions reuse the filings' wording. Hybrid is the only mode that holds up on both, so it stays."
 - "Nothing beat the default significantly. My default is the best cell of the weakest chunking strategy, so I'd re-test the balanced runner-up on fresh questions before claiming anything."
+- "Closed book, the same model gets 6.7% right; with retrieval, 72.1%. And without its sources it answered 3 unanswerable questions from memory, while RAG refused all 9."
 - Expect: "How did you avoid overfitting?", "What's the winner's curse?", "Which config is best?"
 
 ## 12. Check yourself

@@ -33,7 +33,7 @@ Phase 7 ended with a ranking problem. Hybrid search finds exact figures, but RRF
        │    SSE    │   │ answer tokens                           │ two ranked lists
        └───────────┘   │                                         ▼
                ┌───────┴──────┐  ┌────────────────────┐  ╔════════╗  ┌────────────┐
-               │ LLM (Gemini) │◀─│ Prompt + citations │◀─║ Rerank ║◀─│ RRF fusion │
+               │ LLM (Groq)   │◀─│ Prompt + citations │◀─║ Rerank ║◀─│ RRF fusion │
                └──────────────┘  └────────────────────┘  ╚════════╝  └────────────┘
 
  Double-line box (╔═╗) = this doc.

@@ -126,6 +126,9 @@
 | Golden vs FinanceBench? | Spearman −0.53; keyword .638/.183, vector .453/.401, hybrid .649/.302. |
 | Balanced candidate? | fixed256-hybrid-rr: golden .712 (n.s.), FB .393, tables .846, recall@10 .817. |
 | Free-tier gotcha? | 20 Flash requests/day: daily-quota 429s now fail fast; run stops calling the LLM. |
+| Real-model answers? | Qwen 27B (Groq) generates, gpt-oss-120B judges: correctness .721, faithfulness .923, 9/9 unanswerable refused. |
+| Closed book? | Same model, no retrieval: correctness .067; answered 3 unanswerables from memory. |
+| Refusal format drift? | 4/61 answers appended the token after an explanation → detector now accepts it (T-055). |
 
 ## Top questions so far
 
