@@ -31,6 +31,19 @@ class Settings(BaseSettings):
     # as a confusing authentication error. repr=False keeps it out of logs.
     postgres_password: str = Field(repr=False)
 
+    # --- Models (downloaded into data/models, pinned by Hugging Face commit) ---
+    model_cache_dir: Path = REPO_ROOT / "data" / "models"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_model_revision: str = "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a"
+    # bge-small reads at most 512 tokens including its two special tokens
+    # ([CLS] and [SEP]); anything longer is silently truncated.
+    embedding_max_tokens: int = 512
+
+    # --- Chunking (Phase 3; every value is an ablation lever in Phase 12) ---
+    chunk_strategy: str = "structure"   # "fixed" | "recursive" | "structure"
+    chunk_size: int = 256                # in embedding-model tokens
+    chunk_overlap: int = 32              # in embedding-model tokens
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

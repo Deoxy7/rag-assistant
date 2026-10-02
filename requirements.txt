@@ -13,19 +13,51 @@ pdfplumber==0.11.10       # Phase 1: table detection / extraction
 matplotlib==3.11.2        # Phase 1: charts rendered into docs/diagrams/out/
 certifi==2026.7.22        # Phase 1: CA bundle for HTTPS (python.org macOS Python ships none)
 tiktoken==0.14.0          # Phase 1: count LLM tokens (OpenAI tokenizer)
+sentence-transformers==6.1.0 # Phase 3: embedding model + its tokenizer (pulls in torch, transformers)
+langchain-text-splitters==1.1.2 # Phase 3: recursive splitter only (offsets verified by our tests)
+torch==2.14.1             # Phase 3: model runtime for sentence-transformers
+transformers==5.18.0      # Phase 3: tokenizer with offset mapping
 
 # --- Transitive dependencies (pulled in by the packages above) ----------------
+annotated-doc==0.0.5      # Phase 3 (via sentence-transformers / langchain-text-splitters)
 annotated-types==0.8.0    # via pydantic
+anyio==4.15.1             # Phase 3 (via sentence-transformers / langchain-text-splitters)
 cffi==2.1.1               # via cryptography
 charset-normalizer==3.5.2 # via pdfminer.six, requests
+click==8.5.0              # Phase 3 (via sentence-transformers / langchain-text-splitters)
+cloudpickle==3.1.2        # Phase 3 (via sentence-transformers / langchain-text-splitters)
 contourpy==1.3.3          # via matplotlib
 cryptography==50.0.2      # via pdfminer.six
 cycler==0.12.1            # via matplotlib
+distro==1.9.0             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+filelock==4.0.9           # Phase 3 (via sentence-transformers / langchain-text-splitters)
 fonttools==4.66.1         # via matplotlib
+fsspec==2026.9.0          # Phase 3 (via sentence-transformers / langchain-text-splitters)
+h11==0.16.0               # Phase 3 (via sentence-transformers / langchain-text-splitters)
+hf-xet==1.6.0             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+httpcore==1.0.9           # Phase 3 (via sentence-transformers / langchain-text-splitters)
+httpcore2==2.13.1         # Phase 3 (via sentence-transformers / langchain-text-splitters)
+httpx==0.28.1             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+httpx2==2.13.1            # Phase 3 (via sentence-transformers / langchain-text-splitters)
+huggingface_hub==1.33.0   # Phase 3 (via sentence-transformers / langchain-text-splitters)
 idna==3.20                # via requests
 iniconfig==2.3.0          # via pytest
+Jinja2==3.1.6             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+joblib==1.6.0             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+jsonpatch==1.33           # Phase 3 (via sentence-transformers / langchain-text-splitters)
+jsonpointer==3.1.1        # Phase 3 (via sentence-transformers / langchain-text-splitters)
 kiwisolver==1.5.1         # via matplotlib
+langchain-core==1.6.6     # Phase 3 (via sentence-transformers / langchain-text-splitters)
+langchain-protocol==0.0.19 # Phase 3 (via sentence-transformers / langchain-text-splitters)
+langsmith==0.14.3         # Phase 3 (via sentence-transformers / langchain-text-splitters)
+markdown-it-py==4.2.0     # Phase 3 (via sentence-transformers / langchain-text-splitters)
+MarkupSafe==3.0.3         # Phase 3 (via sentence-transformers / langchain-text-splitters)
+mdurl==0.1.2              # Phase 3 (via sentence-transformers / langchain-text-splitters)
+mpmath==1.3.0             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+narwhals==2.26.0          # Phase 3 (via sentence-transformers / langchain-text-splitters)
+networkx==3.6.1           # Phase 3 (via sentence-transformers / langchain-text-splitters)
 numpy==2.4.6              # via matplotlib, contourpy
+orjson==3.12.0            # Phase 3 (via sentence-transformers / langchain-text-splitters)
 packaging==26.3           # via pytest, matplotlib
 pdfminer.six==20260107    # via pdfplumber
 pillow==12.3.0            # via pdfplumber, matplotlib
@@ -38,9 +70,28 @@ pyparsing==3.3.3          # via matplotlib
 pypdfium2==5.13.0         # via pdfplumber
 python-dateutil==2.9.0.post0 # via matplotlib
 python-dotenv==1.2.4      # via pydantic-settings
+PyYAML==6.0.3             # Phase 3 (via sentence-transformers / langchain-text-splitters)
 regex==2026.9.29          # via tiktoken
 requests==2.34.2          # via tiktoken
+requests-toolbelt==1.0.0  # Phase 3 (via sentence-transformers / langchain-text-splitters)
+rich==15.0.0              # Phase 3 (via sentence-transformers / langchain-text-splitters)
+safetensors==0.8.0        # Phase 3 (via sentence-transformers / langchain-text-splitters)
+scikit-learn==1.9.1       # Phase 3 (via sentence-transformers / langchain-text-splitters)
+scipy==1.17.1             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+shellingham==1.5.4        # Phase 3 (via sentence-transformers / langchain-text-splitters)
 six==1.17.0               # via python-dateutil
+sniffio==1.3.1            # Phase 3 (via sentence-transformers / langchain-text-splitters)
+sympy==1.14.0             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+tenacity==9.1.4           # Phase 3 (via sentence-transformers / langchain-text-splitters)
+threadpoolctl==3.7.0      # Phase 3 (via sentence-transformers / langchain-text-splitters)
+tokenizers==0.23.2        # Phase 3 (via sentence-transformers / langchain-text-splitters)
+tqdm==4.70.1              # Phase 3 (via sentence-transformers / langchain-text-splitters)
+truststore==0.10.4        # Phase 3 (via sentence-transformers / langchain-text-splitters)
+typer==0.27.2             # Phase 3 (via sentence-transformers / langchain-text-splitters)
 typing-inspection==0.4.4  # via pydantic
 typing_extensions==4.16.0 # via psycopg, pydantic
 urllib3==2.8.0            # via requests
+uuid_utils==0.17.1        # Phase 3 (via sentence-transformers / langchain-text-splitters)
+websockets==17.1          # Phase 3 (via sentence-transformers / langchain-text-splitters)
+xxhash==4.0.1             # Phase 3 (via sentence-transformers / langchain-text-splitters)
+zstandard==0.25.0         # Phase 3 (via sentence-transformers / langchain-text-splitters)
