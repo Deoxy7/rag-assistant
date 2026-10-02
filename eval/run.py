@@ -48,7 +48,11 @@ KS = (1, 3, 5, 10)
 def git_state() -> dict:
     def run(*args):
         return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    return {"commit": run("rev-parse", "HEAD"), "dirty": bool(run("status", "--porcelain", "--untracked-files=no"))}
+    # "dirty" = uncommitted changes in anything that can change a result (code, labels, pins),
+    # not docs: a doc edit in progress shouldn't mark a run as unreproducible.
+    paths = ["app", "eval", "scripts", "requirements.txt", "docker-compose.yml", "pytest.ini"]
+    return {"commit": run("rev-parse", "HEAD"),
+            "dirty": bool(run("status", "--porcelain", "--untracked-files=no", "--", *paths))}
 
 
 def build_retriever(args, chunk_set_id: int):
