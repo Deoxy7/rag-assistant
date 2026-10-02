@@ -1,0 +1,28 @@
+150 queries, 7411 vectors (chunk set 1, BAAI/bge-small-en-v1.5@5c38ec7c), k=10
+
+method                   recall@10  p50 ms  p95 ms
+exact scan                   1.000   11.39   13.37
+hnsw ef_search=10            0.742    2.77    3.23
+hnsw ef_search=20            0.849    2.82    3.72
+hnsw ef_search=40            0.928    2.81    3.16
+hnsw ef_search=80            0.976    3.02    3.32
+hnsw ef_search=160           0.996    3.35    3.80
+hnsw ef_search=320           0.998    3.90    4.47
+
+filtered search: company=Corning, fiscal_year=2021 (smallest company-year)
+rows passing the filter: 6.9% of the chunk set
+mode                     avg rows <10 rows recall@10  p50 ms  p95 ms
+exact (pre-filter scan)      10.0        0     1.000    3.09    3.36
+post ef_search=40            10.0        0     1.000    3.00    3.35
+iterative ef_search=40       10.0        0     1.000    3.01    3.29
+
+same filter, HNSW path forced (SET LOCAL enable_sort = off removes the exact plan's Sort)
+mode                     avg rows <10 rows 0 rows recall@10
+post ef_search=40             3.8      133     31     0.379
+iterative ef_search=40       10.0        0      0     0.973
+
+quantisation at ef_search=40 (index built for this run, then dropped; raw query on embeddings, no joins)
+index                     size MB build s recall@10  p50 ms
+vector (32-bit)             13.87       —     0.928    2.39
+halfvec (16-bit)             7.93    0.69     0.925    2.35
+binary (1-bit) + rerank      2.37    0.61     0.572    2.32

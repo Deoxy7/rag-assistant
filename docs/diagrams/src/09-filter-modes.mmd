@@ -1,0 +1,22 @@
+%% Owner: docs/09-vector-search.md — filter = Corning 2021 (6.9% of rows), HNSW path forced, 150 queries, k = 10.
+flowchart LR
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef bad fill:#ffffff,stroke:#dc2626,stroke-dasharray:4 3,color:#7f1d1d
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    q["query + filter<br/>company = Corning, year = 2021"]:::io
+    post["post-filter<br/>HNSW returns 40 candidates,<br/>then the filter runs"]:::bad
+    it["iterative scan<br/>HNSW keeps walking until<br/>10 rows pass the filter"]:::retrieve
+    ex["exact pre-filter<br/>distance to each of 514 rows,<br/>sort"]:::retrieve
+    rp["avg 3.8 rows · 31 queries get 0<br/>recall@10 0.379"]:::bad
+    ri["10 rows · recall@10 0.973"]:::retrieve
+    re["10 rows · recall@10 1.000"]:::retrieve
+    legend["Legend<br/>green = retrieval · red dashed = recall cliff · white = input"]:::legend
+
+    q -->|mode post| post
+    q -->|mode iterative| it
+    q -->|mode exact| ex
+    post -->|~6.9% of 40 survive| rp
+    it -->|more graph, same index| ri
+    ex -->|no index| re

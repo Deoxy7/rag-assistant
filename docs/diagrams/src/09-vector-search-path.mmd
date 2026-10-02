@@ -1,0 +1,25 @@
+%% Owner: docs/09-vector-search.md — one vector query through app/retrieve/vector.py and Postgres.
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    q["question"]:::io
+    emb["embed_query<br/>instruction + bge-small, cached"]:::retrieve
+    sqlq["SQL: chunk set + model as literals<br/>SET LOCAL ef_search 160, iterative_scan"]:::retrieve
+    plan{"planner: filter selective?"}:::store
+    hnsw[("partial HNSW index<br/>ordered by cosine distance")]:::store
+    pre[("B-tree chunks_set_document<br/>then exact distance + sort")]:::store
+    join["join chunks + documents<br/>by primary key"]:::retrieve
+    hits["top-k Hits<br/>score = 1 − distance"]:::io
+    legend["Legend<br/>green = retrieval · grey = storage · white = input / output"]:::legend
+
+    q -->|text| emb
+    emb -->|384-d unit vector| sqlq
+    sqlq -->|query + params| plan
+    plan -->|no filter, or filter matches many rows| hnsw
+    plan -->|few rows pass, e.g. one company-year| pre
+    hnsw -->|candidates in distance order| join
+    pre -->|exact top-k| join
+    join -->|LIMIT k| hits

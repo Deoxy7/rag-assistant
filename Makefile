@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -55,6 +55,9 @@ migrate: install up ## Apply pending SQL migrations (app/store/migrations/)
 
 ingest: migrate corpus ## Parse, chunk, embed and index the corpus (default chunking from settings)
 	$(PY) -m app.ingest.pipeline
+
+bench-vector: install up ## Vector search: recall vs exact, ef_search, filter modes, quantisation
+	$(PY) scripts/bench_vector.py --chart
 
 test: install up corpus ## Run the full test suite (starts Postgres and fetches the corpus if needed)
 	$(PY) -m pytest
