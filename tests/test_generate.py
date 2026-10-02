@@ -149,9 +149,22 @@ class ScriptedLLM:
         self.last_result = r
 
 
-@pytest.mark.parametrize("text", [REFUSAL_TOKEN, f" {REFUSAL_TOKEN}.", f"`{REFUSAL_TOKEN}`", REFUSAL_TOKEN.lower()])
+@pytest.mark.parametrize("text", [REFUSAL_TOKEN, f" {REFUSAL_TOKEN}.", f"`{REFUSAL_TOKEN}`", REFUSAL_TOKEN.lower(),
+                                  f"[{REFUSAL_TOKEN}]",
+                                  f"The provided sources do not state AMD's headcount.\n\n{REFUSAL_TOKEN}"])
 def test_refusal_token_variants(text):
     assert is_refusal(text)
+
+
+@pytest.mark.parametrize("text", ["Revenue was $23.6 billion [1].", f"Revenue was $23.6 billion [1]. {REFUSAL_TOKEN}",
+                                  "INSUFFICIENT_CONTEXTUAL information is not a phrase we use"])
+def test_not_a_refusal(text):
+    assert not is_refusal(text)
+
+
+def test_stray_token_next_to_a_cited_answer_is_removed():
+    a = answer_question(None, "q", ListRetriever(HITS), ScriptedLLM(f"Revenue was $23.6 billion [1].\n\n{REFUSAL_TOKEN}"))
+    assert not a.refused and REFUSAL_TOKEN not in a.text and a.report.citations[0].n == 1
 
 
 def test_model_refusal_becomes_the_refusal_message():
@@ -253,12 +266,31 @@ def test_provider_base_url_and_models_come_from_settings(monkeypatch):
     monkeypatch.setattr(s, "gemini_api_key", SecretStr("test-key-not-real"))
     monkeypatch.setattr(s, "llm_base_url", "https://example.test/v1/")
     monkeypatch.setattr(s, "llm_model", "gen-model")
+    monkeypatch.setattr(s, "llm_judge_provider", "groq")
+    monkeypatch.setattr(s, "groq_api_key", SecretStr("judge-key-not-real"))
+    monkeypatch.setattr(s, "llm_judge_base_url", "https://judge.example.test/openai/v1")
     monkeypatch.setattr(s, "llm_judge_model", "judge-model")
     get_llm.cache_clear()
     gen, judge = get_llm("generate"), get_llm("judge")
     assert (gen.provider, gen.model, gen.base_url) == ("gemini", "gen-model", "https://example.test/v1/")
-    assert judge.model == "judge-model" and judge.reasoning_effort == s.llm_judge_reasoning_effort
-    assert str(gen.client.base_url) == "https://example.test/v1/"
+    assert (judge.provider, judge.model, judge.base_url) == ("groq", "judge-model", "https://judge.example.test/openai/v1")
+    assert judge.reasoning_effort == s.llm_judge_reasoning_effort
+    assert gen.client.api_key == "test-key-not-real" and judge.client.api_key == "judge-key-not-real"
+    get_llm.cache_clear()
+
+
+def test_judge_without_its_key_fails_loudly(monkeypatch):
+    from pydantic import SecretStr
+    from app.config import get_settings
+    s = get_settings()
+    monkeypatch.setattr(s, "llm_provider", "gemini")
+    monkeypatch.setattr(s, "gemini_api_key", SecretStr("test-key-not-real"))
+    monkeypatch.setattr(s, "llm_judge_provider", "groq")
+    monkeypatch.setattr(s, "groq_api_key", None)
+    get_llm.cache_clear()
+    assert get_llm("generate").provider == "gemini"
+    with pytest.raises(MissingAPIKey, match="LLM_JUDGE_PROVIDER=groq but GROQ_API_KEY is empty"):
+        get_llm("judge")
     get_llm.cache_clear()
 
 
@@ -337,6 +369,19 @@ def test_gemini_daily_quota_is_not_retried_but_per_minute_is():
     assert server_retry_delay_s(minute) == 12.5               # parsed from "Please retry in 12.5s"
 
 
+def test_groq_per_day_limit_is_a_quota_and_per_minute_is_retryable():
+    from app.generate.llm import retryable, server_retry_delay_s
+    day = api_error(429, {"error": {"message": "Rate limit reached for model `qwen/qwen3.8-27b` in organization `org_x` "
+                                               "service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 199500, "
+                                               "Requested 3100. Please try again in 7m12.5s.", "type": "tokens",
+                                    "code": "rate_limit_exceeded"}})
+    minute = api_error(429, {"error": {"message": "Rate limit reached … on tokens per minute (TPM): Limit 8000, Used 7000, "
+                                                  "Requested 3000. Please try again in 15.2s.", "type": "tokens",
+                                       "code": "rate_limit_exceeded"}})
+    assert quota_exhausted(day) and not retryable(day) and server_retry_delay_s(day) == 432.5
+    assert not quota_exhausted(minute) and retryable(minute) and server_retry_delay_s(minute) == 15.2
+
+
 def test_a_server_delay_longer_than_the_cap_fails_immediately():
     calls, slept = [], []
     body = [{"error": {"code": 503, "message": "Please retry in 2h0m0s."}}]
@@ -348,6 +393,16 @@ def test_a_server_delay_longer_than_the_cap_fails_immediately():
     with pytest.raises(openai.InternalServerError):
         with_retries(call, max_retries=6, base_s=1.0, max_s=30.0, sleep=slept.append)
     assert len(calls) == 1 and slept == []
+
+
+def test_payment_required_stops_like_an_exhausted_quota():
+    import openai
+    from app.api.main import classify
+    req = httpx.Request("POST", "https://example.test/v1/chat/completions")
+    body = [{"error": {"code": 402, "message": "Your prepayment credits are depleted."}}]
+    exc = openai.APIStatusError("402", response=httpx.Response(402, request=req, json=body), body=body)
+    assert quota_exhausted(exc)
+    assert classify(exc)[:2] == (503, "llm_quota_exhausted")
 
 
 def test_gives_up_after_max_retries():

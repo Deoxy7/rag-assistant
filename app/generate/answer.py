@@ -12,13 +12,14 @@ common option; it needs calibration on the golden set's unanswerable questions,
 so it waits for Phase 11 (Settings has no threshold until then, on purpose).
 """
 
+import re
 import time
 from dataclasses import dataclass, field
 
 import psycopg
 
 from app.config import get_settings
-from app.generate.citations import CitationReport, check_citations, strip_invalid_markers
+from app.generate.citations import MARKER, CitationReport, check_citations, strip_invalid_markers
 from app.generate.prompt import INSTRUCTIONS, REFUSAL_TOKEN, PackedContext, build_user_message, pack_context
 from app.retrieve.types import Filters, Hit
 
@@ -48,9 +49,21 @@ class Answer:
         return INSTRUCTIONS, build_user_message(self.question, self.context)
 
 
+TOKEN_ANYWHERE = re.compile(rf"(?<![A-Za-z0-9_]){REFUSAL_TOKEN}(?![A-Za-z0-9_])", re.I)
+
+
 def is_refusal(text: str) -> bool:
-    # Models sometimes wrap the token in punctuation or add a period.
-    return text.strip().strip(".`'\" ").upper() == REFUSAL_TOKEN
+    """True if the model refused.
+
+    The instruction is "reply with exactly INSUFFICIENT_CONTEXT", but measured on the full eval
+    (qwen3.8-27b, 2026-10-03) the model also explained first and appended the token, or wrapped it
+    in brackets: 4 of 61 RAG answers and 4 of 61 closed-book answers (T-055). So the token
+    anywhere, as a whole word, in a response that cites no source is a refusal. A response with
+    real [n] citations and a stray token is treated as an answer (the token is removed for display).
+    """
+    if not TOKEN_ANYWHERE.search(text):
+        return False
+    return not MARKER.search(TOKEN_ANYWHERE.sub("", text))
 
 
 def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_result=None) -> Answer:
@@ -61,8 +74,9 @@ def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_r
                     truncated=getattr(llm_result, "truncated", False))
     if is_refusal(raw):
         return Answer(question, REFUSAL_MESSAGE, True, "model", context, None, raw, timings_ms=timings, **meta)
-    report = check_citations(raw, context.sources)
-    return Answer(question, strip_invalid_markers(raw, context.sources), False, None, context, report, raw,
+    shown = TOKEN_ANYWHERE.sub("", raw).strip()          # a stray token next to a cited answer
+    report = check_citations(shown, context.sources)
+    return Answer(question, strip_invalid_markers(shown, context.sources), False, None, context, report, raw,
                   timings_ms=timings, **meta)
 
 

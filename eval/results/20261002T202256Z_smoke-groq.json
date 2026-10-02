@@ -1,0 +1,466 @@
+{
+ "meta": {
+  "created_utc": "20261002T202256Z",
+  "golden_file": "eval/golden/golden_v1.jsonl",
+  "golden_sha256": "733f8fe408837256ab15b5dec52f786ccb62d0d27e667d4b7eb50c752dfc315b",
+  "git": {
+   "commit": "9fc8bd4e4b67d2fbf3958a4362cac1589ab0672b",
+   "dirty": true
+  },
+  "python": "3.11.9",
+  "wall_s": 12.8
+ },
+ "config": {
+  "name": "smoke-groq",
+  "mode": "hybrid",
+  "rerank": true,
+  "rerank_n": 10,
+  "rrf_k": 60,
+  "depth": 50,
+  "k": 10,
+  "rank_function": "ts_rank",
+  "closed_book": false,
+  "chunk_strategy": "structure",
+  "chunk_size": 256,
+  "chunk_overlap": 32,
+  "generate": true,
+  "judge": true,
+  "judge_model": "openai/gpt-oss-120b",
+  "judge_context": false,
+  "ids": "G001,G045,G053",
+  "chunk_set_id": 1,
+  "ks": [
+   1,
+   3,
+   5,
+   10
+  ],
+  "ef_search": 160,
+  "embedding_model": "BAAI/bge-small-en-v1.5@5c38ec7c",
+  "rerank_model": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "llm_provider": "groq",
+  "llm_base_url": "https://api.groq.com/openai/v1",
+  "llm_model": "qwen/qwen3.8-27b",
+  "llm_reasoning_effort": null,
+  "limit": null
+ },
+ "summary": {
+  "questions": 3,
+  "answerable": 2,
+  "unanswerable": 1,
+  "overall": {
+   "hit@1": {
+    "mean": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "n": 2
+   },
+   "hit@3": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 2
+   },
+   "hit@5": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 2
+   },
+   "hit@10": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 2
+   },
+   "recall@1": {
+    "mean": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "n": 2
+   },
+   "recall@3": {
+    "mean": 0.75,
+    "ci95": [
+     0.5,
+     1.0
+    ],
+    "n": 2
+   },
+   "recall@5": {
+    "mean": 0.75,
+    "ci95": [
+     0.5,
+     1.0
+    ],
+    "n": 2
+   },
+   "recall@10": {
+    "mean": 0.75,
+    "ci95": [
+     0.5,
+     1.0
+    ],
+    "n": 2
+   },
+   "precision@1": {
+    "mean": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "n": 2
+   },
+   "precision@3": {
+    "mean": 0.3333,
+    "ci95": [
+     0.3333,
+     0.3333
+    ],
+    "n": 2
+   },
+   "precision@5": {
+    "mean": 0.2,
+    "ci95": [
+     0.2,
+     0.2
+    ],
+    "n": 2
+   },
+   "precision@10": {
+    "mean": 0.1,
+    "ci95": [
+     0.1,
+     0.1
+    ],
+    "n": 2
+   },
+   "ndcg@1": {
+    "mean": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "n": 2
+   },
+   "ndcg@3": {
+    "mean": 0.4328,
+    "ci95": [
+     0.2346,
+     0.6309
+    ],
+    "n": 2
+   },
+   "ndcg@5": {
+    "mean": 0.4002,
+    "ci95": [
+     0.1696,
+     0.6309
+    ],
+    "n": 2
+   },
+   "ndcg@10": {
+    "mean": 0.3742,
+    "ci95": [
+     0.1175,
+     0.6309
+    ],
+    "n": 2
+   },
+   "rr": {
+    "mean": 0.4167,
+    "ci95": [
+     0.3333,
+     0.5
+    ],
+    "n": 2
+   },
+   "context_precision": {
+    "mean": 0.4166,
+    "ci95": [
+     0.3333,
+     0.5
+    ],
+    "n": 2
+   }
+  },
+  "by_type": {
+   "factual": {
+    "hit@5": 1.0,
+    "recall@5": 1.0,
+    "recall@10": 1.0,
+    "ndcg@10": 0.6309,
+    "rr": 0.5
+   },
+   "table": {
+    "hit@5": null,
+    "recall@5": null,
+    "recall@10": null,
+    "ndcg@10": null,
+    "rr": null
+   },
+   "exact_token": {
+    "hit@5": null,
+    "recall@5": null,
+    "recall@10": null,
+    "ndcg@10": null,
+    "rr": null
+   },
+   "multi_hop": {
+    "hit@5": 1.0,
+    "recall@5": 0.5,
+    "recall@10": 0.5,
+    "ndcg@10": 0.1175,
+    "rr": 0.3333
+   }
+  },
+  "retrieve_ms_p50": 179.3,
+  "retrieval_abstention": {
+   "score": "top reranker score",
+   "auroc": 1.0,
+   "best_accuracy_threshold": {
+    "t": 4.3048,
+    "false_refusal_rate": 0.0,
+    "abstention_recall": 1.0,
+    "accuracy": 1.0
+   },
+   "operating_points": {
+    "catch>=0.33": {
+     "t": 4.3048,
+     "false_refusal_rate": 0.0,
+     "abstention_recall": 1.0
+    },
+    "catch>=0.67": {
+     "t": 4.3048,
+     "false_refusal_rate": 0.0,
+     "abstention_recall": 1.0
+    },
+    "catch>=1.00": {
+     "t": 4.3048,
+     "false_refusal_rate": 0.0,
+     "abstention_recall": 1.0
+    }
+   }
+  },
+  "generation": {
+   "provider": "groq",
+   "model": "qwen/qwen3.8-27b",
+   "abstention": {
+    "n_answerable": 2,
+    "n_unanswerable": 1,
+    "precision": 0.5,
+    "recall": 1.0,
+    "false_refusal_rate": 0.5,
+    "false_answer_rate": 0.0
+   },
+   "cited_evidence_rate": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 1
+   },
+   "refused_answerable": 1,
+   "answered_unanswerable": 0,
+   "input_tokens": 7936,
+   "output_tokens": 47,
+   "errors": 0,
+   "truncated": 0
+  },
+  "judge": {
+   "model": "openai/gpt-oss-120b",
+   "faithfulness": {
+    "mean": 1.0,
+    "ci95": [
+     1.0,
+     1.0
+    ],
+    "n": 1
+   },
+   "answer_relevance": {
+    "mean": 0.3333,
+    "ci95": [
+     0.0,
+     1.0
+    ],
+    "n": 3
+   },
+   "context_precision": {
+    "mean": null,
+    "ci95": null,
+    "n": 0
+   },
+   "correctness": {
+    "mean": 0.5,
+    "ci95": [
+     0.0,
+     1.0
+    ],
+    "n": 2
+   },
+   "parse_errors": 0,
+   "judge_errors": 0
+  }
+ },
+ "rows": [
+  {
+   "id": "G001",
+   "type": "factual",
+   "answerable": true,
+   "question": "What percentage of PepsiCo's consolidated net revenue came from sales to Walmart and its affiliates in 2022?",
+   "retrieve_ms": 304.0,
+   "top_score": 7.0864,
+   "retrieved": [
+    1573,
+    1277,
+    42,
+    185,
+    1559,
+    1525,
+    1401,
+    1558,
+    5764,
+    1535
+   ],
+   "hit@1": 0.0,
+   "recall@1": 0.0,
+   "precision@1": 0.0,
+   "ndcg@1": 0.0,
+   "rr": 0.5,
+   "first_rank": 2,
+   "hit@3": 1.0,
+   "recall@3": 1.0,
+   "precision@3": 0.3333333333333333,
+   "ndcg@3": 0.6309,
+   "hit@5": 1.0,
+   "recall@5": 1.0,
+   "precision@5": 0.2,
+   "ndcg@5": 0.6309,
+   "hit@10": 1.0,
+   "recall@10": 1.0,
+   "precision@10": 0.1,
+   "ndcg@10": 0.6309,
+   "relevant_in_set": 1,
+   "context_precision": 0.5,
+   "refused": false,
+   "answer": "Sales to Walmart and its affiliates, including Sam\u2019s Club, represented approximately 14% of PepsiCo\u2019s consolidated net revenue in 2022 [1][2].",
+   "provider": "groq",
+   "model": "qwen/qwen3.8-27b",
+   "input_tokens": 2782,
+   "output_tokens": 37,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": true,
+   "truncated": false,
+   "judge_faithfulness": 1.0,
+   "judge_answer_relevance": 1.0,
+   "judge_context_precision": null,
+   "judge_correctness": 1.0,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G045",
+   "type": "multi_hop",
+   "answerable": true,
+   "question": "Which had higher revenue in 2022, Boeing or Corning, and by how much?",
+   "retrieve_ms": 179.3,
+   "top_score": 4.3048,
+   "retrieved": [
+    4739,
+    6957,
+    4511,
+    7005,
+    6789,
+    7010,
+    4993,
+    7015,
+    1735,
+    4694
+   ],
+   "hit@1": 0.0,
+   "recall@1": 0.0,
+   "precision@1": 0.0,
+   "ndcg@1": 0.0,
+   "rr": 0.3333333333333333,
+   "first_rank": 3,
+   "hit@3": 1.0,
+   "recall@3": 0.5,
+   "precision@3": 0.3333333333333333,
+   "ndcg@3": 0.2346,
+   "hit@5": 1.0,
+   "recall@5": 0.5,
+   "precision@5": 0.2,
+   "ndcg@5": 0.1696,
+   "hit@10": 1.0,
+   "recall@10": 0.5,
+   "precision@10": 0.1,
+   "ndcg@10": 0.1175,
+   "relevant_in_set": 9,
+   "context_precision": 0.3333,
+   "refused": true,
+   "answer": "I can't answer that from the indexed filings: the retrieved passages don't contain the information needed.",
+   "provider": "groq",
+   "model": "qwen/qwen3.8-27b",
+   "input_tokens": 2223,
+   "output_tokens": 5,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": null,
+   "truncated": false,
+   "judge_faithfulness": null,
+   "judge_answer_relevance": 0.0,
+   "judge_context_precision": null,
+   "judge_correctness": 0.0,
+   "judge_parse_errors": 0
+  },
+  {
+   "id": "G053",
+   "type": "unanswerable",
+   "answerable": false,
+   "question": "What was Apple's net revenue in fiscal 2022?",
+   "retrieve_ms": 166.7,
+   "top_score": 4.1037,
+   "retrieved": [
+    5736,
+    5759,
+    1423,
+    5852,
+    3376,
+    5764,
+    5765,
+    3431,
+    6789,
+    1568
+   ],
+   "refused": true,
+   "answer": "I can't answer that from the indexed filings: the retrieved passages don't contain the information needed.",
+   "provider": "groq",
+   "model": "qwen/qwen3.8-27b",
+   "input_tokens": 2931,
+   "output_tokens": 5,
+   "cached": false,
+   "invalid_markers": 0,
+   "uncited_sentences": 0,
+   "cited_evidence": null,
+   "truncated": false,
+   "judge_faithfulness": null,
+   "judge_answer_relevance": 0.0,
+   "judge_context_precision": null,
+   "judge_correctness": null,
+   "judge_parse_errors": 0
+  }
+ ]
+}

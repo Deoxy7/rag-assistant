@@ -4,10 +4,12 @@ The judge is any client with .generate(instructions, user) (app/generate/llm.py)
 normally wrapped in CachedLLM so a re-run costs nothing and returns the same
 verdicts. Each prompt asks for JSON; parse failures are counted, never guessed.
 
-    faithfulness       claims supported by the cited/provided sources / claims made
+    faithfulness       claims supported by the sources the answer cites / claims made
     answer_relevance   does the answer address the question?  score 1–5 → (s − 1) / 4
     context_precision  per retrieved chunk "useful for answering?"; averaged precision@i
-                       over the positions i of useful chunks (rank-aware, RAGAS-style)
+                       over the positions i of useful chunks (rank-aware, RAGAS-style). Only with
+                       judge_context=True: where golden labels exist, eval.run computes it from the
+                       labels instead (exact, free; metrics/retrieval.py context_precision)
     correctness        correct / partially / incorrect vs the reference answer → 1 / 0.5 / 0
 """
 
@@ -66,11 +68,16 @@ def average_precision(useful: list[bool]) -> float | None:
     return total / hits if hits else 0.0
 
 
-def judge_answer(judge, question: str, answer: str, refused: bool, sources: list[str], reference: str | None,
-                 closed_book: bool = False) -> JudgeScores:
-    """closed_book=True: there are no sources, so faithfulness and context precision are not applicable (None)."""
+def judge_answer(judge, question: str, answer: str, refused: bool, cited: list[str], reference: str | None,
+                 closed_book: bool = False, retrieved: list[str] | None = None,
+                 judge_context: bool = False) -> JudgeScores:
+    """cited: texts of the sources the answer cites (faithfulness is judged against these).
+    retrieved: every passage the model was shown (only for the LLM-judged context precision).
+    closed_book=True: no sources, so faithfulness and context precision are not applicable (None)."""
     errors = 0
-    numbered = "\n\n".join(f"PASSAGE {i + 1}:\n{s}" for i, s in enumerate(sources))
+
+    def numbered(texts):
+        return "\n\n".join(f"PASSAGE {i + 1}:\n{s}" for i, s in enumerate(texts))
 
     def ask(instructions, user):
         nonlocal errors
@@ -82,16 +89,18 @@ def judge_answer(judge, question: str, answer: str, refused: bool, sources: list
 
     faith = None
     if not refused and not closed_book:
-        r = ask(FAITHFULNESS, f"SOURCES:\n{numbered}\n\nANSWER:\n{answer}")
+        # Judged against the sources the answer cites: an answer that cites nothing has
+        # nothing to support its claims, so its supported share is 0 (not skipped).
+        r = ask(FAITHFULNESS, f"SOURCES:\n{numbered(cited) if cited else '(none cited)'}\n\nANSWER:\n{answer}")
         if r is not None:
             claims = r.get("claims", [])
             faith = (sum(bool(c.get("supported")) for c in claims) / len(claims)) if claims else None
     r = ask(RELEVANCE, f"QUESTION:\n{question}\n\nANSWER:\n{answer}")
     rel = (min(5, max(1, int(r["score"]))) - 1) / 4 if r and "score" in r else None
     ctx = None
-    if not closed_book:
-        r = ask(CONTEXT, f"QUESTION:\n{question}\n\n{numbered}")
-        if r and isinstance(r.get("useful"), list) and len(r["useful"]) == len(sources):
+    if judge_context and not closed_book and retrieved:
+        r = ask(CONTEXT, f"QUESTION:\n{question}\n\n{numbered(retrieved)}")
+        if r and isinstance(r.get("useful"), list) and len(r["useful"]) == len(retrieved):
             ctx = average_precision([bool(x) for x in r["useful"]])
         elif r is not None:
             errors += 1

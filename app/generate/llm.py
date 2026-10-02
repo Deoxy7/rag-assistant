@@ -83,7 +83,8 @@ def server_retry_delay_s(exc: Exception) -> float | None:
             m = re.fullmatch(r"([\d.]+)s", str(d.get("retryDelay", "")))
             if m:
                 return float(m.group(1))
-    m = re.search(r"retry in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", str(err.get("message", "")))
+    # Gemini: "Please retry in 5h49m5.4s"; Groq: "Please try again in 7m12.5s".
+    m = re.search(r"(?:retry|try again) in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", str(err.get("message", "")))
     if m and any(m.groups()):
         h, mi, s = (float(x) if x else 0.0 for x in m.groups())
         return h * 3600 + mi * 60 + s
@@ -91,9 +92,11 @@ def server_retry_delay_s(exc: Exception) -> float | None:
 
 
 def quota_exhausted(exc: Exception) -> bool:
-    """A 429 that waiting won't fix within a run: an empty balance (OpenAI: insufficient_quota /
+    """An error that waiting won't fix within a run: HTTP 402 (no prepaid credits), an empty balance (OpenAI: insufficient_quota /
     credit_balance_exhausted, T-038) or a *daily* quota (Gemini free tier: 20 requests/day per model,
     quotaId GenerateRequestsPerDay…, T-052). Per-minute limits are not this: they clear in seconds."""
+    if getattr(exc, "status_code", None) == 402:   # Payment Required: e.g. Gemini "prepayment credits are depleted" (T-054)
+        return True
     err = _error_dict(exc)
     codes = {getattr(exc, "code", None), err.get("code"), err.get("type")}
     if codes & {"insufficient_quota", "credit_balance_exhausted"}:
@@ -102,7 +105,8 @@ def quota_exhausted(exc: Exception) -> bool:
         for v in (d.get("violations") or []) if isinstance(d, dict) else []:
             if "PerDay" in str(v.get("quotaId", "")):
                 return True
-    return False
+    # Groq: "Rate limit reached for model … on tokens per day (TPD): Limit 200000, Used …"
+    return bool(re.search(r"per day|\(TPD\)|\(RPD\)", str(err.get("message", "")), re.I))
 
 
 def retryable(exc: Exception) -> bool:
@@ -318,27 +322,38 @@ class CachedLLM:
         self.last_result = r
 
 
-KEY_SETTING = {"gemini": ("gemini_api_key", "GEMINI_API_KEY"), "openai": ("openai_api_key", "OPENAI_API_KEY")}
+KEY_SETTING = {"gemini": ("gemini_api_key", "GEMINI_API_KEY"), "openai": ("openai_api_key", "OPENAI_API_KEY"),
+               "groq": ("groq_api_key", "GROQ_API_KEY")}
 
 
 @lru_cache(maxsize=4)
 def get_llm(role: str = "generate"):
-    """The configured client for a role ("generate" or "judge"); not cache-wrapped (CachedLLM needs a DB)."""
+    """The configured client for a role; not cache-wrapped (CachedLLM needs a DB).
+
+    "generate" uses LLM_PROVIDER / LLM_BASE_URL / LLM_MODEL; "judge" uses its own
+    LLM_JUDGE_PROVIDER / LLM_JUDGE_BASE_URL / LLM_JUDGE_MODEL, so the judge can be a
+    different model family on a different provider.
+    """
     s = get_settings()
     if role not in ("generate", "judge"):
         raise ValueError(f"unknown LLM role {role!r}")
-    if s.llm_provider == "fake":
-        return FakeLLM(model="fake-extractive-1" if role == "generate" else "fake-judge")
-    if s.llm_provider not in KEY_SETTING:
-        raise ValueError(f"LLM_PROVIDER must be one of {sorted(KEY_SETTING) + ['fake']}, not {s.llm_provider!r}")
-    attr, env = KEY_SETTING[s.llm_provider]
+    judge = role == "judge"
+    provider = s.llm_judge_provider if judge else s.llm_provider
+    if provider == "fake" or s.llm_provider == "fake":
+        # Offline mode is global: LLM_PROVIDER=fake never lets the judge call a real API.
+        return FakeLLM(model="fake-judge" if judge else "fake-extractive-1")
+    if provider not in KEY_SETTING:
+        raise ValueError(f"{'LLM_JUDGE_PROVIDER' if judge else 'LLM_PROVIDER'} must be one of "
+                         f"{sorted(KEY_SETTING) + ['fake']}, not {provider!r}")
+    attr, env = KEY_SETTING[provider]
     secret = getattr(s, attr)
     key = secret.get_secret_value().strip() if secret else ""
     if not key:
-        raise MissingAPIKey(f"LLM_PROVIDER={s.llm_provider} but {env} is empty. Add it to .env, "
+        var = "LLM_JUDGE_PROVIDER" if judge else "LLM_PROVIDER"
+        raise MissingAPIKey(f"{var}={provider} but {env} is empty. Add it to .env, "
                             "or set LLM_PROVIDER=fake to run offline with the deterministic fake model.")
-    judge = role == "judge"
-    return ChatClient(s.llm_provider, key, s.llm_judge_model if judge else s.llm_model, s.llm_base_url,
+    return ChatClient(provider, key, s.llm_judge_model if judge else s.llm_model,
+                      s.llm_judge_base_url if judge else s.llm_base_url,
                       s.llm_judge_max_output_tokens if judge else s.llm_max_output_tokens, s.llm_temperature,
                       s.llm_judge_reasoning_effort if judge else s.llm_reasoning_effort, s.llm_timeout_s,
                       s.llm_max_retries, s.llm_retry_base_s, s.llm_retry_max_s)

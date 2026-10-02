@@ -1,0 +1,31 @@
+answerable,id,question,type,cached,input_tokens,judge_answer_relevance,judge_context_precision,judge_correctness,judge_faithfulness,judge_parse_errors,model,output_tokens,provider,refused,truncated
+True,G032,What was Boeing's total backlog at the end of 2022?,table,False,107,1.0,,0.0,,0,qwen/qwen3.8-27b,66,groq,False,False
+True,G033,What was the net loss attributable to Boeing shareholders in 2022?,table,False,107,1.0,,0.0,,0,qwen/qwen3.8-27b,30,groq,False,False
+True,G034,What was Boeing's effective income tax rate in 2022?,table,False,106,1.0,,0.0,,0,qwen/qwen3.8-27b,21,groq,False,False
+True,G035,What was AMD's Computing and Graphics segment net revenue in 2021?,table,False,108,0.5,,0.0,,0,qwen/qwen3.8-27b,6,groq,False,False
+True,G036,What does AMD's FY2022 10-K say about shipping MI250X chips to China?,exact_token,False,116,0.0,,0.0,,0,qwen/qwen3.8-27b,19,groq,False,False
+True,G037,"In AMD's FY2021 results, what does the figure 16,434 represent?",exact_token,False,114,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G038,"What does the figure $404,381 represent in Boeing's FY2022 10-K?",exact_token,False,117,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G039,Which AMD server processors are built on the Zen 4 core?,exact_token,False,104,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G040,What is the status of the 777X program in Boeing's FY2022 10-K?,exact_token,False,116,1.0,,0.5,,0,qwen/qwen3.8-27b,131,groq,False,False
+True,G041,"Which PepsiCo line item was 8,910 million in 2022?",exact_token,False,111,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G042,Which PepsiCo division manufactures and distributes SodaStream sparkling water makers?,exact_token,False,104,1.0,,0.0,,0,qwen/qwen3.8-27b,250,groq,False,False
+True,G043,"Which company reported approximately 117,100 employees on a full-time equivalent basis?",exact_token,False,111,1.0,,0.0,,0,qwen/qwen3.8-27b,153,groq,False,False
+True,G044,By how much did PepsiCo's worldwide headcount change from the end of fiscal 2021 to the end of fiscal 2022?,multi_hop,False,123,1.0,,0.0,,0,qwen/qwen3.8-27b,76,groq,False,False
+True,G045,"Which had higher revenue in 2022, Boeing or Corning, and by how much?",multi_hop,False,112,1.0,,0.5,,0,qwen/qwen3.8-27b,67,groq,False,False
+True,G046,How did Corning's reported employee count change between its FY2021 and FY2022 10-K filings?,multi_hop,False,119,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G047,How did AMD's employee count change between the end of 2021 and the end of 2022?,multi_hop,False,117,1.0,,0.0,,0,qwen/qwen3.8-27b,71,groq,False,False
+True,G048,How much did Boeing's total backlog grow between the end of 2020 and the end of 2022?,multi_hop,False,118,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G049,How much did Verizon's capital expenditures increase from 2020 to 2022?,multi_hop,False,112,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G050,How did the Optical Communications segment's share of Corning's sales change from 2021 to 2022?,multi_hop,False,118,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G051,How did Walmart's share of PepsiCo's consolidated net revenue change from 2021 to 2022?,multi_hop,False,117,0.0,,0.0,,0,qwen/qwen3.8-27b,5,groq,True,False
+True,G052,"Which had more employees at the end of 2022, Verizon or AMD, and roughly how many more?",multi_hop,False,115,1.0,,0.5,,0,qwen/qwen3.8-27b,60,groq,False,False
+False,G053,What was Apple's net revenue in fiscal 2022?,unanswerable,False,105,1.0,,,,0,qwen/qwen3.8-27b,33,groq,False,False
+False,G054,What was AMD's net revenue in fiscal 2024?,unanswerable,False,105,1.0,,,,0,qwen/qwen3.8-27b,20,groq,False,False
+False,G055,What is Verizon's Net Promoter Score?,unanswerable,False,100,0.0,,,,0,qwen/qwen3.8-27b,5,groq,True,False
+False,G056,What was Lisa Su's base salary in 2022?,unanswerable,False,105,0.0,,,,0,qwen/qwen3.8-27b,5,groq,True,False
+False,G057,How many vehicles did Tesla deliver in 2022?,unanswerable,False,104,1.0,,,,0,qwen/qwen3.8-27b,22,groq,False,False
+False,G058,What dividend per share will PepsiCo pay in 2025?,unanswerable,False,106,0.0,,,,0,qwen/qwen3.8-27b,45,groq,False,False
+False,G059,How many Corning employees work in Poland?,unanswerable,False,100,0.0,,,,0,qwen/qwen3.8-27b,5,groq,True,False
+False,G060,What was Verizon's Fios video churn rate in 2022?,unanswerable,False,107,0.0,,,,0,qwen/qwen3.8-27b,5,groq,True,False
+False,G061,How many 737 MAX aircraft did Boeing deliver in 2024?,unanswerable,False,109,0.0,,,,0,qwen/qwen3.8-27b,5,groq,True,False

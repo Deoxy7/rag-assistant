@@ -105,6 +105,9 @@ def classify(exc: Exception) -> tuple[int, str, str]:
         return 503, "llm_rate_limited", "The LLM provider is rate-limiting requests; retry later."
     if isinstance(exc, openai.APITimeoutError):
         return 504, "llm_timeout", "The LLM provider did not respond in time."
+    if isinstance(exc, openai.APIStatusError) and quota_exhausted(exc):     # e.g. 402 credits depleted
+        return 503, "llm_quota_exhausted", ("The LLM provider's credits or quota are used up. "
+                                            "Add credits or wait for the quota to reset, then retry.")
     if isinstance(exc, (openai.APIConnectionError, openai.APIStatusError)):
         return 502, "llm_unavailable", "The LLM provider returned an error."
     if isinstance(exc, psycopg.OperationalError):

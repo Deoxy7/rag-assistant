@@ -106,18 +106,41 @@ def test_judge_scores_and_parsing():
     j = ScriptJudge({"claims": 'Sure! {"claims": [{"claim": "a", "supported": true}, {"claim": "b", "supported": false}]}',
                      "score": '{"score": 4}', "useful": '{"useful": [false, true, true]}',
                      "verdict": '{"verdict": "partial"}'})
-    s = jd.judge_answer(j, "q", "answer [1]", False, ["s1", "s2", "s3"], "ref")
+    s = jd.judge_answer(j, "q", "answer [1]", False, ["s1"], "ref", retrieved=["s1", "s2", "s3"], judge_context=True)
     assert s.faithfulness == 0.5 and s.answer_relevance == 0.75 and s.correctness == 0.5
     assert s.context_precision == pytest.approx((1 / 2 + 2 / 3) / 2)   # useful at ranks 2 and 3
     assert s.parse_errors == 0
 
 
+def test_faithfulness_is_judged_against_the_cited_sources_only():
+    seen = []
+
+    class Recorder(ScriptJudge):
+        def generate(self, instructions, user):
+            seen.append(user)
+            return super().generate(instructions, user)
+    j = Recorder({"claims": '{"claims": []}', "score": '{"score": 5}', "useful": "{}", "verdict": '{"verdict": "correct"}'})
+    s = jd.judge_answer(j, "q", "answer [2]", False, ["CITED TEXT"], "ref", retrieved=["other", "CITED TEXT"])
+    assert "CITED TEXT" in seen[0] and "other" not in seen[0]
+    assert "useful" not in j.calls and s.context_precision is None      # LLM context precision is opt-in
+    s = jd.judge_answer(j, "q", "uncited answer", False, [], "ref")
+    assert "(none cited)" in seen[-3]
+
+
 def test_judge_skips_faithfulness_for_refusals_and_counts_bad_json():
     j = ScriptJudge({"claims": "{}", "score": "no json here", "useful": '{"useful": [true]}', "verdict": "{}"})
-    s = jd.judge_answer(j, "q", "I can't answer", True, ["s1", "s2"], None)
+    s = jd.judge_answer(j, "q", "I can't answer", True, [], None, retrieved=["s1", "s2"], judge_context=True)
     assert "claims" not in j.calls and "verdict" not in j.calls
     assert s.faithfulness is None and s.answer_relevance is None
     assert s.context_precision is None and s.parse_errors == 2       # bad JSON + wrong-length list
+
+
+def test_label_context_precision():
+    A = (Span("X", 100, 200, 1),)
+    ranked = [C(1, "X", 900, 1500), C(2, "X", 0, 400), C(3, "Y", 0, 10), C(4, "X", 120, 600)]
+    # relevant at ranks 2 and 4 → (1/2 + 2/4) / 2 = 0.5
+    assert rm.context_precision(ranked, (A,)) == pytest.approx(0.5)
+    assert rm.context_precision([C(9, "Z", 0, 5)], (A,)) == 0.0
 
 
 # --- the golden set itself (needs the ingested database) ---------------------------------------------

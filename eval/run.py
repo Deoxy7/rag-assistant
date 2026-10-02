@@ -139,6 +139,9 @@ def run(argv=None) -> tuple[int, Path | None]:
     ap.add_argument("--generate", action="store_true", help="also generate answers with LLM_PROVIDER")
     ap.add_argument("--judge", action="store_true", help="score answers with the LLM judge (needs --generate)")
     ap.add_argument("--judge-model", default=s.llm_judge_model)
+    ap.add_argument("--judge-context", action="store_true",
+                    help="also LLM-judge context precision (costly: sends all retrieved passages); "
+                         "by default it is computed from the golden labels")
     ap.add_argument("--limit", type=int, help="first N questions only (smoke runs)")
     ap.add_argument("--ids", help="comma-separated question ids only, e.g. G001,G045,G053 (smoke runs)")
     args = ap.parse_args(argv)
@@ -200,6 +203,7 @@ def run(argv=None) -> tuple[int, Path | None]:
                                 f"ndcg@{k}": round(sc.ndcg, 4)})
                     row["rr"], row["first_rank"] = sc.rr, sc.first_rank
                 row["relevant_in_set"] = len(ideal)
+                row["context_precision"] = round(rm.context_precision(refs, q.items), 4)
             if llm is not None and quota_stop:
                 row.update({"error": f"skipped: {quota_stop}", "refused": None})
                 rows.append(row)
@@ -229,8 +233,11 @@ def run(argv=None) -> tuple[int, Path | None]:
                 row["truncated"] = bool(a.truncated)
                 if judge is not None:
                     try:
-                        js = jd.judge_answer(judge, q.question, a.text, a.refused,
-                                             [s_.hit.text for s_ in a.context.sources], q.answer)
+                        by_n = {s_.n: s_.hit.text for s_ in a.context.sources}
+                        cited = [by_n[c.n] for c in (a.report.citations if a.report else ()) if c.n in by_n]
+                        js = jd.judge_answer(judge, q.question, a.text, a.refused, cited, q.answer,
+                                             retrieved=[s_.hit.text for s_ in a.context.sources],
+                                             judge_context=args.judge_context)
                         row.update({f"judge_{k}": v for k, v in dataclasses.asdict(js).items()})
                     except Exception as exc:  # noqa: BLE001
                         row["judge_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
@@ -240,7 +247,8 @@ def run(argv=None) -> tuple[int, Path | None]:
     answerable = [r for r in rows if r["answerable"]]
     summary = {"questions": len(rows), "answerable": len(answerable), "unanswerable": len(rows) - len(answerable),
                "overall": {m: summarise(answerable, m) for m in
-                           [f"{x}@{k}" for x in ("hit", "recall", "precision", "ndcg") for k in KS] + ["rr"]},
+                           [f"{x}@{k}" for x in ("hit", "recall", "precision", "ndcg") for k in KS]
+                           + ["rr", "context_precision"]},
                "by_type": {t: {m: summarise([r for r in answerable if r["type"] == t], m)["mean"]
                                for m in ("hit@5", "recall@5", "recall@10", "ndcg@10", "rr")}
                            for t in golden.TYPES if t != "unanswerable"},

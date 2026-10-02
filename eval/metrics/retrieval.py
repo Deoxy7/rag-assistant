@@ -83,3 +83,15 @@ def score(ranked: list[ChunkRef], items, k: int, ideal_grades: list[int]) -> Ret
         rr=1.0 / first if first else 0.0,
         ndcg=dcg(grades[:k]) / idcg if idcg > 0 else 0.0,
         first_rank=first)
+
+
+def context_precision(ranked: list[ChunkRef], items) -> float:
+    """Rank-aware share of the retrieved context that is evidence, from the labels:
+    average of precision@i over the positions i holding a relevant chunk (grade ≥ 1); 0 if none.
+    The label-based twin of the LLM-judged context precision (metrics/judge.py)."""
+    hits, total = 0, 0.0
+    for i, c in enumerate(ranked, start=1):
+        if chunk_grade(c, items) >= GRADE_PARTIAL:
+            hits += 1
+            total += hits / i
+    return total / hits if hits else 0.0

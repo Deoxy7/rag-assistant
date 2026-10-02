@@ -68,27 +68,33 @@ class Settings(BaseSettings):
     rerank_batch_size: int = 32
     rerank_max_length: int = 512         # (question + chunk) tokens; longer pairs are truncated
 
-    # --- Generation (Phase 9; provider switched to Gemini on 2026-10-02) ---
+    # --- Generation (Phase 9; Gemini since 2026-10-02; Flash-Lite generator + Groq judge since 2026-10-03) ---
     # Any OpenAI-compatible Chat Completions endpoint. Provider picks which key
-    # setting is read ("gemini" → GEMINI_API_KEY, "openai" → OPENAI_API_KEY);
+    # setting is read ("gemini" → GEMINI_API_KEY, "openai" → OPENAI_API_KEY, "groq" → GROQ_API_KEY);
     # base URL and models are plain settings, so switching provider is a .env edit.
     # "fake" = deterministic offline stand-in. No silent fallback: a real provider
     # without its key is an error, so a demo can't quietly run on the fake.
-    llm_provider: str = "gemini"
-    llm_base_url: str | None = "https://generativelanguage.googleapis.com/v1beta/openai/"   # None = OpenAI
+    # Generator on Groq since 2026-10-03 (user's decision): the Gemini project returns 402 "prepayment
+    # credits are depleted" for every model (T-054). Gemini stays one .env edit away (.env.example).
+    llm_provider: str = "groq"
+    llm_base_url: str | None = "https://api.groq.com/openai/v1"   # None = OpenAI; Gemini: …/v1beta/openai/
     # SecretStr: printing settings shows '**********', never the key.
     gemini_api_key: SecretStr | None = Field(default=None, repr=False)
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
+    groq_api_key: SecretStr | None = Field(default=None, repr=False)
     # Models picked 2026-10-02 from models.list() on the user's key plus a live probe:
     # gemini-3.8-flash / 3.7-flash returned 503 "high demand", gemini-2.5-* 404 "no longer
     # available to new users"; gemini-3.5-flash (1.5 s) and gemini-3.5-flash-lite (0.8 s) answered.
     # Dated aliases like *-latest are avoided: they move, and evals must be reproducible.
-    llm_model: str = "gemini-3.5-flash"
+    # History: gemini-3.5-flash (2026-10-02) → gemini-3.5-flash-lite (free tier allowed only 20 Flash
+    # requests/day, T-052) → qwen/qwen3.8-27b on Groq (Gemini 402, T-054). Picked from the Groq key's
+    # models.list(): the judge is openai/gpt-oss-120b, so the generator is the other general model
+    # family available there (Alibaba's Qwen), keeping generator and judge in different families.
+    llm_model: str = "qwen/qwen3.8-27b"
     # Gemini 3.x Flash counts its hidden "thinking" tokens against this cap (T-046).
     llm_max_output_tokens: int = 2048
-    # "low" keeps some reasoning for calculation questions; None = don't send. Flash-Lite
-    # rejects reasoning_effort="none" with HTTP 400, so the judge default is None.
-    llm_reasoning_effort: str | None = "low"
+    # None = don't send. Flash-Lite rejects reasoning_effort="none" with HTTP 400 (T-048).
+    llm_reasoning_effort: str | None = None
     # None = don't send (some models reject a temperature parameter).
     llm_temperature: float | None = None
     llm_timeout_s: float = 60.0
@@ -100,20 +106,25 @@ class Settings(BaseSettings):
     answer_top_k: int = 10               # chunks retrieved for an answer (after rerank)
     context_token_budget: int = 3000     # o200k_base tokens of sources packed into the prompt
     context_order: str = "rank"          # "rank" (best first) | "sandwich" (best at both ends); Phase 12 ablation
-    # USD per 1M tokens (Gemini pricing page, 2026-10-02, paid tier; output includes thinking
-    # tokens; a free tier also exists); used for cost estimates only.
-    llm_price_input_per_m: float = 1.50
-    llm_price_output_per_m: float = 9.00
-    # Eval judge: Flash-Lite (user's choice, 2026-10-02): cheaper and faster than the generator,
-    # but a *weaker* model grading a stronger one (see card #37).
-    llm_judge_model: str = "gemini-3.5-flash-lite"
+    # USD per 1M tokens, for cost estimates only. Groq free tier: 0 (limits per model: 30 RPM,
+    # 1K RPD, 8K TPM, 200K TPD). Gemini 3.5 Flash-Lite paid tier would be 0.30 / 2.50.
+    llm_price_input_per_m: float = 0.0
+    llm_price_output_per_m: float = 0.0
+    # Eval judge: its own provider, so it can be a different model *family* from the generator
+    # (a Gemini judge grading a Gemini generator shares its blind spots and self-preference).
+    # Groq's free tier, OpenAI-compatible; model picked from the key's models.list() on 2026-10-03.
+    # Free-tier limits per model: 30 RPM, 1K RPD, 8K TPM, 200K TPD (Groq rate-limit docs).
+    llm_judge_provider: str = "groq"
+    llm_judge_base_url: str | None = "https://api.groq.com/openai/v1"
+    llm_judge_model: str = "openai/gpt-oss-120b"
     llm_judge_max_output_tokens: int = 1024
-    llm_judge_reasoning_effort: str | None = None
-    llm_judge_price_input_per_m: float = 0.30
-    llm_judge_price_output_per_m: float = 2.50
+    # gpt-oss reasons before answering; "low" keeps judge calls inside the free tier's token budget.
+    llm_judge_reasoning_effort: str | None = "low"
+    llm_judge_price_input_per_m: float = 0.0     # free tier
+    llm_judge_price_output_per_m: float = 0.0
 
-    @field_validator("llm_base_url", "llm_reasoning_effort", "llm_judge_reasoning_effort", "llm_temperature",
-                     mode="before")
+    @field_validator("llm_base_url", "llm_judge_base_url", "llm_reasoning_effort", "llm_judge_reasoning_effort",
+                     "llm_temperature", mode="before")
     @classmethod
     def blank_means_unset(cls, v):
         # In .env, `LLM_BASE_URL=` (empty) must mean "use the SDK default", not the URL "".
