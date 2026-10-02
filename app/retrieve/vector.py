@@ -18,6 +18,7 @@ import psycopg
 from psycopg import sql
 
 from app.retrieve.types import Filters, Hit
+from app.telemetry.trace import stage
 from app.store.repository import vector_literal
 
 FILTER_MODES = ("post", "iterative", "exact")
@@ -64,8 +65,14 @@ class VectorRetriever:
 
     def search(self, conn: psycopg.Connection, query: str, k: int = 10,
                filters: Filters | None = None, query_vector=None) -> list[Hit]:
+        with stage("retrieve.vector"):     # includes retrieve.vector.embed (nested stage)
+            return self._search(conn, query, k, filters, query_vector)
+
+    def _search(self, conn: psycopg.Connection, query: str, k: int = 10,
+                filters: Filters | None = None, query_vector=None) -> list[Hit]:
         filters = filters or Filters()
-        vec = query_vector if query_vector is not None else self.embedder.embed_query(query)
+        with stage("retrieve.vector.embed"):
+            vec = query_vector if query_vector is not None else self.embedder.embed_query(query)
         exact = self.filter_mode == "exact"
         params = {"q": vector_literal(vec), "k": k,
                   "companies": list(filters.companies or []), "years": list(filters.fiscal_years or [])}

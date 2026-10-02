@@ -58,6 +58,8 @@ def client(monkeypatch):
     """App without the real startup: fake retriever, scripted LLM, chunk set 1."""
     monkeypatch.setattr(main.state, "retriever", FakeRetriever(HITS))
     monkeypatch.setattr(main.state, "chunk_set_id", 1)
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "request_log_enabled", False)   # never write test traffic to the real log
     llm = ScriptLLM(["Net revenue was ", "$23.6 billion [1]."])
     app.dependency_overrides[llm_client] = lambda: llm
     c = TestClient(app)              # no `with`: the lifespan (model loading) doesn't run
@@ -83,8 +85,9 @@ def test_query_returns_answer_citations_sources_usage(client):
                                   "page_number": 43, "page_end": 43, "char_start": 1000, "char_end": 1039}]
     assert [s["n"] for s in body["sources"]] == [1, 2] and body["sources"][0]["section"] == ["PART II", "ITEM 7"]
     assert body["usage"] == {"provider": "script", "model": "script-1", "input_tokens": 120, "output_tokens": 12,
-                             "cached": False, "truncated": False}
-    assert set(body["timings_ms"]) == {"retrieve", "generate"}
+                             "cached": False, "truncated": False,
+                             "list_usd": pytest.approx(120 / 1e6 * 0.80 + 12 / 1e6 * 4.00), "billed_usd": 0.0}
+    assert {"retrieve", "pack", "generate"} <= set(body["timings_ms"])
 
 
 def test_request_id_is_echoed(client):
@@ -213,3 +216,25 @@ def test_end_to_end_with_real_retrieval(monkeypatch):
         assert not body["refused"] and body["citations"][0]["doc_key"] == "AMD_2022_10K"
         assert all(s["company"] == "AMD" and s["fiscal_year"] == 2022 for s in body["sources"])
     get_llm.cache_clear()
+
+
+def test_requests_are_logged_and_aggregated_by_stats(client, monkeypatch, db, test_db):
+    """Logging on, but pointed at the throwaway test database."""
+    from app.config import get_settings
+    from app.store.db import connect
+    monkeypatch.setattr(get_settings(), "request_log_enabled", True)
+    monkeypatch.setattr(main, "connect", lambda: connect(dbname=test_db))
+    client.post("/query", json={"question": "What was revenue?"})
+    client.post("/query/stream", json={"question": "What was revenue?"})
+    client.post("/query", json={"question": "   "})                        # 422: logged with its error code
+    rows = db.execute("SELECT endpoint, status, error, question_chars, input_tokens, list_usd, timings_ms ? 'generate' "
+                      "FROM request_log ORDER BY id").fetchall()
+    assert [(r[0], r[1], r[2]) for r in rows] == [("/query", 200, None), ("/query/stream", 200, None),
+                                                    ("/query", 422, "invalid_request")]
+    assert rows[0][3] == len("What was revenue?") and rows[0][4] == 120 and rows[0][5] > 0 and rows[0][6]
+    assert db.execute("SELECT count(*) FROM request_log WHERE question_sha256 IS NOT NULL").fetchone()[0] == 2
+    s = client.get("/stats", params={"hours": 1}).json()
+    assert s["requests"] == 3 and s["errors"] == 1 and s["errors_by_code"] == {"invalid_request": 1}
+    assert s["input_tokens"] == 240 and s["billed_usd"] == 0.0 and s["list_usd"] > 0
+    assert {"retrieve", "pack", "generate"} <= set(s["stages"]) and s["stages"]["generate"]["n"] == 2
+    assert client.get("/stats", params={"hours": 0}).status_code == 422

@@ -250,3 +250,54 @@ def chunks_overlapping(conn: psycopg.Connection, chunk_set_id: int, doc_key: str
                            WHERE c.chunk_set_id = %s AND d.doc_key = %s
                              AND c.char_start < %s AND c.char_end > %s
                            ORDER BY c.id""", (chunk_set_id, doc_key, char_end, char_start)).fetchall()
+
+
+# --- request log (migration 0005) ---------------------------------------------------------
+
+def log_request(conn: psycopg.Connection, row: dict) -> None:
+    """Insert one request_log row; keys are the table's column names (missing ones take defaults)."""
+    from psycopg.types.json import Jsonb
+    cols = [c for c in ("request_id", "endpoint", "status", "error", "question_sha256", "question_chars", "provider",
+                        "model", "input_tokens", "output_tokens", "cached", "refused", "truncated", "list_usd",
+                        "billed_usd", "total_ms", "timings_ms", "counters") if c in row]
+    vals = [Jsonb(row[c]) if c in ("timings_ms", "counters") else row[c] for c in cols]
+    conn.execute(sql.SQL("INSERT INTO request_log ({}) VALUES ({})").format(
+        sql.SQL(", ").join(map(sql.Identifier, cols)), sql.SQL(", ").join(sql.Placeholder() * len(cols))), vals)
+
+
+STAT_STAGES = ("retrieve", "retrieve.vector", "retrieve.vector.embed", "retrieve.keyword", "retrieve.fuse", "rerank",
+               "pack", "first_token", "generate", "llm.retry_wait")
+
+
+def request_stats(conn: psycopg.Connection, hours: float) -> dict:
+    """Aggregates over the last `hours`: counts, errors by code, cache/refusal rates, tokens, cost, latency percentiles."""
+    since = "ts > now() - make_interval(secs => %(secs)s)"
+    p = {"secs": hours * 3600}
+    tot = conn.execute(f"""SELECT count(*), count(*) FILTER (WHERE status >= 400),
+                                  count(*) FILTER (WHERE cached), count(*) FILTER (WHERE refused),
+                                  count(*) FILTER (WHERE truncated),
+                                  coalesce(sum(input_tokens), 0), coalesce(sum(output_tokens), 0),
+                                  coalesce(sum(list_usd), 0), coalesce(sum(billed_usd), 0),
+                                  percentile_cont(0.5) WITHIN GROUP (ORDER BY total_ms),
+                                  percentile_cont(0.95) WITHIN GROUP (ORDER BY total_ms)
+                           FROM request_log WHERE {since}""", p).fetchone()
+    errors = dict(conn.execute(f"""SELECT error, count(*) FROM request_log WHERE {since} AND error IS NOT NULL
+                                   GROUP BY error ORDER BY 2 DESC""", p).fetchall())
+    by_endpoint = dict(conn.execute(f"SELECT endpoint, count(*) FROM request_log WHERE {since} GROUP BY endpoint",
+                                    p).fetchall())
+    stages = {}
+    for st in STAT_STAGES:
+        r = conn.execute(f"""SELECT count(*), percentile_cont(0.5) WITHIN GROUP (ORDER BY (timings_ms->>%(st)s)::float8),
+                                    percentile_cont(0.95) WITHIN GROUP (ORDER BY (timings_ms->>%(st)s)::float8)
+                             FROM request_log WHERE {since} AND timings_ms ? %(st)s""", {**p, "st": st}).fetchone()
+        if r[0]:
+            stages[st] = {"n": r[0], "p50_ms": round(r[1], 1), "p95_ms": round(r[2], 1)}
+    n = tot[0]
+    return {"window_hours": hours, "requests": n, "by_endpoint": by_endpoint, "errors": tot[1], "errors_by_code": errors,
+            "cache_hit_rate": round(tot[2] / n, 4) if n else None, "refusal_rate": round(tot[3] / n, 4) if n else None,
+            "truncated": tot[4], "input_tokens": tot[5], "output_tokens": tot[6],
+            "list_usd": round(tot[7], 6), "billed_usd": round(tot[8], 6),
+            "list_usd_per_1k_requests": round(tot[7] / n * 1000, 4) if n else None,
+            "total_ms": {"p50": round(tot[9], 1) if tot[9] is not None else None,
+                         "p95": round(tot[10], 1) if tot[10] is not None else None},
+            "stages": stages}

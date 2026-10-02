@@ -22,6 +22,8 @@ from app.config import get_settings
 from app.generate.citations import MARKER, CitationReport, check_citations, strip_invalid_markers
 from app.generate.prompt import INSTRUCTIONS, REFUSAL_TOKEN, PackedContext, build_user_message, pack_context
 from app.retrieve.types import Filters, Hit
+from app.telemetry.cost import Price, cost
+from app.telemetry.trace import Trace, activate, stage
 
 REFUSAL_MESSAGE = ("I can't answer that from the indexed filings: the retrieved passages don't contain "
                    "the information needed.")
@@ -43,6 +45,9 @@ class Answer:
     cached: bool = False
     truncated: bool = False         # the model hit its output-token cap (finish_reason "length")
     timings_ms: dict = field(default_factory=dict)
+    counters: dict = field(default_factory=dict)       # e.g. rerank_pairs, query_embedding_cache_hit
+    list_usd: float = 0.0           # this call at the provider's paid list price (0 if cached)
+    billed_usd: float = 0.0         # what was actually billed (0 on a free tier, or if cached)
 
     @property
     def prompt(self) -> tuple[str, str]:
@@ -66,12 +71,24 @@ def is_refusal(text: str) -> bool:
     return not MARKER.search(TOKEN_ANYWHERE.sub("", text))
 
 
-def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_result=None) -> Answer:
-    meta = {}
+def generator_price() -> Price:
+    s = get_settings()
+    return Price(s.llm_price_input_per_m, s.llm_price_output_per_m, s.llm_free_tier)
+
+
+def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_result=None,
+           counters: dict | None = None) -> Answer:
+    meta = {"counters": dict(counters or {})}
     if llm_result is not None:
-        meta = dict(model=llm_result.model, provider=llm_result.provider, input_tokens=llm_result.input_tokens,
+        # Rate-limit / 5xx waits are part of "generate" and "first_token"; report them separately
+        # so model latency and quota throttling aren't confused (Phase 13: free-tier 8k TPM).
+        if getattr(llm_result, "retries", 0):
+            timings["llm.retry_wait"] = llm_result.retry_wait_ms
+            meta["counters"]["llm_retries"] = llm_result.retries
+        c = cost(llm_result.input_tokens, llm_result.output_tokens, generator_price(), llm_result.cached)
+        meta.update(model=llm_result.model, provider=llm_result.provider, input_tokens=llm_result.input_tokens,
                     output_tokens=llm_result.output_tokens, cached=llm_result.cached,
-                    truncated=getattr(llm_result, "truncated", False))
+                    truncated=getattr(llm_result, "truncated", False), list_usd=c.list_usd, billed_usd=c.billed_usd)
     if is_refusal(raw):
         return Answer(question, REFUSAL_MESSAGE, True, "model", context, None, raw, timings_ms=timings, **meta)
     shown = TOKEN_ANYWHERE.sub("", raw).strip()          # a stray token next to a cited answer
@@ -81,25 +98,34 @@ def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_r
 
 
 def retrieve_and_pack(conn, question: str, retriever, k: int, filters: Filters | None, budget: int,
-                      timings: dict) -> PackedContext:
-    t0 = time.perf_counter()
-    hits: list[Hit] = retriever.search(conn, question, k=k, filters=filters)
-    timings["retrieve"] = (time.perf_counter() - t0) * 1000
-    return pack_context(hits, budget, get_settings().context_order)
+                      timings: dict, trace: Trace | None = None) -> PackedContext:
+    """Retrieve and pack, with every stage timed into `trace` (retrieve.vector, retrieve.keyword,
+    retrieve.fuse, rerank, pack, …): the retrievers time themselves via the active trace."""
+    trace = trace or Trace()
+    with activate(trace):
+        t0 = time.perf_counter()
+        hits: list[Hit] = retriever.search(conn, question, k=k, filters=filters)
+        timings["retrieve"] = (time.perf_counter() - t0) * 1000
+        with stage("pack"):
+            context = pack_context(hits, budget, get_settings().context_order)
+    timings.update(trace.timings_ms)
+    return context
 
 
 def answer_question(conn: psycopg.Connection, question: str, retriever, llm, filters: Filters | None = None,
                     k: int | None = None, budget: int | None = None) -> Answer:
     s = get_settings()
     timings: dict = {}
+    tr = Trace()
     context = retrieve_and_pack(conn, question, retriever, k or s.answer_top_k, filters,
-                                budget or s.context_token_budget, timings)
+                                budget or s.context_token_budget, timings, tr)
     if not context.sources:
-        return Answer(question, REFUSAL_MESSAGE, True, "no_context", context, None, None, timings_ms=timings)
+        return Answer(question, REFUSAL_MESSAGE, True, "no_context", context, None, None, timings_ms=timings,
+                      counters=tr.counters)
     t0 = time.perf_counter()
     result = llm.generate(INSTRUCTIONS, build_user_message(question, context))
     timings["generate"] = (time.perf_counter() - t0) * 1000
-    return finish(question, context, result.text, timings, result)
+    return finish(question, context, result.text, timings, result, tr.counters)
 
 
 def stream_answer(conn: psycopg.Connection, question: str, retriever, llm, filters: Filters | None = None,
@@ -112,11 +138,13 @@ def stream_answer(conn: psycopg.Connection, question: str, retriever, llm, filte
     """
     s = get_settings()
     timings: dict = {}
+    tr = Trace()
     context = retrieve_and_pack(conn, question, retriever, k or s.answer_top_k, filters,
-                                budget or s.context_token_budget, timings)
+                                budget or s.context_token_budget, timings, tr)
     yield "sources", context
     if not context.sources:
-        yield "answer", Answer(question, REFUSAL_MESSAGE, True, "no_context", context, None, None, timings_ms=timings)
+        yield "answer", Answer(question, REFUSAL_MESSAGE, True, "no_context", context, None, None, timings_ms=timings,
+                               counters=tr.counters)
         return
     t0 = time.perf_counter()
     first, parts = None, []
@@ -127,4 +155,4 @@ def stream_answer(conn: psycopg.Connection, question: str, retriever, llm, filte
         parts.append(delta)
         yield "delta", delta
     timings["generate"] = (time.perf_counter() - t0) * 1000
-    yield "answer", finish(question, context, "".join(parts), timings, llm.last_result)
+    yield "answer", finish(question, context, "".join(parts), timings, llm.last_result, tr.counters)

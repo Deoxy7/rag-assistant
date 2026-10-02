@@ -21,6 +21,7 @@ from app.config import get_settings
 from app.retrieve.keyword import KeywordRetriever
 from app.retrieve.types import Filters, Hit
 from app.retrieve.vector import VectorRetriever
+from app.telemetry.trace import stage
 
 MODES = ("vector", "keyword", "hybrid")
 
@@ -71,7 +72,8 @@ class HybridRetriever:
     def search(self, conn: psycopg.Connection, query: str, k: int = 10, filters: Filters | None = None) -> list[Hit]:
         lists = [self.vector.search(conn, query, k=self.depth, filters=filters),
                  self.keyword.search(conn, query, k=self.depth, filters=filters)]
-        return rrf(lists, k=self.rrf_k)[:k]
+        with stage("retrieve.fuse"):
+            return rrf(lists, k=self.rrf_k)[:k]
 
 
 def get_retriever(mode: str, chunk_set_id: int, embedder=None, **options):

@@ -19,6 +19,7 @@ import psycopg
 from psycopg import sql
 
 from app.retrieve.types import Filters, Hit
+from app.telemetry.trace import stage
 
 RANK_FUNCTIONS = ("ts_rank", "bm25", "ts_rank_cd")
 BM25_K1 = 1.2   # term-frequency saturation: the 2nd occurrence counts less than the 1st, the 10th barely
@@ -111,6 +112,11 @@ class KeywordRetriever:
 
     def search(self, conn: psycopg.Connection, question: str, k: int = 10,
                filters: Filters | None = None) -> list[Hit]:
+        with stage("retrieve.keyword"):
+            return self._search(conn, question, k, filters)
+
+    def _search(self, conn: psycopg.Connection, question: str, k: int = 10,
+                filters: Filters | None = None) -> list[Hit]:
         filters = filters or Filters()
         phrases, rest = split_query(question)
         params: dict = {"rest": rest, "k": k, "companies": list(filters.companies or []),

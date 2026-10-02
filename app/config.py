@@ -106,10 +106,13 @@ class Settings(BaseSettings):
     answer_top_k: int = 10               # chunks retrieved for an answer (after rerank)
     context_token_budget: int = 3000     # o200k_base tokens of sources packed into the prompt
     context_order: str = "rank"          # "rank" (best first) | "sandwich" (best at both ends); Phase 12 ablation
-    # USD per 1M tokens, for cost estimates only. Groq free tier: 0 (limits per model: 30 RPM,
-    # 1K RPD, 8K TPM, 200K TPD). Gemini 3.5 Flash-Lite paid tier would be 0.30 / 2.50.
-    llm_price_input_per_m: float = 0.0
-    llm_price_output_per_m: float = 0.0
+    # USD per 1M tokens at the provider's *paid list price* (Groq models page, 2026-10-03:
+    # qwen/qwen3.8-27b $0.80 in / $4.00 out). With *_free_tier true the billed cost is 0 but the
+    # list cost is still reported, as the number to plan with. Free-tier limits per model: 30 RPM,
+    # 1K RPD, 8K TPM, 200K TPD.
+    llm_price_input_per_m: float = 0.80
+    llm_price_output_per_m: float = 4.00
+    llm_free_tier: bool = True
     # Eval judge: its own provider, so it can be a different model *family* from the generator
     # (a Gemini judge grading a Gemini generator shares its blind spots and self-preference).
     # Groq's free tier, OpenAI-compatible; model picked from the key's models.list() on 2026-10-03.
@@ -120,8 +123,14 @@ class Settings(BaseSettings):
     llm_judge_max_output_tokens: int = 1024
     # gpt-oss reasons before answering; "low" keeps judge calls inside the free tier's token budget.
     llm_judge_reasoning_effort: str | None = "low"
-    llm_judge_price_input_per_m: float = 0.0     # free tier
-    llm_judge_price_output_per_m: float = 0.0
+    llm_judge_price_input_per_m: float = 0.15    # openai/gpt-oss-120b on Groq, paid list price
+    llm_judge_price_output_per_m: float = 0.60
+    llm_judge_free_tier: bool = True
+
+    # --- Observability (Phase 13) ---
+    log_format: str = "json"             # "json" (one object per line) | "text"
+    log_level: str = "INFO"
+    request_log_enabled: bool = True     # one row per /query request in Postgres (feeds GET /stats)
 
     @field_validator("llm_base_url", "llm_judge_base_url", "llm_reasoning_effort", "llm_judge_reasoning_effort",
                      "llm_temperature", mode="before")

@@ -12,6 +12,7 @@ import torch
 from sentence_transformers import SentenceTransformer
 
 from app.config import get_settings
+from app.telemetry.trace import count
 
 
 def model_key(model: str, revision: str) -> str:
@@ -55,7 +56,10 @@ class Embedder:
 
     def embed_query(self, text: str) -> np.ndarray:
         """Query vector (instruction-prefixed); repeated queries are served from memory."""
-        return np.asarray(self._query_cache(text), dtype=np.float32)
+        before = self.texts_embedded
+        vec = np.asarray(self._query_cache(text), dtype=np.float32)
+        count("query_embedding_cache_hit" if self.texts_embedded == before else "query_embedding_computed")
+        return vec
 
 
 @lru_cache(maxsize=1)

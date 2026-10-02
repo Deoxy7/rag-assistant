@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api eval test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api bench-latency eval test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -76,6 +76,9 @@ serve: install up ## Run the API on http://127.0.0.1:8000 (docs at /docs); LLM_P
 
 bench-api: install ## Latency through HTTP against a running `make serve` (sequential, streaming, concurrent)
 	$(PY) scripts/bench_api.py
+
+bench-latency: install ## Real per-stage latency through a running `make serve` + waterfall chart [ARGS="--n 4 --offset 12"]
+	$(PY) scripts/bench_latency.py $(ARGS)
 
 eval: install up ## Golden set → eval/results/<time>_<NAME>.{json,csv}: make eval NAME=baseline [ARGS="--no-rerank --mode vector --generate --judge"]
 	$(PY) -m eval.run --name $(or $(NAME),run) $(ARGS)

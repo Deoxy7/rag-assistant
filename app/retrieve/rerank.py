@@ -19,6 +19,7 @@ from sentence_transformers import CrossEncoder
 
 from app.config import get_settings
 from app.retrieve.types import Filters, Hit
+from app.telemetry.trace import count, stage
 
 
 class Reranker:
@@ -63,7 +64,9 @@ class RerankingRetriever:
 
     def search(self, conn: psycopg.Connection, query: str, k: int = 10, filters: Filters | None = None) -> list[Hit]:
         candidates = self.base.search(conn, query, k=max(self.n, k), filters=filters)
-        return rerank(self.scorer, query, candidates)[:k]
+        with stage("rerank"):
+            count("rerank_pairs", len(candidates))
+            return rerank(self.scorer, query, candidates)[:k]
 
 
 @lru_cache(maxsize=4)

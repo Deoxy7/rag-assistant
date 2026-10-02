@@ -47,6 +47,8 @@ class LLMResult:
     latency_ms: float
     cached: bool = False
     finish_reason: str | None = None   # "stop" | "length" (hit max tokens) | … ; None when unknown
+    retry_wait_ms: float = 0.0          # time spent sleeping between retries (rate limits, 5xx), inside latency_ms
+    retries: int = 0
 
     @property
     def truncated(self) -> bool:
@@ -129,8 +131,10 @@ def backoff_s(attempt: int, base_s: float, max_s: float, retry_after: str | None
         return delay
 
 
-def with_retries(call: Callable, max_retries: int, base_s: float, max_s: float, sleep=time.sleep):
-    """Run `call()`; on a retryable error wait and try again, up to max_retries extra attempts."""
+def with_retries(call: Callable, max_retries: int, base_s: float, max_s: float, sleep=time.sleep,
+                 on_wait: Callable[[float], None] | None = None):
+    """Run `call()`; on a retryable error wait and try again, up to max_retries extra attempts.
+    `on_wait(seconds)` is told about every wait, so callers can report retry time separately."""
     for attempt in range(max_retries + 1):
         try:
             return call()
@@ -143,6 +147,8 @@ def with_retries(call: Callable, max_retries: int, base_s: float, max_s: float, 
             wait = backoff_s(attempt, base_s, max_s, str(asked) if asked is not None else None)
             log.warning("LLM call failed (%s %s); retry %d/%d in %.1f s", type(exc).__name__,
                         getattr(exc, "status_code", ""), attempt + 1, max_retries, wait)
+            if on_wait:
+                on_wait(wait)
             sleep(wait)
 
 
@@ -177,22 +183,30 @@ class ChatClient:
     def _messages(self, instructions: str, user: str) -> list[dict]:
         return [{"role": "system", "content": instructions}, {"role": "user", "content": user}]
 
+    def _waits(self):
+        waits = []
+        return waits, (lambda s: waits.append(s))
+
     def generate(self, instructions: str, user: str) -> LLMResult:
         t0 = time.perf_counter()
+        waits, on_wait = self._waits()
         r = with_retries(lambda: self.client.chat.completions.create(
-            model=self.model, messages=self._messages(instructions, user), **self.params()), **self.retry)
+            model=self.model, messages=self._messages(instructions, user), **self.params()), **self.retry,
+            on_wait=on_wait)
         u, choice = r.usage, r.choices[0]
         return LLMResult(choice.message.content or "", r.model or self.model, self.provider,
                          u.prompt_tokens if u else 0, u.completion_tokens if u else 0,
-                         (time.perf_counter() - t0) * 1000, finish_reason=choice.finish_reason)
+                         (time.perf_counter() - t0) * 1000, finish_reason=choice.finish_reason,
+                         retry_wait_ms=sum(waits) * 1000, retries=len(waits))
 
     def stream(self, instructions: str, user: str) -> Iterator[str]:
         """Streams text deltas. Retries apply to opening the stream only: once text has been
         yielded to the caller it can't be taken back, so a mid-stream failure propagates."""
         t0 = time.perf_counter()
+        waits, on_wait = self._waits()
         events = with_retries(lambda: self.client.chat.completions.create(
             model=self.model, messages=self._messages(instructions, user), stream=True,
-            stream_options={"include_usage": True}, **self.params()), **self.retry)
+            stream_options={"include_usage": True}, **self.params()), **self.retry, on_wait=on_wait)
         parts, usage, finish, model = [], None, None, self.model
         for chunk in events:
             model = chunk.model or model
@@ -206,7 +220,7 @@ class ChatClient:
                     finish = c.finish_reason
         self.last_result = LLMResult("".join(parts), model, self.provider, usage.prompt_tokens if usage else 0,
                                      usage.completion_tokens if usage else 0, (time.perf_counter() - t0) * 1000,
-                                     finish_reason=finish)
+                                     finish_reason=finish, retry_wait_ms=sum(waits) * 1000, retries=len(waits))
 
 
 WORD = re.compile(r"[a-z0-9]+")

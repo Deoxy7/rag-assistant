@@ -59,6 +59,8 @@ class Usage(BaseModel):
     output_tokens: int
     cached: bool
     truncated: bool = False       # the model hit its output-token cap; the answer may be cut off
+    list_usd: float = 0.0         # this answer at the provider's paid list price (0 if cached)
+    billed_usd: float = 0.0       # actually billed (0 on a free tier or if cached)
 
 
 class QueryResponse(BaseModel):
@@ -71,7 +73,9 @@ class QueryResponse(BaseModel):
     invalid_markers: list[int]
     uncited_sentences: list[str]
     usage: Usage
-    timings_ms: dict[str, float]
+    timings_ms: dict[str, float]  # retrieve, retrieve.vector(.embed), retrieve.keyword, retrieve.fuse, rerank, pack,
+                                  # first_token (stream), generate
+    counters: dict[str, int] = {}
 
 
 class DocumentOut(BaseModel):
@@ -100,3 +104,27 @@ class ErrorOut(BaseModel):
     request_id: str
     error: str                    # machine-readable code
     message: str
+
+
+class StageStats(BaseModel):
+    n: int
+    p50_ms: float
+    p95_ms: float
+
+
+class Stats(BaseModel):
+    window_hours: float
+    requests: int
+    by_endpoint: dict[str, int]
+    errors: int
+    errors_by_code: dict[str, int]
+    cache_hit_rate: float | None
+    refusal_rate: float | None
+    truncated: int
+    input_tokens: int
+    output_tokens: int
+    list_usd: float
+    billed_usd: float
+    list_usd_per_1k_requests: float | None
+    total_ms: dict[str, float | None]
+    stages: dict[str, StageStats]

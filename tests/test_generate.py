@@ -184,7 +184,8 @@ def test_answer_carries_citations_usage_and_timings():
     assert r.calls == [("What was revenue?", 3, None)]
     assert not a.refused and [c.n for c in a.report.citations] == [1]
     assert (a.input_tokens, a.output_tokens, a.model) == (100, 10, "scripted-1")
-    assert set(a.timings_ms) == {"retrieve", "generate"}
+    assert set(a.timings_ms) == {"retrieve", "pack", "generate"}   # fake retriever: no inner stages
+    assert a.list_usd == pytest.approx(100 / 1e6 * 0.80 + 10 / 1e6 * 4.00) and a.billed_usd == 0.0   # free tier
     instructions, user = a.prompt
     assert instructions == INSTRUCTIONS and user.endswith("Question: What was revenue?")
 
@@ -469,6 +470,18 @@ def test_finish_reason_length_marks_the_answer_truncated():
                                           "message": {"role": "assistant", "content": "1"}}]}
         return httpx.Response(200, json=cut)
     assert mock_client(handler).generate("i", "u").truncated
+
+
+def test_retry_waits_are_reported_separately():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(429, headers={"retry-after": "2"}, json={"error": {"message": "slow down", "code": "rate_limit_exceeded"}})
+        return httpx.Response(200, json=COMPLETION)
+    r = mock_client(handler).generate("i", "u")
+    assert r.retries == 2 and r.retry_wait_ms >= 4000          # two waits of at least Retry-After = 2 s (not slept: fake sleep)
 
 
 def test_chat_client_retries_a_503_then_succeeds():

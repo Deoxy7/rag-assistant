@@ -51,6 +51,14 @@ def test_db(conn):
 def db(test_db):
     """A fresh connection to the test database with every table emptied first (incl. the LLM cache)."""
     with connect(dbname=test_db) as c:
-        c.execute("TRUNCATE documents, chunk_sets, llm_cache RESTART IDENTITY CASCADE")
+        c.execute("TRUNCATE documents, chunk_sets, llm_cache, request_log RESTART IDENTITY CASCADE")
         c.commit()
         yield c
+
+
+@pytest.fixture(autouse=True)
+def no_request_log_by_default(monkeypatch):
+    """Tests never write to the real request_log (it feeds GET /stats); the one test that checks
+    logging re-enables it and points it at the throwaway test database."""
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "request_log_enabled", False)
