@@ -81,7 +81,7 @@ Interview docs: frame questions as what this architecture invites, never "from m
 
 ## Commits
 
-Local repo on `main`, no remote unless the user adds one. End commit messages with:
+Repo on `main`, remote `origin` = https://github.com/Deoxy7/rag-assistant (added by the user 2026-10-02); push after each phase's commits. Check history for secrets before pushing (`.env` is ignored). End commit messages with:
 
 ```
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>

@@ -1628,3 +1628,39 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Isn't a Flash-Lite judge grading a Flash generator unreliable? → A: It's a real weakness. A weaker judge can miss subtle unsupported claims. It was chosen for cost and speed across many sweeps, so I'd validate it on a hand-graded sample, and use it to compare configurations rather than as an absolute score.
 
 **The trap.** Believing "OpenAI-compatible" means drop-in identical, or comparing eval numbers produced by different judges.
+
+### Card x-default-after-ablation — from [16-experiments-and-ablations](../16-experiments-and-ablations.md)
+
+#### Decision: keep the default (structure-aware 256-token chunks, hybrid RRF, MiniLM rerank N = 10) after the ablation  (rejected: switching to the golden-set winner; switching to the FinanceBench winner)
+
+**One-line defence.** Nothing beat it significantly on the golden set. The configurations that look better on one test set look worse on the other (rank correlation −0.53), and hybrid + rerank is the only family that is mid-to-top on both.
+
+**What problem is this even solving?** Choosing a default from 57 measured configurations without fooling yourself: small samples, many comparisons, and a test set written by the system's author.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Keep structure256-hybrid-rr | No change | Tied-best golden hit@5 (0.769); Phase 11 history stays comparable | Best cell of the weakest strategy (winner's curse); FinanceBench 0.286 is middling | No significant alternative and conflicting test sets |
+| Switch to fixed256-keyword-rr | Golden co-winner | Same golden hit@5; simpler (no vectors) | FinanceBench 0.143, half the baseline | Never: it overfits the golden wording |
+| Switch to fixed256-hybrid-rr | Balanced candidate | FinanceBench 0.393 (+3/28); tables 0.846; recall@10 0.817 | Golden hit@5 0.712 (n.s.); a new baseline breaks comparability | If it wins on *fresh* questions |
+| Switch to a vector-only FinanceBench winner (structure510-vector) | Best FB@10 0.500 | Best on paraphrased questions | Golden hit@5 0.365–0.519; exact tokens 0.125–0.25 | Only if users never quote figures or codes |
+
+**What would actually change if we swapped it.** Three settings (`CHUNK_STRATEGY`, `CHUNK_SIZE`, `CHUNK_OVERLAP`); the chunk set already exists, so no re-ingest. A new canonical baseline file, with Phase 11's history kept but no longer the comparison point.
+
+**The decision rule.** Change a default only for a difference that's significant on the set you tuned on *and* holds on a set you didn't. With conflicting test sets, prefer the option that's robust across both over the one that wins either.
+
+**Where our choice breaks.** If the real question mix is like FinanceBench (paraphrased, analyst-style), the default leaves recall on the table: vector-heavier configurations find more evidence pages (0.40–0.50 vs 0.286). Migration path: write 30–50 *new* questions in users' own words, re-run the top 5 configurations, and switch on a significant win.
+
+**The number.** Baseline golden hit@5 0.769 [0.65–0.88], FB@10 0.286. Best rival on golden: fixed256-keyword-rr 0.769 (6/6, p = 1.00), FB 0.143. Balanced candidate fixed256-hybrid-rr: 0.712 (6/9, p = 0.61), FB 0.393. Spearman(golden, FB) over 54 configurations: −0.53.
+
+**Interview script (3 sentences).** "I ran 54 chunking × retrieval × rerank configurations plus three extras through the same harness, with paired sign tests against the default. The one robust win was the reranker, +0.067 hit@5 in 23 of 27 pairs. The surprising result was that scores on my own question set and on FinanceBench were negatively correlated, because my questions reuse the filings' wording, which flatters keyword search. So I kept the hybrid default, which is the only family that holds up on both, rather than crowning the winner of a test set I wrote myself."
+
+**Follow-ups they will ask:**
+- Q: Why not just pick the best number? → A: The best golden number ties and fails FinanceBench, and the best FinanceBench number fails exact figures. The headline is the disagreement, not either winner.
+- Q: Isn't 57 comparisons a multiple-comparisons problem? → A: Yes, so I only act on effects far beyond chance. 30 configurations are significantly worse than the default (20 at p ≤ 0.01); none is significantly better.
+- Q: What's the winner's curse here? → A: The default is the top cell of the strategy that's weakest on average, and the configuration I debugged on in Phase 11. Its score is likely optimistic, which is why fixed256-hybrid-rr gets re-tested on fresh questions.
+- Q: Why does the reranker not change FinanceBench? → A: That metric is page-hit@10, and reranking only reorders the same 10 chunks. Its gains show up in hit@1, MRR and hit@5.
+- Q (the hard one): So which configuration is actually best? → A: I don't know for real users. That needs a question set in their words. What I can say is which choice is robust (hybrid + rerank), which consistently hurts (128-token structure chunks, vector-only on exact tokens), and that my own test set is biased toward keyword matching.
+
+**The trap.** Declaring the top row of an ablation table the winner.

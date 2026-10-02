@@ -133,3 +133,14 @@ Numbers:  key lists 61 models; probe: 3.8/3.7-flash 503, 2.5-* 404, 3.5-flash 1,
 Open:     full 61-question judged eval (Phase 12); judge (Flash-Lite) weaker than generator → validate on a hand-graded sample; live retry not observed (503s had cleared), covered by unit tests.
 Next:     Phase 12 — ablations.
 
+## Phase 12 — Ablations   [retrieval DONE 2026-10-02; generation ablations BLOCKED on LLM quota]
+
+Built:    8 new chunk sets (3 strategies × 128/256/510, overlap size // 8; 61–107 s each; DB 66 → 418 MB; embedding model unchanged); `eval/ablate.py` (54-cell grid + 3 extras through eval.run, resumable by golden sha, FinanceBench page-hit@10 per config, paired sign test vs baseline, winner per metric, CSV + MD, charts); `eval/run.py`: `run()` returns the result path, `--rank-function`, `--closed-book` (+ `eval/closed_book.py`), quota stop; judge `closed_book` mode; daily-quota detection + server-delay cap in `with_retries` (`server_retry_delay_s`, `quota_exhausted` PerDay); GitHub remote pushed.
+Docs:     `docs/16-experiments-and-ablations.md` (card x-default-after-ablation), `docs/22-interview-prep.md` first version; 8 interview questions (P12-01…P12-08); T-052, T-053.
+Diagrams: `16-ablation-matrix`, generated `16-where-it-sits`; charts `16-ablation-hit5.png`, `16-ablation-golden-vs-financebench.png`.
+Results:  `eval/results/20261002T175959Z_ablation-v1.{csv,md}` + 57 `*_abl-v1-*` runs.
+Numbers:  baseline structure256-hybrid-rr golden hit@5 0.769 (tied best; fixed256-keyword-rr 0.769, 6/6 p 1.00); none significantly better, 30 significantly worse (20 at p ≤ 0.01); rerank better in 23 of 27 pairs, +0.067 hit@5, default 0.635 → 0.769 (8 vs 1, p 0.04); Spearman(golden hit@5, FB hit@10) −0.53; mode avg golden/FB: vector 0.453/0.401, keyword 0.638/0.183, hybrid 0.649/0.302; size avg 128 0.536, 256 0.615, 510 0.588; strategy avg fixed 0.607, recursive 0.591, structure 0.542; BM25 0.692, rerank N=20 0.673 (both n.s.); balanced candidate fixed256-hybrid-rr golden 0.712 / FB 0.393.
+Decisions: keep the default (no significant winner; test sets disagree; hybrid robust on both).
+Open:     closed-book baseline and full 61-question judged runs need 61+ gemini-3.5-flash requests; free tier allows 20/day → user decision (billing / wait / judge-model swap); fresh questions in users' wording to re-test fixed256-hybrid-rr.
+Next:     generation ablations once quota allows; Phase 13 — cost & observability.
+

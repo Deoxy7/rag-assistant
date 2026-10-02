@@ -404,3 +404,24 @@ gemini-3.5-flash-lite effort=none BadRequestError 400 Error code: 400 - [{'error
 
 - **Cause:** pydantic keeps empty strings, and the OpenAI SDK only falls back to its default URL for `None`.
 - **Fix:** a validator turns blank optional LLM settings into `None` (`test_blank_optional_llm_settings_mean_unset`).
+
+## Phase 12
+
+### T-052 · Judged eval stalled on 429 retries: Gemini free-tier *daily* quota — hit
+
+```text
+LLM call failed (RateLimitError 429); retry 5/6 in …
+429 RESOURCE_EXHAUSTED: Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests,
+limit: 20, model: gemini-3.5-flash … Please retry in 5h49m5.47s.
+quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier
+```
+
+- **Symptom:** the first 20-question batch of the full judged run did 3 questions in 10 minutes, with 59 retries logged.
+- **Cause:** the free tier allows 20 `gemini-3.5-flash` requests per day per model (Flash-Lite has its own quota and kept working). My retry policy treated every non-balance 429 as transient.
+- **Fix:** `quota_exhausted()` recognises `PerDay` quota violations; `with_retries` gives up when the server's requested delay (RetryInfo, Retry-After or "retry in 5h49m") exceeds the 30 s cap; `eval.run` stops calling the LLM after a quota error and marks the rest `skipped`; the API's message names the reset time. Tests use the real error body.
+- **Still needed:** a full 61-question judged run needs 61 Flash requests. That means billing on the Google AI project (only the account owner can enable it), or about 4 days of free quota.
+
+### T-053 · `pipeline.py: error: argument --size: expected one argument` — hit
+
+- **Cause:** a zsh loop did `set -- $cfg` to split "structure 128 16". zsh doesn't word-split unquoted variables, so `--size` got nothing.
+- **Fix:** a shell function with explicit positional arguments (`ing structure 128 16`).

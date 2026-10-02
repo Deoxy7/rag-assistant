@@ -113,6 +113,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P11-09 | Switching LLM providers: cost and real lock-in | [06](06-system-design.md) | design | design, deep-dive | 3 | | |
 | P11-10 | Retries for an eval sweep that can't die halfway | [06](06-system-design.md) | reliability | backend, design | 3 | | |
 | P11-11 | The model answered just "1" — why? | [06](06-system-design.md) | debugging | ML | 2 | | |
+| P12-01 | 57 configurations: which won, and how sure? | [07](07-evaluation.md) | eval | deep-dive, ML | 4 | | |
+| P12-02 | Your test set and FinanceBench disagree — which to trust? | [07](07-evaluation.md) | eval | ML, deep-dive | 4 | | |
+| P12-03 | Chunk size and strategy: what the ablation said | [04](04-retrieval.md) | chunking | ML | 3 | | |
+| P12-04 | Prove the reranker is worth its latency | [04](04-retrieval.md) | rerank | design, ML | 3 | | |
+| P12-05 | Design an ablation a reviewer would believe | [06](06-system-design.md) | eval | design, ML | 3 | | |
+| P12-06 | Eval sweep stuck on 429 retries — debug | [08](08-debugging-scenarios.md) | debugging | backend | 3 | | |
+| P12-07 | The winner's curse | [11](11-cs-core-touchpoints.md) | statistics | viva, ML | 2 | | |
+| P12-08 | Closed-book baseline: what and why | [03](03-fundamentals.md) | eval | ML, viva | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

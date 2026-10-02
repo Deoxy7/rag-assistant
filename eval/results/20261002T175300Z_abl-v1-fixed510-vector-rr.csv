@@ -1,0 +1,62 @@
+answerable,id,question,type,first_rank,hit@1,hit@10,hit@3,hit@5,ndcg@1,ndcg@10,ndcg@3,ndcg@5,precision@1,precision@10,precision@3,precision@5,recall@1,recall@10,recall@3,recall@5,relevant_in_set,retrieve_ms,rr,top_score
+True,G001,What percentage of PepsiCo's consolidated net revenue came from sales to Walmart and its affiliates in 2022?,factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,166.9,0.0,2.937
+True,G002,How many people did PepsiCo employ worldwide at the end of fiscal 2022?,factual,1,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.1,0.3333333333333333,0.2,1.0,1.0,1.0,1.0,1,123.9,1.0,6.0318
+True,G003,How many PepsiCo employees were in the United States at the end of fiscal 2021?,factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,124.9,0.0,2.5901
+True,G004,How many employees did AMD have at the end of 2022?,factual,1,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.1,0.3333333333333333,0.2,1.0,1.0,1.0,1.0,1,132.5,1.0,3.8808
+True,G005,"How many employees did AMD have as of December 25, 2021?",factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,132.2,0.0,3.835
+True,G006,"How many full-time-equivalent employees did Verizon have at the end of 2022, and what share were based in the U.S.?",factual,2,0.0,1.0,1.0,1.0,0.0,0.6309,0.6309,0.6309,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,1,133.9,0.5,3.8673
+True,G007,"How many full- and part-time employees did Corning report in its FY2022 10-K, and in how many countries?",factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,132.0,0.0,-2.481
+True,G008,How many manufacturing plants did Corning report in its FY2021 10-K?,factual,1,1.0,1.0,1.0,1.0,1.0,0.4693,0.4693,0.4693,1.0,0.1,0.3333333333333333,0.2,1.0,1.0,1.0,1.0,3,129.6,1.0,-1.0264
+True,G009,What share of Corning's total segment net sales did Display Technologies represent in 2022?,factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,123.2,0.0,6.3811
+True,G010,What share of Corning's consolidated net sales did the Optical Communications segment represent in 2021?,factual,7,0.0,1.0,0.0,0.0,0.0,0.3333,0.0,0.0,0.0,0.1,0.0,0.0,0.0,1.0,0.0,0.0,1,117.2,0.14285714285714285,7.1939
+True,G011,"What were Verizon's capital expenditures, including capitalized software, in 2022?",factual,1,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.1,0.3333333333333333,0.2,1.0,1.0,1.0,1.0,1,121.1,1.0,4.2593
+True,G012,When did Verizon begin using C-Band spectrum for 5G service?,factual,6,0.0,1.0,0.0,0.0,0.0,0.3562,0.0,0.0,0.0,0.1,0.0,0.0,0.0,1.0,0.0,0.0,1,116.9,0.16666666666666666,4.0713
+True,G013,How many wireless retail postpaid connections were removed from Verizon's customer base when it retired its 3G network?,factual,6,0.0,1.0,0.0,0.0,0.0,0.3562,0.0,0.0,0.0,0.1,0.0,0.0,0.0,1.0,0.0,0.0,1,123.4,0.16666666666666666,4.2282
+True,G014,During what period were Boeing 787 deliveries suspended?,factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,129.7,0.0,0.9771
+True,G015,"How many Boeing employees were union represented at the end of 2022, and what share of the workforce was that?",factual,3,0.0,1.0,1.0,1.0,0.0,0.5,0.5,0.5,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,1,130.9,0.3333333333333333,6.162
+True,G016,Which wide-body airplane did Boeing end production of in 2022?,factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,131.4,0.0,2.9459
+True,G017,How many new employees did Boeing hire in 2022?,factual,1,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.2,0.6666666666666666,0.4,1.0,1.0,1.0,1.0,2,132.1,1.0,8.209
+True,G018,"What company did AMD acquire in May 2022, and what kind of products does it add?",factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,131.8,0.0,3.4169
+True,G019,"What were AMD's cash, cash equivalents and short-term investments at the end of 2022?",factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,132.2,0.0,3.1514
+True,G020,Since what year has PepsiCo paid consecutive quarterly cash dividends?,factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,129.9,0.0,0.9169
+True,G021,"What were Verizon Consumer segment revenues in 2022, and what share of consolidated revenues was that?",factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,130.0,0.0,5.5397
+True,G022,"According to Boeing's FY2021 10-K, what share of Commercial Airplanes' total backlog (in dollars) was with non-U.S. airlines?",factual,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,131.1,0.0,0.4522
+True,G023,What was AMD's total net revenue in 2022?,table,1,1.0,1.0,1.0,1.0,1.0,0.3392,0.4693,0.3392,1.0,0.1,0.3333333333333333,0.2,1.0,1.0,1.0,1.0,5,130.1,1.0,5.4329
+True,G024,How much did AMD spend on research and development in 2022?,table,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,129.0,0.0,2.3422
+True,G025,What was AMD's Data Center segment net revenue in 2022?,table,2,0.0,1.0,1.0,1.0,0.0,0.6934,0.6934,0.6934,0.0,0.2,0.6666666666666666,0.4,0.0,1.0,1.0,1.0,2,131.2,0.5,6.0273
+True,G026,What was PepsiCo's net revenue in fiscal 2022?,table,3,0.0,1.0,1.0,1.0,0.0,0.5,0.5,0.5,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,1,131.7,0.3333333333333333,6.7369
+True,G027,What was net income attributable to PepsiCo in 2022?,table,3,0.0,1.0,1.0,1.0,0.0,0.2346,0.2346,0.2346,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,3,129.1,0.3333333333333333,5.6864
+True,G028,What was net income attributable to Verizon in 2022?,table,3,0.0,1.0,1.0,1.0,0.0,0.3066,0.3066,0.3066,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,2,121.4,0.3333333333333333,6.298
+True,G029,What were Corning's net sales in 2022?,table,4,0.0,1.0,0.0,1.0,0.0,0.369,0.0,0.1461,0.0,0.3,0.0,0.2,0.0,1.0,0.0,1.0,5,126.5,0.25,5.7732
+True,G030,What was Corning's gross margin percentage in 2022 compared with 2021?,table,3,0.0,1.0,1.0,1.0,0.0,0.5,0.5,0.5,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,1,128.6,0.3333333333333333,6.6114
+True,G031,What were Boeing's total revenues in 2022?,table,2,0.0,1.0,1.0,1.0,0.0,0.4415,0.5307,0.4415,0.0,0.2,0.6666666666666666,0.4,0.0,1.0,1.0,1.0,4,130.0,0.5,5.7738
+True,G032,What was Boeing's total backlog at the end of 2022?,table,2,0.0,1.0,1.0,1.0,0.0,0.6309,0.6309,0.6309,0.0,0.1,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,1,130.0,0.5,3.3094
+True,G033,What was the net loss attributable to Boeing shareholders in 2022?,table,3,0.0,1.0,1.0,1.0,0.0,0.1992,0.2346,0.1696,0.0,0.2,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,6,130.4,0.3333333333333333,7.3203
+True,G034,What was Boeing's effective income tax rate in 2022?,table,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,130.2,0.0,3.7942
+True,G035,What was AMD's Computing and Graphics segment net revenue in 2021?,table,3,0.0,1.0,1.0,1.0,0.0,0.511,0.3066,0.3066,0.0,0.2,0.3333333333333333,0.2,0.0,1.0,1.0,1.0,2,131.8,0.3333333333333333,6.6416
+True,G036,What does AMD's FY2022 10-K say about shipping MI250X chips to China?,exact_token,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,131.6,0.0,-3.3254
+True,G037,"In AMD's FY2021 results, what does the figure 16,434 represent?",exact_token,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,132.0,0.0,-2.8897
+True,G038,"What does the figure $404,381 represent in Boeing's FY2022 10-K?",exact_token,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,131.0,0.0,-4.0544
+True,G039,Which AMD server processors are built on the Zen 4 core?,exact_token,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,130.5,0.0,5.7279
+True,G040,What is the status of the 777X program in Boeing's FY2022 10-K?,exact_token,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1,133.9,0.0,1.3975
+True,G041,"Which PepsiCo line item was 8,910 million in 2022?",exact_token,1,1.0,1.0,1.0,1.0,1.0,0.4693,0.4693,0.4693,1.0,0.1,0.3333333333333333,0.2,1.0,1.0,1.0,1.0,3,130.0,1.0,0.8821
+True,G042,Which PepsiCo division manufactures and distributes SodaStream sparkling water makers?,exact_token,1,1.0,1.0,1.0,1.0,1.0,0.7654,0.7654,0.7654,1.0,0.2,0.6666666666666666,0.4,1.0,1.0,1.0,1.0,3,126.7,1.0,5.3082
+True,G043,"Which company reported approximately 117,100 employees on a full-time equivalent basis?",exact_token,5,0.0,1.0,0.0,1.0,0.0,0.2372,0.0,0.2372,0.0,0.1,0.0,0.2,0.0,1.0,0.0,1.0,2,116.4,0.2,-4.4393
+True,G044,By how much did PepsiCo's worldwide headcount change from the end of fiscal 2021 to the end of fiscal 2022?,multi_hop,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,121.0,0.0,4.0216
+True,G045,"Which had higher revenue in 2022, Boeing or Corning, and by how much?",multi_hop,4,0.0,1.0,0.0,1.0,0.0,0.172,0.0,0.1461,0.0,0.2,0.0,0.2,0.0,0.5,0.0,0.5,9,125.6,0.25,3.291
+True,G046,How did Corning's reported employee count change between its FY2021 and FY2022 10-K filings?,multi_hop,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,128.4,0.0,-3.4454
+True,G047,How did AMD's employee count change between the end of 2021 and the end of 2022?,multi_hop,3,0.0,1.0,1.0,1.0,0.0,0.3066,0.3066,0.3066,0.0,0.1,0.3333333333333333,0.2,0.0,0.5,0.5,0.5,2,130.6,0.3333333333333333,1.2247
+True,G048,How much did Boeing's total backlog grow between the end of 2020 and the end of 2022?,multi_hop,2,0.0,1.0,1.0,1.0,0.0,0.6241,0.3869,0.6241,0.0,0.2,0.3333333333333333,0.4,0.0,1.0,0.5,1.0,2,129.5,0.5,4.0652
+True,G049,How much did Verizon's capital expenditures increase from 2020 to 2022?,multi_hop,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,128.3,0.0,5.0919
+True,G050,How did the Optical Communications segment's share of Corning's sales change from 2021 to 2022?,multi_hop,3,0.0,1.0,1.0,1.0,0.0,0.5,0.3066,0.3066,0.0,0.2,0.3333333333333333,0.2,0.0,1.0,0.5,0.5,2,128.2,0.3333333333333333,4.4962
+True,G051,How did Walmart's share of PepsiCo's consolidated net revenue change from 2021 to 2022?,multi_hop,,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2,130.4,0.0,4.8824
+True,G052,"Which had more employees at the end of 2022, Verizon or AMD, and roughly how many more?",multi_hop,1,1.0,1.0,1.0,1.0,1.0,0.4693,0.4693,0.4693,1.0,0.1,0.3333333333333333,0.2,0.5,0.5,0.5,0.5,3,131.9,1.0,-0.0498
+False,G053,What was Apple's net revenue in fiscal 2022?,unanswerable,,,,,,,,,,,,,,,,,,,130.0,,0.0067
+False,G054,What was AMD's net revenue in fiscal 2024?,unanswerable,,,,,,,,,,,,,,,,,,,134.2,,5.4516
+False,G055,What is Verizon's Net Promoter Score?,unanswerable,,,,,,,,,,,,,,,,,,,131.3,,-0.3404
+False,G056,What was Lisa Su's base salary in 2022?,unanswerable,,,,,,,,,,,,,,,,,,,125.8,,-4.3506
+False,G057,How many vehicles did Tesla deliver in 2022?,unanswerable,,,,,,,,,,,,,,,,,,,132.5,,-2.0972
+False,G058,What dividend per share will PepsiCo pay in 2025?,unanswerable,,,,,,,,,,,,,,,,,,,129.8,,4.8919
+False,G059,How many Corning employees work in Poland?,unanswerable,,,,,,,,,,,,,,,,,,,123.5,,-0.8884
+False,G060,What was Verizon's Fios video churn rate in 2022?,unanswerable,,,,,,,,,,,,,,,,,,,129.8,,2.6318
+False,G061,How many 737 MAX aircraft did Boeing deliver in 2024?,unanswerable,,,,,,,,,,,,,,,,,,,131.8,,5.3807

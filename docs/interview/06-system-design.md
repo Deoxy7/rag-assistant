@@ -513,3 +513,31 @@
 **Trap.** Treating every 200 response as a complete answer.
 
 **Bridge.** "finish_reason is now a column in the cache and the eval rows."
+
+---
+
+## Phase 12 questions
+
+### Q: Design an ablation that a reviewer would believe.
+**ID:** P12-05 · **Round:** system design · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "Vary a full grid, not one factor at a time, because factors interact. Keyword search scored 0.538 to 0.769 depending on chunking. Hold everything else fixed: same questions, embedding model, k, fusion constant, index settings. Run every cell through the same evaluation code. Compare each cell to the baseline with a paired test, and check every cell on an external set. Make it resumable and record the label hash, so reruns reuse results. Mine: 54 cells + 3 extras, 8 minutes, no LLM calls."
+
+**2-minute answer.** Explain why each piece matters. The grid exposes interactions. Paired tests separate effects that overlapping CIs hide. The external set catches tuning to the test set's style (here, the −0.53 correlation). Multiple-comparisons awareness: act only on effects far beyond chance. And the embedding model stays fixed, because re-embedding would change everything at once.
+
+**If they push — level 2.** *"Cost control?"* Retrieval-only cells cost nothing. Judged generation runs are limited to a few key configurations, with every LLM call cached.
+
+**If they push — level 3.** *"How do you keep the ablation code honest?"* Each cell *is* an ordinary eval run with flags. No separate scoring path exists to drift.
+
+**If they push — level 4.** *"Bigger grids?"* Fractional-factorial designs, or a sequential search (screen factors cheaply, refine around the robust region).
+
+**Whiteboard it.**
+```text
+ grid 3 strategies × 3 sizes × 3 modes × 2 rerank = 54 (+3 extras)
+ fixed: model · k · RRF k · depth · ef_search · labels (sha)
+ per cell: eval.run → JSON · paired sign test vs base · FinanceBench check
+```
+
+**Trap.** One-factor-at-a-time on a single test set.
+
+**Bridge.** "The external check is what turned this from a leaderboard into a finding."

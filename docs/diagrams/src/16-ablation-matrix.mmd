@@ -1,0 +1,32 @@
+%% Owner: docs/16-experiments-and-ablations.md — what was varied, what was held fixed, what was measured.
+flowchart LR
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef evalc fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef bad fill:#ffffff,stroke:#dc2626,stroke-dasharray:4 3,color:#7f1d1d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    subgraph varied["Varied (54-cell grid + 3 extras)"]
+        strat["chunking strategy<br/>fixed · recursive · structure"]:::ingest
+        size["chunk size (tokens)<br/>128 · 256 · 510, overlap = size ÷ 8"]:::ingest
+        mode["retrieval mode<br/>vector · keyword · hybrid (RRF)"]:::retrieve
+        rr["cross-encoder rerank<br/>on (N = 10) · off"]:::retrieve
+        extra["extras on the baseline<br/>BM25 ranking · rerank N = 20"]:::retrieve
+    end
+    fixed["Held fixed<br/>bge-small embeddings · k = 10 · RRF k = 60 ·<br/>depth 50 · ef_search 160 · golden_v1"]:::io
+    eval["eval.run per config<br/>61 golden questions (52 answerable)<br/>+ 28 FinanceBench questions"]:::evalc
+    out["ablation table + charts<br/>hit@1/5 · recall@10 · MRR · nDCG · by type ·<br/>p50 ms · sign test vs baseline"]:::evalc
+    gen["generation ablations (Gemini)<br/>closed-book · judged answers"]:::generate
+    block["blocked: free tier = 20 Flash<br/>requests / day (T-052)"]:::bad
+    legend["Legend<br/>blue = ingestion · green = retrieval · purple = generation · orange = eval ·<br/>white = fixed inputs · red dashed = not run"]:::legend
+
+    strat --> eval
+    size --> eval
+    mode --> eval
+    rr --> eval
+    extra --> eval
+    fixed -.-> eval
+    eval -->|57 result files| out
+    gen -.-> block

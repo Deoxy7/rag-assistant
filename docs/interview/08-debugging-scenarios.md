@@ -529,3 +529,31 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Tuning weights to "make the number go up" before understanding why it was zero.
 
 **Bridge.** "The harness's first job turned out to be finding bugs, not ranking methods."
+
+---
+
+## Phase 12 questions
+
+### Q: An overnight eval sweep made almost no progress, logging 429 retries for an hour. Debug.
+**ID:** P12-06 · **Round:** backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "This happened. After 10 minutes, only 3 of 20 questions were done and 59 retries logged. Reading the 429 body showed a *daily* free-tier quota, GenerateRequestsPerDayPerProjectPerModel-FreeTier, limit 20, 'retry in 5h49m'. My policy treated every 429 except an empty balance as transient. The fix: detect daily quotas and any server-requested delay longer than the 30 s cap as non-retryable, and make the runner stop calling the LLM once a quota is exhausted, marking the remaining questions skipped. Cached answers are kept, so a rerun after the reset resumes cheaply."
+
+**2-minute answer.** The general lesson: a status code is a category, not a diagnosis. Read the body (`QuotaFailure.violations[].quotaId`, `RetryInfo.retryDelay`) and honour what the server says. Then the capacity point: 20 requests/day means a 61-question run is impossible on the free tier, which is a billing decision, not a code fix.
+
+**If they push — level 2.** *"How do you tell per-minute from per-day limits?"* The quotaId names it ("PerMinute" / "PerDay"), and the retry delay is seconds vs hours.
+
+**If they push — level 3.** *"Why stop the whole run?"* Every further call would fail the same way. Stopping saves time and keeps the result honest: those rows are skipped, not wrong.
+
+**If they push — level 4.** *"Client-side protection?"* A request budget per run and a token bucket at the provider's rate, so you know before starting whether the run fits the quota.
+
+**Whiteboard it.**
+```text
+ 429 RESOURCE_EXHAUSTED · quotaId …PerDay…-FreeTier · limit 20 · retry in 5h49m
+ before: retried ×6 per call (hopeless)   after: fail fast → runner stops LLM calls → rows skipped
+ rerun after reset: cached answers reused, only the rest paid
+```
+
+**Trap.** Retrying every 429 with backoff.
+
+**Bridge.** "That's also the quota the full judged run hit."

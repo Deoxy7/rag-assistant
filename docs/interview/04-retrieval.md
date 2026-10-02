@@ -468,3 +468,56 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Quoting only the overall average.
 
 **Bridge.** "That ordering of fixes is the plan for the ablations."
+
+---
+
+## Phase 12 questions
+
+### Q: What did the ablation say about chunk size and chunking strategy?
+**ID:** P12-03 · **Round:** ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "256 tokens was the best size on my golden set on average (hit@5 0.615 vs 0.536 at 128 and 0.588 at 510). 510 was slightly better on FinanceBench (0.325). 128 was worst on both: small chunks lose the context that makes a passage findable. On strategy, the surprise is that structure-aware chunking is the *weakest* on average (0.542 vs 0.607 fixed), even though its 256-token hybrid + rerank cell is the top configuration. That smells like a winner's curse."
+
+**2-minute answer.** Explain the interaction: 128-token structure chunks are tiny heading-bounded pieces (14,513 chunks) and the worst row (0.27–0.62), while fixed 256-token windows do well for keyword search because each window carries more words. Then the confounder: chunk size changes how many relevant chunks exist, so precision isn't comparable across sizes, and I compare hit and recall instead.
+
+**If they push — level 2.** *"Why might fixed beat structure?"* Fixed windows always carry ~256 tokens of context; structure chunks can be a short paragraph with its heading only. For table rows, a fixed window often includes the row labels and neighbouring rows (table hit@5 0.846 at fixed/256 vs 0.615 at structure/256).
+
+**If they push — level 3.** *"Then why not switch?"* No significant difference against the default on golden (6/9, p = 0.61). The FinanceBench gain is 3 of 28 questions. It's worth re-testing on fresh questions, not switching blind.
+
+**If they push — level 4.** *"What about semantic chunking?"* Not built. It would be one more strategy column in the same grid.
+
+**Whiteboard it.**
+```text
+ size avg hit@5: 128 .536 · 256 .615 · 510 .588     FB: .278 · .282 · .325
+ strategy avg:   fixed .607 · recursive .591 · structure .542
+ best cell: structure256-hybrid-rr .769 (winner's curse risk)
+```
+
+**Trap.** Assuming structure-aware chunking is always better.
+
+**Bridge.** "That's a hypothesis for the next question set, not a conclusion."
+
+---
+
+### Q: Prove the reranker is worth its latency.
+**ID:** P12-04 · **Round:** system design · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "Across the 27 chunking × mode pairs, turning the reranker on improved hit@5 in 23, tied in 2 and lost in 2: +0.067 on average, and +0.075 on hit@1. For the default configuration it's 0.635 → 0.769, a paired sign test of 8 wins to 1 loss, p = 0.04. It costs about 70 ms at 256-token chunks. Its effect on FinanceBench page-hit@10 is exactly zero, because it only reorders the same 10 chunks."
+
+**2-minute answer.** Tie it to the product: the generator reads sources in order, and the top few matter most. Reranking moves evidence into the top 5 and to rank 1. Then the measured limits: N = 20 didn't help (0.673), a bigger model didn't help (Phase 8), and at 510-token chunks it costs about 130 ms.
+
+**If they push — level 2.** *"Why does it lose sometimes?"* Wrong-company or wrong-year passages on the same topic: the cross-encoder judges topic, not entity (Phase 8).
+
+**If they push — level 3.** *"Is 70 ms acceptable?"* Against a 2.5 s generation, yes. It's 3% of an answer's latency for the biggest robust quality gain measured.
+
+**If they push — level 4.** *"When would you drop it?"* A latency budget under ~50 ms with no LLM step (search-only UI), or a first stage that's already precise at rank 1.
+
+**Whiteboard it.**
+```text
+ pairs (27): better 23 · tie 2 · worse 2 · mean Δhit@5 +.067
+ default: .635 → .769 (8 vs 1, p = .04) · +~70 ms · FB@10 unchanged (reorders top 10)
+```
+
+**Trap.** Citing one configuration's improvement as proof.
+
+**Bridge.** "Paired comparisons across many configurations are what make it convincing."

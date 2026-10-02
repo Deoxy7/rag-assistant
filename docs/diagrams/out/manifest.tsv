@@ -16,7 +16,7 @@ name	source	sha256	svg_bytes	png_bytes
 06-where-it-sits	docs/diagrams/build/06-where-it-sits.mmd	b58039370f8179624b6a3848d6dd5a678371bdb4bacd22033d08365d718bebb6	48472	270117
 07-embedding-batch-flow	docs/diagrams/src/07-embedding-batch-flow.mmd	a09b51b35196242a5b3b58be3778a878ead9c50480b798265ac52e8ff4e8721a	24233	247171
 07-where-it-sits	docs/diagrams/build/07-where-it-sits.mmd	57d9e4aa78e26f1e3a95ad1aa390eae21c1c28590138555745f8ffc9baa2a36f	48472	270086
-08-er-diagram	docs/diagrams/src/08-er-diagram.mmd	e7acd970b860a792c094c1acbffc753469fa2025f89cd7f0d0342734c659c07a	136852	391278
+08-er-diagram	docs/diagrams/src/08-er-diagram.mmd	e7acd970b860a792c094c1acbffc753469fa2025f89cd7f0d0342734c659c07a	136840	391278
 08-hnsw-concept	docs/diagrams/src/08-hnsw-concept.mmd	81ef60d3fa4a9a7af6a5c86f0be208fe4385550aa8e4e88df97836ca337181b7	26615	198878
 08-where-it-sits	docs/diagrams/build/08-where-it-sits.mmd	c6f6a94ae0a86925d858d2df88ae84489cd092c1a71a0459c744133c1b7ae6f6	48472	270378
 09-filter-modes	docs/diagrams/src/09-filter-modes.mmd	acefdcbf68e6fd90fbcacd3ee0737125409d21f0f6a3f596fcb3eacc5fe0c748	21930	228628
@@ -39,3 +39,5 @@ name	source	sha256	svg_bytes	png_bytes
 15-golden-construction	docs/diagrams/src/15-golden-construction.mmd	690cd56539f1a9bd91ad8d77aa0b635ffd025715ca88ae26f158eb03d4a4c258	27290	158958
 15-metric-decision-tree	docs/diagrams/src/15-metric-decision-tree.mmd	5722c3707b84cc282630ceef39cc476f8b771092b969bda595f38451b9f1708e	37663	324034
 15-where-it-sits	docs/diagrams/build/15-where-it-sits.mmd	76ff41fbba2fea800cc5a2c639a03fe2274035839f1362ccce36832513511f7d	48472	270067
+16-ablation-matrix	docs/diagrams/src/16-ablation-matrix.mmd	35950d7c8b3d1afcffb6d2ac090695f6a5efcf65fb80626b2964d642acb6015a	26065	399120
+16-where-it-sits	docs/diagrams/build/16-where-it-sits.mmd	76ff41fbba2fea800cc5a2c639a03fe2274035839f1362ccce36832513511f7d	48472	270067

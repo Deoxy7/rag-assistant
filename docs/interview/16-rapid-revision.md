@@ -120,6 +120,12 @@
 | Thinking tokens gotcha? | Count against max_tokens: cap 60 → answer '1' (finish=length); cap now 2048, truncated flag. |
 | Retry policy? | 429 (not quota) / 5xx / timeouts: backoff 1·2^n s, cap 30, jitter, Retry-After; 6 retries. |
 | Cache proof? | Smoke eval 101 s / 16,572 tokens → rerun 13 s / 0 tokens, identical outputs. |
+| Ablation size? | 54-cell grid (3 strategies × 3 sizes × 3 modes × rerank on/off) + 3 extras, 8 min, no LLM. |
+| Ablation winner? | None significantly better than the default (0.769); 30 significantly worse. |
+| Reranker across the grid? | Better in 23 of 27 pairs, +0.067 hit@5; FB@10 unchanged (reorders the same 10). |
+| Golden vs FinanceBench? | Spearman −0.53; keyword .638/.183, vector .453/.401, hybrid .649/.302. |
+| Balanced candidate? | fixed256-hybrid-rr: golden .712 (n.s.), FB .393, tables .846, recall@10 .817. |
+| Free-tier gotcha? | 20 Flash requests/day: daily-quota 429s now fail fast; run stops calling the LLM. |
 
 ## Top questions so far
 

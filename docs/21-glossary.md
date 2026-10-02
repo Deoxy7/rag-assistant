@@ -26,6 +26,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Bi-encoder | Model that embeds query and passage separately, so passages can be embedded in advance. | [07](07-embeddings.md) |
 | Bind address | The network interface a port listens on; `127.0.0.1` = this machine only, `0.0.0.0` = every interface. | [03](03-environment-and-infra.md) |
 | BM25 | Ranking: Σ idf · tf·(k1+1)/(tf + k1·(1−b+b·len/avg)); rare terms count more, repeats saturate. | [10](10-keyword-search.md) |
+| Bonferroni correction | Dividing the significance threshold by the number of tests (0.05 / 57 ≈ 0.0009). | [16](16-experiments-and-ablations.md) |
 | Bootstrap CI | Interval from resampling the questions with replacement and taking percentiles of the metric. | [15](15-eval-harness.md) |
 | Born-digital PDF | A PDF whose pages contain real text drawing instructions (not pictures of text). | [04](04-corpus.md) |
 | Bounding box (bbox) | Smallest rectangle around an element: (x0, y0, x1, y1) in PDF points, origin top-left. | [05](05-pdf-parsing.md) |
@@ -44,6 +45,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | ColBERT / late interaction | Retrieval with one vector per token, scored by MaxSim (each query token's best match, summed). | [12](12-reranking.md) |
 | Colima | Open-source tool that runs a small Linux VM with a Docker engine on macOS. | [03](03-environment-and-infra.md) |
 | Column gutter | A vertical strip no text crosses, separating two columns of text. | [05](05-pdf-parsing.md) |
+| Confounder | Something that changes along with the factor studied (e.g. chunk size changes the number of relevant chunks). | [16](16-experiments-and-ablations.md) |
 | Container | Isolated processes sharing the host's kernel, with their own view of files, network and processes. | [03](03-environment-and-infra.md) |
 | Content hash (sha256) | A 64-hex-character fingerprint of a file's bytes; any change alters it. | [04](04-corpus.md) |
 | Content stream | A PDF page's drawing instructions (fonts, positions, glyphs) — not paragraphs. | [05](05-pdf-parsing.md) |
@@ -51,6 +53,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Context precision | Rank-aware share of retrieved chunks judged useful (average precision over useful positions). | [15](15-eval-harness.md) |
 | Context window | The maximum number of tokens (input + output) a model can handle in one call. | [01](01-what-is-rag.md) |
 | Contrastive training | Training that pulls matching pairs' vectors together and pushes non-matching ones apart. | [07](07-embeddings.md) |
+| Controlled experiment | Only the studied factors vary; everything else is held fixed. | [16](16-experiments-and-ablations.md) |
 | COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
 | Corpus manifest | A committed list of corpus files with source URL, size and sha256 (`data/manifest.json`). | [04](04-corpus.md) |
 | Cosine similarity | a·b / (‖a‖‖b‖): cosine of the angle between vectors; equals the dot product for unit vectors. | [07](07-embeddings.md) |
@@ -75,6 +78,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Exponential backoff | Waiting base·2^attempt (capped) between retries, so a struggling server gets progressively more room. | [13](13-prompting-and-citations.md) |
 | Expression index | An index on an expression's result (embedding::vector(384)); queries must use the same expression. | [08](08-database-schema.md) |
 | Extension (Postgres) | A package adding types, functions, operators or index types; enabled per database with `CREATE EXTENSION`. | [03](03-environment-and-infra.md) |
+| External validity | Whether a result holds beyond the test set it was measured on. | [16](16-experiments-and-ablations.md) |
 | Factory pattern | One function that turns configuration into the right implementation (`get_chunker`). | [06](06-chunking.md) |
 | Faithfulness | Share of an answer's claims supported by the given sources (LLM-judged). | [15](15-eval-harness.md) |
 | False-refusal rate | Share of answerable questions the system refused. | [15](15-eval-harness.md) |
@@ -104,6 +108,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | IDF (inverse document frequency) | ln(1 + (N − df + 0.5)/(df + 0.5)): high for rare terms. | [10](10-keyword-search.md) |
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
+| Interaction effect | A factor's effect depends on another factor's level. | [16](16-experiments-and-ablations.md) |
 | Interleaving | When two fused lists don't overlap, RRF alternates them (#1, #1, #2, #2…), because equal ranks earn equal scores. | [11](11-hybrid-rrf.md) |
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
 | Iterative index scan | pgvector ≥ 0.8: keep walking HNSW until enough rows pass the filter. | [09](09-vector-search.md) |
@@ -134,6 +139,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Modular monolith | One deployable application divided into modules with enforced boundaries. | [02](02-architecture-overview.md) |
 | MPS (Metal Performance Shaders) | PyTorch's backend for Apple GPUs. | [07](07-embeddings.md) |
 | MRR (mean reciprocal rank) | Average of 1 / rank of the first relevant result. | [15](15-eval-harness.md) |
+| Multiple comparisons | Running many tests makes some look significant by chance. | [16](16-experiments-and-ablations.md) |
 | MVCC | Multi-version concurrency control: updates write new row versions; readers see committed versions. | [08](08-database-schema.md) |
 | Namespaces | Linux kernel feature giving a process its own view of files, network and process ids. | [03](03-environment-and-infra.md) |
 | NFKC normalisation | Unicode normal form that folds compatibility characters (non-breaking space, ligatures) to plain forms. | [05](05-pdf-parsing.md) |
@@ -149,6 +155,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | OpenAPI | Machine-readable API description generated from the request/response models (/openapi.json, /docs). | [14](14-api-and-streaming.md) |
 | Operating point | One chosen threshold together with its error rates. | [15](15-eval-harness.md) |
 | Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
+| Paired comparison | Comparing two systems on the same items, counting only where they differ. | [16](16-experiments-and-ablations.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
 | Parser version (cache key) | Version string stored with parsed output; bumping it forces a re-parse. | [05](05-pdf-parsing.md) |
@@ -204,6 +211,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | SET LOCAL | Change a setting until the end of the current top-level transaction. | [09](09-vector-search.md) |
 | Sign test | Paired test on wins vs losses between two systems over the same questions. | [15](15-eval-harness.md) |
 | Span / line / block (PyMuPDF) | Run of text in one font / spans on one baseline / lines grouped by PyMuPDF. | [05](05-pdf-parsing.md) |
+| Spearman rank correlation | Correlation of rankings rather than values; −1 means opposite orders. | [16](16-experiments-and-ablations.md) |
 | Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
 | SSE (Server-Sent Events) | A one-way HTTP stream of events from server to client, used to stream answer tokens. | [14](14-api-and-streaming.md) (Phase 10) |
 | Stamp file | An empty file whose timestamp tells Make when a step last ran. | [03](03-environment-and-infra.md) |
@@ -240,6 +248,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Virtual machine (VM) | Software emulating a whole computer, running its own kernel. | [03](03-environment-and-infra.md) |
 | Volume | Docker-managed storage that outlives containers; holds our database files. | [03](03-environment-and-infra.md) |
 | Weighted-score fusion | Normalise each list's scores, then take a weighted sum; needs a tuned weight. | [11](11-hybrid-rrf.md) |
+| Winner's curse | The best of many noisy measurements is, on average, overestimated. | [16](16-experiments-and-ablations.md) |
 | WordPiece | BERT's subword tokenizer; continuation pieces are marked ## (16,434 → 16 , 43 ##4). | [06](06-chunking.md) |
 | Workload contract | The answers to: how big, how often, how many, who sees what, what if unsure, which latency matters. | [02](02-architecture-overview.md) |
 | WSGI | The synchronous Python web interface (Flask, Django classic). | [14](14-api-and-streaming.md) |

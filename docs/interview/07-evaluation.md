@@ -306,3 +306,58 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Computing IDCG from the retrieved list only.
 
 **Bridge.** "The same graded labels drive every other metric."
+
+---
+
+## Phase 12 questions
+
+### Q: You ran 57 configurations. Which one won, and how sure are you?
+**ID:** P12-01 · **Round:** project deep-dive · ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "On my golden set, the default (structure-aware 256-token chunks, hybrid RRF, cross-encoder rerank) tied for best at hit@5 0.769, and nothing beat it significantly in a paired sign test. 30 configurations were significantly worse. But the winner depends on the test set. Across the 54 grid configurations, golden-set and FinanceBench scores have a rank correlation of −0.53. So the honest answer is that hybrid + rerank is the robust choice, and 'the best' configuration for real users needs questions in their own words."
+
+**2-minute answer.** Walk through the three findings: the reranker's consistent gain (23 of 27 pairs, +0.067); the keyword/vector inversion between the two sets, explained by my questions reusing filing wording; and the winner's-curse risk, since the default is the best cell of the weakest chunking strategy on average and the configuration I debugged on. Then the candidate to re-test: fixed256-hybrid-rr (FinanceBench 0.393 vs 0.286, golden 0.712, n.s.).
+
+**If they push — level 2.** *"Why not just switch to the FinanceBench winner?"* Vector-only 510 scores 0.500 there, but finds exact figures only 12.5% of the time. Users quote figures.
+
+**If they push — level 3.** *"Multiple comparisons?"* 57 tests at 0.05 would give about 3 false positives. 30 significantly-worse configurations is far beyond that, and zero better is the informative part.
+
+**If they push — level 4.** *"What experiment settles it?"* 50 new questions written in users' own words, the top 5 configurations, and paired tests. Decide on that set, not on either existing one.
+
+**Whiteboard it.**
+```text
+ golden best: base .769 = fixed256-kw-rr .769 (6/6, p 1.0)   none significantly better · 30 worse
+ FinanceBench: vector-only best (.50), keyword worst (.14)    Spearman(golden, FB) = −0.53
+ robust: hybrid + rerank   ·   candidate: fixed256-hybrid-rr (FB .393, golden .712 n.s.)
+```
+
+**Trap.** Reading the top row of the table as the answer.
+
+**Bridge.** "Which is why the eval harness reports an external set at all."
+
+---
+
+### Q: Your own test set and FinanceBench disagree. Which do you trust?
+**ID:** P12-02 · **Round:** ML screen · project deep-dive  **Difficulty:** 4/5
+
+**30-second answer.** "Neither alone, because they measure different things. My golden questions copy the filings' wording, so keyword search, which matches words, scores 0.638 on average there but 0.183 on FinanceBench, whose analysts paraphrase. Vector search is the reverse: 0.453 vs 0.401. A choice that's only good on one set is tuned to its question style. Hybrid is mid-to-top on both, which is the property I want when I don't know the users' style."
+
+**2-minute answer.** Name the general lesson as external validity: a benchmark's question-writing process is part of what it measures. Then the fix: diversify how questions are written (paraphrases of the golden questions, user logs), and report results per style rather than averaging them away.
+
+**If they push — level 2.** *"Could you paraphrase your golden questions automatically?"* Yes, with an LLM, keeping the evidence labels. That's a cheap way to test wording sensitivity, and it would be reviewed by hand.
+
+**If they push — level 3.** *"Is FinanceBench perfect?"* No: page-level labels and only 28 questions on these filings, and many need calculations across statements. It's a check, not ground truth.
+
+**If they push — level 4.** *"Would this change your hybrid weighting?"* Possibly. A vector-heavier fusion might suit paraphrased questions. That's an ablation on the new question set, not a decision from these.
+
+**Whiteboard it.**
+```text
+            golden (filing wording)   FinanceBench (paraphrase)
+ vector          .453                       .401
+ keyword         .638                       .183
+ hybrid          .649                       .302   ← robust
+```
+
+**Trap.** "My test set says X, so X."
+
+**Bridge.** "The same bias is why I'd never tune the reranker on the golden set alone."

@@ -375,3 +375,31 @@
 **Trap.** Treating overlapping intervals as proof of "no difference": use a paired test.
 
 **Bridge.** "Phase 12 uses paired tests for every ablation comparison."
+
+---
+
+## Phase 12 questions
+
+### Q: What's the winner's curse, and where did you see it?
+**ID:** P12-07 · **Round:** viva · ML screen  **Difficulty:** 2/5
+
+**30-second answer.** "When you pick the best of many noisy measurements, its score is on average an overestimate, because part of why it came first is luck. With 57 configurations on 52 questions, the top score is likely inflated. My default is the top cell of structure-aware chunking, which is the *weakest* strategy on average (0.542 vs 0.607 for fixed), and it's the configuration I debugged and audited labels on. So I expect its 0.769 to drop on fresh questions."
+
+**2-minute answer.** Connect it to regression to the mean and to multiple comparisons. The remedy is re-measurement on new data: a held-out split, or new questions. Report the selection process, not just the winner.
+
+**If they push — level 2.** *"How big is the inflation?"* Unknown here. A simulation would bootstrap the selection process: resample the questions, pick the best each time, and compare its score to its out-of-sample score.
+
+**If they push — level 3.** *"Is the reranker effect also inflated?"* Much less: it's an average over 27 pairs, not a maximum, and consistent (23 better).
+
+**If they push — level 4.** *"Bonferroni?"* 0.05 / 57 ≈ 0.0009. The 20 configurations worse at p ≤ 0.01 are not all below that, but the pattern (vector-only and 128-token structure) is consistent.
+
+**Whiteboard it.**
+```text
+ pick max of 57 noisy scores → E[max] > true value of that config
+ our max: structure256-hybrid-rr .769, but structure avg .542 (weakest)
+ remedy: re-test top configs on fresh questions
+```
+
+**Trap.** Reporting the best configuration's score as its expected performance.
+
+**Bridge.** "Which is why the next step is a fresh question set, not more tuning."

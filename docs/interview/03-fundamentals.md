@@ -344,3 +344,31 @@
 **Trap.** Reporting hit rate as "recall" for multi-part answers.
 
 **Bridge.** "The multi-hop gap is the clearest weakness the eval found."
+
+---
+
+## Phase 12 questions
+
+### Q: What is a closed-book baseline, and why does a RAG evaluation need one?
+**ID:** P12-08 · **Round:** ML screen · viva  **Difficulty:** 2/5
+
+**30-second answer.** "Ask the same questions with no retrieval and see how many the model answers from its own training data. AMD's revenue or PepsiCo's headcount may well be memorised, so without this baseline a RAG system could get credit for answers the documents didn't provide. It also tests abstention: does the model refuse 'Lisa Su's base salary', or guess? It's built (`--closed-book`, its own prompt, judged on correctness and relevance), but not yet measured. The free tier allows 20 generation requests a day, and the run needs 61."
+
+**2-minute answer.** Explain what each outcome would mean. A high closed-book score shrinks the value attributed to retrieval to citations and freshness. A low one shows retrieval is doing the work. Faithfulness and context precision don't apply (no sources), so it's compared on correctness, refusals and false answers.
+
+**If they push — level 2.** *"Couldn't the model's memory still leak into RAG answers?"* Yes. That's why rule 2 forbids outside knowledge, and faithfulness checks claims against sources.
+
+**If they push — level 3.** *"Why does the prompt allow refusal?"* To measure calibrated abstention: a model that guesses everything looks better on correctness and worse on unanswerables.
+
+**If they push — level 4.** *"Fair comparison?"* The same questions, judge and model; only retrieval differs.
+
+**Whiteboard it.**
+```text
+ RAG:         question + sources → answer [n]   → correctness, faithfulness, refusals
+ closed book: question only      → answer       → correctness, refusals (no sources)
+ gap = what retrieval adds (beyond citations)
+```
+
+**Trap.** Claiming a RAG accuracy without knowing the closed-book accuracy.
+
+**Bridge.** "It's the first run once there's quota for 61 generation calls."
