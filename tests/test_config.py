@@ -25,3 +25,9 @@ def test_environment_variables_override_defaults(monkeypatch):
 def test_password_never_appears_in_repr(monkeypatch):
     monkeypatch.setenv("POSTGRES_PASSWORD", "super-secret-value")
     assert "super-secret-value" not in repr(Settings(_env_file=None))
+
+
+def test_blank_optional_llm_settings_mean_unset():
+    from app.config import Settings
+    s = Settings(postgres_password="p", llm_base_url="", llm_reasoning_effort="  ", llm_temperature="")
+    assert (s.llm_base_url, s.llm_reasoning_effort, s.llm_temperature) == (None, None, None)

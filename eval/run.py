@@ -29,7 +29,7 @@ from pathlib import Path
 from app.config import get_settings
 from app.embed.embedder import get_embedder, model_key
 from app.generate.answer import answer_question
-from app.generate.llm import CachedLLM, FakeLLM, OpenAIClient, get_llm
+from app.generate.llm import CachedLLM, ChatClient, FakeLLM, get_llm
 from app.retrieve.hybrid import get_retriever
 from app.retrieve.rerank import RerankingRetriever, get_reranker
 from app.store import repository as repo
@@ -109,6 +109,7 @@ def main(argv=None) -> int:
     ap.add_argument("--judge", action="store_true", help="score answers with the LLM judge (needs --generate)")
     ap.add_argument("--judge-model", default=s.llm_judge_model)
     ap.add_argument("--limit", type=int, help="first N questions only (smoke runs)")
+    ap.add_argument("--ids", help="comma-separated question ids only, e.g. G001,G045,G053 (smoke runs)")
     args = ap.parse_args(argv)
     if args.judge and not args.generate:
         ap.error("--judge needs --generate")
@@ -121,18 +122,31 @@ def main(argv=None) -> int:
             print(f"error: chunk set {args.chunk_strategy}/{args.chunk_size}/{args.chunk_overlap} not ingested",
                   file=sys.stderr)
             return 2
-        questions = golden.load(conn)[: args.limit]
+        questions = golden.load(conn)
+        if args.ids:
+            wanted = [x.strip() for x in args.ids.split(",") if x.strip()]
+            unknown = set(wanted) - {q.id for q in questions}
+            if unknown:
+                print(f"error: unknown question ids {sorted(unknown)}", file=sys.stderr)
+                return 2
+            questions = [q for q in questions if q.id in wanted]
+        questions = questions[: args.limit]
         retriever = build_retriever(args, cs)
         llm = judge = None
         if args.generate:
             llm = CachedLLM(get_llm(), connect)
         if args.judge:
-            if isinstance(get_llm(), FakeLLM):
-                print("error: --judge needs a real model (LLM_PROVIDER=openai); the fake model can't grade",
+            judge_client = get_llm("judge")
+            if isinstance(judge_client, FakeLLM):
+                print("error: --judge needs a real model (LLM_PROVIDER=gemini or openai); the fake model can't grade",
                       file=sys.stderr)
                 return 2
-            judge = CachedLLM(OpenAIClient(s.openai_api_key.get_secret_value().strip(), args.judge_model, 600,
-                                           None, s.llm_timeout_s), connect)
+            if args.judge_model != judge_client.model:      # --judge-model overrides LLM_JUDGE_MODEL for one run
+                judge_client = ChatClient(judge_client.provider, judge_client.client.api_key, args.judge_model,
+                                          judge_client.base_url, judge_client.max_output_tokens, judge_client.temperature,
+                                          judge_client.reasoning_effort, s.llm_timeout_s, s.llm_max_retries,
+                                          s.llm_retry_base_s, s.llm_retry_max_s)
+            judge = CachedLLM(judge_client, connect)
         rows = []
         for q in questions:
             t0 = time.perf_counter()
@@ -151,7 +165,14 @@ def main(argv=None) -> int:
                     row["rr"], row["first_rank"] = sc.rr, sc.first_rank
                 row["relevant_in_set"] = len(ideal)
             if llm is not None:
-                a = answer_question(conn, q.question, retriever, llm, k=args.k)
+                try:
+                    a = answer_question(conn, q.question, retriever, llm, k=args.k)
+                except Exception as exc:  # noqa: BLE001 — after retries: record it and keep the run going
+                    row.update({"error": f"{type(exc).__name__}: {str(exc)[:200]}", "refused": None})
+                    rows.append(row)
+                    print(f"  {q.id}: generation failed after retries ({type(exc).__name__}); recorded, continuing",
+                          file=sys.stderr)
+                    continue
                 row.update({"refused": a.refused, "answer": a.text, "provider": a.provider, "model": a.model,
                             "input_tokens": a.input_tokens, "output_tokens": a.output_tokens, "cached": a.cached,
                             "invalid_markers": len(a.report.invalid_markers) if a.report else 0,
@@ -160,10 +181,14 @@ def main(argv=None) -> int:
                                                                                c.char_end), it) > 0
                                                    for c in a.report.citations for it in q.items)
                                                if a.report and q.answerable else None)})
+                row["truncated"] = bool(a.truncated)
                 if judge is not None:
-                    js = jd.judge_answer(judge, q.question, a.text, a.refused, [s_.hit.text for s_ in a.context.sources],
-                                         q.answer)
-                    row.update({f"judge_{k}": v for k, v in dataclasses.asdict(js).items()})
+                    try:
+                        js = jd.judge_answer(judge, q.question, a.text, a.refused,
+                                             [s_.hit.text for s_ in a.context.sources], q.answer)
+                        row.update({f"judge_{k}": v for k, v in dataclasses.asdict(js).items()})
+                    except Exception as exc:  # noqa: BLE001
+                        row["judge_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
             rows.append(row)
         conn.commit()
 
@@ -194,26 +219,32 @@ def main(argv=None) -> int:
                                         "abstention_recall": round(best[2], 4), "accuracy": round(best[3], 4)},
             "operating_points": points}
     if llm is not None:
-        sc = ab.abstention([r["refused"] for r in rows], [r["answerable"] for r in rows])
-        summary["generation"] = {"provider": rows[0]["provider"] if rows else None,
-                                 "model": next((r["model"] for r in rows if r["model"]), None),
+        done = [r for r in rows if r.get("refused") is not None]
+        sc = ab.abstention([r["refused"] for r in done], [r["answerable"] for r in done])
+        summary["generation"] = {"provider": next((r["provider"] for r in done), None),
+                                 "model": next((r["model"] for r in rows if r.get("model")), None),
                                  "abstention": dataclasses.asdict(sc),
                                  "cited_evidence_rate": summarise([{"x": float(r["cited_evidence"])} for r in answerable
                                                                    if r.get("cited_evidence") is not None], "x"),
-                                 "input_tokens": sum(r["input_tokens"] for r in rows if not r["cached"]),
-                                 "output_tokens": sum(r["output_tokens"] for r in rows if not r["cached"])}
+                                 "input_tokens": sum(r["input_tokens"] for r in done if not r["cached"]),
+                                 "output_tokens": sum(r["output_tokens"] for r in done if not r["cached"]),
+                                 "errors": len(rows) - len(done),
+                                 "truncated": sum(bool(r.get("truncated")) for r in done)}
         if judge is not None:
             summary["judge"] = {"model": judge.model,
                                 **{m: summarise(rows, f"judge_{m}") for m in
                                    ("faithfulness", "answer_relevance", "context_precision", "correctness")},
-                                "parse_errors": sum(r.get("judge_parse_errors", 0) for r in rows)}
+                                "parse_errors": sum(r.get("judge_parse_errors", 0) for r in rows),
+                                "judge_errors": sum("judge_error" in r for r in rows)}
 
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    config = {k: v for k, v in vars(args).items() if k not in ("limit",)} | {
+    config = {k: v for k, v in vars(args).items() if k not in ("limit", "ids")} | {"ids": args.ids,
         "chunk_set_id": cs, "ks": KS, "ef_search": 160, "embedding_model": model_key(s.embedding_model,
                                                                                    s.embedding_model_revision),
         "rerank_model": s.rerank_model if args.rerank else None, "llm_provider": s.llm_provider if args.generate else None,
-        "llm_model": s.llm_model if args.generate else None, "limit": args.limit}
+        "llm_base_url": s.llm_base_url if args.generate else None, "llm_model": s.llm_model if args.generate else None,
+        "llm_reasoning_effort": s.llm_reasoning_effort if args.generate else None,
+        "judge_model": args.judge_model if args.judge else None, "limit": args.limit}
     meta = {"created_utc": stamp, "golden_file": str(golden.GOLDEN.relative_to(ROOT)),
             "golden_sha256": golden.file_sha256(), "git": git_state(), "python": platform.python_version(),
             "wall_s": round(time.perf_counter() - t_start, 1)}
@@ -242,7 +273,13 @@ def main(argv=None) -> int:
         g = summary["generation"]
         a_ = g["abstention"]
         print(f"  generation ({g['provider']} / {g['model']}): refused unanswerable {a_['recall']}, "
-              f"false refusals {a_['false_refusal_rate']}, cited evidence {g['cited_evidence_rate']['mean']}")
+              f"false refusals {a_['false_refusal_rate']}, cited evidence {g['cited_evidence_rate']['mean']}, "
+              f"errors {g['errors']}, truncated {g['truncated']}, tokens in {g['input_tokens']} / out {g['output_tokens']}")
+    if "judge" in summary:
+        j = summary["judge"]
+        print(f"  judge ({j['model']}): " + " · ".join(f"{m} {j[m]['mean']}" for m in
+              ("faithfulness", "answer_relevance", "context_precision", "correctness"))
+              + f" · parse errors {j['parse_errors']} · judge errors {j['judge_errors']}")
     print(f"  → {jpath.relative_to(ROOT)}\n  → {cpath.relative_to(ROOT)}")
     return 0
 

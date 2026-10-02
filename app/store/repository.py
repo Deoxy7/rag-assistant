@@ -189,18 +189,18 @@ def relation_sizes(conn: psycopg.Connection) -> list[tuple[str, int]]:
 
 # --- LLM response cache (migration 0003) -------------------------------------------
 
-def llm_cache_get(conn: psycopg.Connection, key: str) -> tuple[str, int, int] | None:
-    """(response_text, input_tokens, output_tokens) for a cached key, counting the hit; None if absent."""
+def llm_cache_get(conn: psycopg.Connection, key: str) -> tuple[str, int, int, str | None] | None:
+    """(response_text, input_tokens, output_tokens, finish_reason) for a cached key, counting the hit; None if absent."""
     row = conn.execute("""UPDATE llm_cache SET hits = hits + 1 WHERE key = %s
-                          RETURNING response_text, input_tokens, output_tokens""", (key,)).fetchone()
-    return (row[0], row[1], row[2]) if row else None
+                          RETURNING response_text, input_tokens, output_tokens, finish_reason""", (key,)).fetchone()
+    return (row[0], row[1], row[2], row[3]) if row else None
 
 
 def llm_cache_put(conn: psycopg.Connection, key: str, provider: str, model: str,
-                  text: str, input_tokens: int, output_tokens: int) -> None:
-    conn.execute("""INSERT INTO llm_cache (key, provider, model, response_text, input_tokens, output_tokens)
-                    VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (key) DO NOTHING""",
-                 (key, provider, model, text, input_tokens, output_tokens))
+                  text: str, input_tokens: int, output_tokens: int, finish_reason: str | None = None) -> None:
+    conn.execute("""INSERT INTO llm_cache (key, provider, model, response_text, input_tokens, output_tokens, finish_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (key) DO NOTHING""",
+                 (key, provider, model, text, input_tokens, output_tokens, finish_reason))
 
 
 # --- citation support -------------------------------------------------------------

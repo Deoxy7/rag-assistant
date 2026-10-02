@@ -40,6 +40,7 @@ class Answer:
     input_tokens: int = 0
     output_tokens: int = 0
     cached: bool = False
+    truncated: bool = False         # the model hit its output-token cap (finish_reason "length")
     timings_ms: dict = field(default_factory=dict)
 
     @property
@@ -56,7 +57,8 @@ def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_r
     meta = {}
     if llm_result is not None:
         meta = dict(model=llm_result.model, provider=llm_result.provider, input_tokens=llm_result.input_tokens,
-                    output_tokens=llm_result.output_tokens, cached=llm_result.cached)
+                    output_tokens=llm_result.output_tokens, cached=llm_result.cached,
+                    truncated=getattr(llm_result, "truncated", False))
     if is_refusal(raw):
         return Answer(question, REFUSAL_MESSAGE, True, "model", context, None, raw, timings_ms=timings, **meta)
     report = check_citations(raw, context.sources)

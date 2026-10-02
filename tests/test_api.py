@@ -83,7 +83,7 @@ def test_query_returns_answer_citations_sources_usage(client):
                                   "page_number": 43, "page_end": 43, "char_start": 1000, "char_end": 1039}]
     assert [s["n"] for s in body["sources"]] == [1, 2] and body["sources"][0]["section"] == ["PART II", "ITEM 7"]
     assert body["usage"] == {"provider": "script", "model": "script-1", "input_tokens": 120, "output_tokens": 12,
-                             "cached": False}
+                             "cached": False, "truncated": False}
     assert set(body["timings_ms"]) == {"retrieve", "generate"}
 
 

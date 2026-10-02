@@ -8,7 +8,7 @@ so "what can be configured, and what is its default?" has exactly one answer.
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve .env relative to the repo, not the current working directory, so that
@@ -68,30 +68,56 @@ class Settings(BaseSettings):
     rerank_batch_size: int = 32
     rerank_max_length: int = 512         # (question + chunk) tokens; longer pairs are truncated
 
-    # --- Generation (Phase 9) ---
-    # "openai" = the real API (needs OPENAI_API_KEY); "fake" = deterministic offline
-    # stand-in for tests and key-less development. No silent fallback: asking for
-    # "openai" without a key is an error, so a demo can't quietly run on the fake.
-    llm_provider: str = "openai"
+    # --- Generation (Phase 9; provider switched to Gemini on 2026-10-02) ---
+    # Any OpenAI-compatible Chat Completions endpoint. Provider picks which key
+    # setting is read ("gemini" → GEMINI_API_KEY, "openai" → OPENAI_API_KEY);
+    # base URL and models are plain settings, so switching provider is a .env edit.
+    # "fake" = deterministic offline stand-in. No silent fallback: a real provider
+    # without its key is an error, so a demo can't quietly run on the fake.
+    llm_provider: str = "gemini"
+    llm_base_url: str | None = "https://generativelanguage.googleapis.com/v1beta/openai/"   # None = OpenAI
     # SecretStr: printing settings shows '**********', never the key.
+    gemini_api_key: SecretStr | None = Field(default=None, repr=False)
     openai_api_key: SecretStr | None = Field(default=None, repr=False)
-    # Chosen 2026-10-02 from OpenAI's pricing page: $0.10 / 1M input, $0.50 / 1M
-    # output, 1.05M context. Not yet exercised against the API (no key yet).
-    llm_model: str = "gpt-6-luna"
-    llm_max_output_tokens: int = 700
+    # Models picked 2026-10-02 from models.list() on the user's key plus a live probe:
+    # gemini-3.8-flash / 3.7-flash returned 503 "high demand", gemini-2.5-* 404 "no longer
+    # available to new users"; gemini-3.5-flash (1.5 s) and gemini-3.5-flash-lite (0.8 s) answered.
+    # Dated aliases like *-latest are avoided: they move, and evals must be reproducible.
+    llm_model: str = "gemini-3.5-flash"
+    # Gemini 3.x Flash counts its hidden "thinking" tokens against this cap (T-046).
+    llm_max_output_tokens: int = 2048
+    # "low" keeps some reasoning for calculation questions; None = don't send. Flash-Lite
+    # rejects reasoning_effort="none" with HTTP 400, so the judge default is None.
+    llm_reasoning_effort: str | None = "low"
     # None = don't send (some models reject a temperature parameter).
     llm_temperature: float | None = None
     llm_timeout_s: float = 60.0
+    # Retries on 429 (not an empty balance) and 5xx: exponential backoff with jitter.
+    llm_max_retries: int = 6
+    llm_retry_base_s: float = 1.0
+    llm_retry_max_s: float = 30.0
     llm_cache_enabled: bool = True
     answer_top_k: int = 10               # chunks retrieved for an answer (after rerank)
     context_token_budget: int = 3000     # o200k_base tokens of sources packed into the prompt
     context_order: str = "rank"          # "rank" (best first) | "sandwich" (best at both ends); Phase 12 ablation
-    # USD per 1M tokens for llm_model (pricing page, 2026-10-02); used for cost estimates.
-    llm_price_input_per_m: float = 0.10
-    llm_price_output_per_m: float = 0.50
-    # Eval judge (Phase 11): a stronger model than the generator, so the judge isn't grading
-    # its own output. Pricing page 2026-10-02: $2.00 / $10.00 per 1M tokens.
-    llm_judge_model: str = "gpt-6.1-sol"
+    # USD per 1M tokens (Gemini pricing page, 2026-10-02, paid tier; output includes thinking
+    # tokens; a free tier also exists); used for cost estimates only.
+    llm_price_input_per_m: float = 1.50
+    llm_price_output_per_m: float = 9.00
+    # Eval judge: Flash-Lite (user's choice, 2026-10-02): cheaper and faster than the generator,
+    # but a *weaker* model grading a stronger one (see card #37).
+    llm_judge_model: str = "gemini-3.5-flash-lite"
+    llm_judge_max_output_tokens: int = 1024
+    llm_judge_reasoning_effort: str | None = None
+    llm_judge_price_input_per_m: float = 0.30
+    llm_judge_price_output_per_m: float = 2.50
+
+    @field_validator("llm_base_url", "llm_reasoning_effort", "llm_judge_reasoning_effort", "llm_temperature",
+                     mode="before")
+    @classmethod
+    def blank_means_unset(cls, v):
+        # In .env, `LLM_BASE_URL=` (empty) must mean "use the SDK default", not the URL "".
+        return None if isinstance(v, str) and not v.strip() else v
 
 
 @lru_cache(maxsize=1)

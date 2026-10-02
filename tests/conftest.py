@@ -49,8 +49,8 @@ def test_db(conn):
 
 @pytest.fixture
 def db(test_db):
-    """A fresh connection to the test database with every table emptied first."""
+    """A fresh connection to the test database with every table emptied first (incl. the LLM cache)."""
     with connect(dbname=test_db) as c:
-        c.execute("TRUNCATE documents, chunk_sets RESTART IDENTITY CASCADE")
+        c.execute("TRUNCATE documents, chunk_sets, llm_cache RESTART IDENTITY CASCADE")
         c.commit()
         yield c

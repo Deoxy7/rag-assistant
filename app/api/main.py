@@ -25,7 +25,7 @@ from app.api.schemas import (CitationOut, DocumentOut, ErrorOut, Health, QueryRe
 from app.config import get_settings
 from app.embed.embedder import get_embedder, model_key
 from app.generate.answer import Answer, answer_question, stream_answer
-from app.generate.llm import CachedLLM, MissingAPIKey, get_llm
+from app.generate.llm import CachedLLM, MissingAPIKey, get_llm, quota_exhausted
 from app.generate.prompt import REFUSAL_TOKEN, PackedContext
 from app.retrieve.rerank import get_reranker, retriever_from_settings
 from app.retrieve.types import Filters
@@ -87,15 +87,6 @@ async def request_id(request: Request, call_next):
 def error(request: Request, status: int, code: str, message: str) -> JSONResponse:
     body = ErrorOut(request_id=request.state.request_id, error=code, message=message)
     return JSONResponse(status_code=status, content=body.model_dump())
-
-
-def quota_exhausted(exc: Exception) -> bool:
-    """OpenAI reports an empty balance as a 429 with code insufficient_quota / credit_balance_exhausted."""
-    body = getattr(exc, "body", None) or {}
-    err = body.get("error", body) if isinstance(body, dict) else {}
-    codes = {getattr(exc, "code", None), err.get("code") if isinstance(err, dict) else None,
-             err.get("type") if isinstance(err, dict) else None}
-    return bool(codes & {"insufficient_quota", "credit_balance_exhausted"})
 
 
 def classify(exc: Exception) -> tuple[int, str, str]:
@@ -193,7 +184,7 @@ def response_out(rid: str, a: Answer) -> QueryResponse:
         invalid_markers=list(a.report.invalid_markers) if a.report else [],
         uncited_sentences=list(a.report.uncited_sentences) if a.report else [],
         usage=Usage(provider=a.provider, model=a.model, input_tokens=a.input_tokens, output_tokens=a.output_tokens,
-                    cached=a.cached),
+                    cached=a.cached, truncated=a.truncated),
         timings_ms={k: round(v, 1) for k, v in a.timings_ms.items()})
 
 

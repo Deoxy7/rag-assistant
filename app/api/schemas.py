@@ -58,6 +58,7 @@ class Usage(BaseModel):
     input_tokens: int
     output_tokens: int
     cached: bool
+    truncated: bool = False       # the model hit its output-token cap; the answer may be cut off
 
 
 class QueryResponse(BaseModel):

@@ -3,18 +3,27 @@
     client.generate(instructions, user) -> LLMResult
     client.stream(instructions, user)   -> iterator of text deltas, then .last_result
 
-OpenAIClient calls the Responses API. FakeLLM is a deterministic, offline
-stand-in used by tests and by development without an API key: it answers by
-quoting the source sentence that shares the most words with the question, so
-the whole pipeline (packing → generation → citation check) runs end to end.
-Its answers are *not* model quality; numbers measured with it are labelled so.
+ChatClient speaks the OpenAI Chat Completions protocol to any compatible
+endpoint: Gemini's (https://generativelanguage.googleapis.com/v1beta/openai/,
+the default), OpenAI's, or a local server. Provider, base URL, model and key
+are all settings, so switching provider is an edit to .env (card x-llm-provider).
+Chat Completions rather than OpenAI's newer Responses API because the Gemini
+endpoint doesn't serve Responses (404, measured; T-045).
+
+FakeLLM is a deterministic, offline stand-in used by tests and by development
+without an API key: it answers by quoting the source sentence that shares the
+most words with the question, so the whole pipeline (packing → generation →
+citation check) runs end to end. Its answers are *not* model quality; numbers
+measured with it are labelled so.
 """
 
 import hashlib
 import json
+import logging
+import random
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import lru_cache
@@ -24,6 +33,8 @@ import psycopg
 from app.config import get_settings
 from app.generate.prompt import PROMPT_VERSION, REFUSAL_TOKEN, count_llm_tokens
 from app.store import repository as repo
+
+log = logging.getLogger("rag.llm")
 
 
 @dataclass(frozen=True)
@@ -35,50 +46,127 @@ class LLMResult:
     output_tokens: int
     latency_ms: float
     cached: bool = False
+    finish_reason: str | None = None   # "stop" | "length" (hit max tokens) | … ; None when unknown
+
+    @property
+    def truncated(self) -> bool:
+        return self.finish_reason == "length"
 
 
 class MissingAPIKey(RuntimeError):
     pass
 
 
-class OpenAIClient:
-    provider = "openai"
+# --- retries ---------------------------------------------------------------------------
 
-    def __init__(self, api_key: str, model: str, max_output_tokens: int, temperature: float | None,
-                 timeout_s: float, http_client=None):
+def quota_exhausted(exc: Exception) -> bool:
+    """An empty balance (OpenAI: insufficient_quota / credit_balance_exhausted) also arrives as HTTP 429,
+    but waiting never fixes it, so it must not be retried or reported as a rate limit (T-038)."""
+    body = getattr(exc, "body", None) or {}
+    err = body.get("error", body) if isinstance(body, dict) else {}
+    if isinstance(err, list):   # Gemini's compat endpoint wraps errors in a list
+        err = err[0].get("error", {}) if err and isinstance(err[0], dict) else {}
+    codes = {getattr(exc, "code", None), err.get("code") if isinstance(err, dict) else None,
+             err.get("type") if isinstance(err, dict) else None}
+    return bool(codes & {"insufficient_quota", "credit_balance_exhausted"})
+
+
+def retryable(exc: Exception) -> bool:
+    """429 (rate limit, not an empty balance), any 5xx (e.g. Gemini's 503 'high demand'), timeouts, connection drops."""
+    import openai
+    if isinstance(exc, openai.RateLimitError):
+        return not quota_exhausted(exc)
+    if isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError)):
+        return True
+    return isinstance(exc, openai.APIStatusError) and exc.status_code >= 500
+
+
+def backoff_s(attempt: int, base_s: float, max_s: float, retry_after: str | None, rng=random.random) -> float:
+    """Exponential backoff with jitter: base · 2^attempt, capped, scaled into [½, 1] at random so that
+    many clients retrying together don't re-collide; a server's Retry-After (seconds) wins if longer."""
+    delay = min(max_s, base_s * 2 ** attempt) * (0.5 + 0.5 * rng())
+    try:
+        return max(delay, min(max_s, float(retry_after))) if retry_after else delay
+    except ValueError:
+        return delay
+
+
+def with_retries(call: Callable, max_retries: int, base_s: float, max_s: float, sleep=time.sleep):
+    """Run `call()`; on a retryable error wait and try again, up to max_retries extra attempts."""
+    for attempt in range(max_retries + 1):
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001 — filtered by retryable()
+            if attempt == max_retries or not retryable(exc):
+                raise
+            headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+            wait = backoff_s(attempt, base_s, max_s, headers.get("retry-after"))
+            log.warning("LLM call failed (%s %s); retry %d/%d in %.1f s", type(exc).__name__,
+                        getattr(exc, "status_code", ""), attempt + 1, max_retries, wait)
+            sleep(wait)
+
+
+class ChatClient:
+    """OpenAI-compatible Chat Completions client (Gemini, OpenAI, …)."""
+
+    def __init__(self, provider: str, api_key: str, model: str, base_url: str | None, max_output_tokens: int,
+                 temperature: float | None, reasoning_effort: str | None, timeout_s: float,
+                 max_retries: int = 6, retry_base_s: float = 1.0, retry_max_s: float = 30.0,
+                 http_client=None, sleep=time.sleep):
         from openai import OpenAI   # imported here so the fake path never needs the SDK configured
 
-        self.model, self.max_output_tokens, self.temperature = model, max_output_tokens, temperature
-        self.client = OpenAI(api_key=api_key, timeout=timeout_s, max_retries=2, http_client=http_client)
+        self.provider, self.model, self.base_url = provider, model, base_url
+        self.max_output_tokens, self.temperature, self.reasoning_effort = max_output_tokens, temperature, reasoning_effort
+        self.retry = dict(max_retries=max_retries, base_s=retry_base_s, max_s=retry_max_s, sleep=sleep)
+        # max_retries=0: the SDK's own retries are off, so retries happen exactly once, here, with our policy.
+        self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=0,
+                             http_client=http_client)
         self.last_result: LLMResult | None = None
 
     def params(self) -> dict:
-        p = {"max_output_tokens": self.max_output_tokens}
+        """Request parameters; also part of the cache key."""
+        # max_tokens covers *thinking* tokens too on Gemini 3.x Flash: with 60 the answer was cut
+        # to "1" (finish_reason "length"; T-046). Hence a generous default and the truncated flag.
+        p = {"max_tokens": self.max_output_tokens}
         if self.temperature is not None:
             p["temperature"] = self.temperature
+        if self.reasoning_effort is not None:
+            p["reasoning_effort"] = self.reasoning_effort
         return p
+
+    def _messages(self, instructions: str, user: str) -> list[dict]:
+        return [{"role": "system", "content": instructions}, {"role": "user", "content": user}]
 
     def generate(self, instructions: str, user: str) -> LLMResult:
         t0 = time.perf_counter()
-        r = self.client.responses.create(model=self.model, instructions=instructions, input=user,
-                                         store=False, **self.params())
-        u = r.usage
-        return LLMResult(r.output_text, r.model, self.provider, u.input_tokens if u else 0,
-                         u.output_tokens if u else 0, (time.perf_counter() - t0) * 1000)
+        r = with_retries(lambda: self.client.chat.completions.create(
+            model=self.model, messages=self._messages(instructions, user), **self.params()), **self.retry)
+        u, choice = r.usage, r.choices[0]
+        return LLMResult(choice.message.content or "", r.model or self.model, self.provider,
+                         u.prompt_tokens if u else 0, u.completion_tokens if u else 0,
+                         (time.perf_counter() - t0) * 1000, finish_reason=choice.finish_reason)
 
     def stream(self, instructions: str, user: str) -> Iterator[str]:
+        """Streams text deltas. Retries apply to opening the stream only: once text has been
+        yielded to the caller it can't be taken back, so a mid-stream failure propagates."""
         t0 = time.perf_counter()
-        parts, final = [], None
-        with self.client.responses.stream(model=self.model, instructions=instructions, input=user,
-                                          store=False, **self.params()) as events:
-            for event in events:
-                if event.type == "response.output_text.delta":
-                    parts.append(event.delta)
-                    yield event.delta
-            final = events.get_final_response()
-        u = final.usage
-        self.last_result = LLMResult("".join(parts), final.model, self.provider, u.input_tokens if u else 0,
-                                     u.output_tokens if u else 0, (time.perf_counter() - t0) * 1000)
+        events = with_retries(lambda: self.client.chat.completions.create(
+            model=self.model, messages=self._messages(instructions, user), stream=True,
+            stream_options={"include_usage": True}, **self.params()), **self.retry)
+        parts, usage, finish, model = [], None, None, self.model
+        for chunk in events:
+            model = chunk.model or model
+            if chunk.usage:
+                usage = chunk.usage
+            for c in chunk.choices:
+                if c.delta and c.delta.content:
+                    parts.append(c.delta.content)
+                    yield c.delta.content
+                if c.finish_reason:
+                    finish = c.finish_reason
+        self.last_result = LLMResult("".join(parts), model, self.provider, usage.prompt_tokens if usage else 0,
+                                     usage.completion_tokens if usage else 0, (time.perf_counter() - t0) * 1000,
+                                     finish_reason=finish)
 
 
 WORD = re.compile(r"[a-z0-9]+")
@@ -128,10 +216,12 @@ class FakeLLM:
         self.last_result = result
 
 
-def cache_key(provider: str, model: str, instructions: str, user: str, params: dict) -> str:
-    """sha256 over everything that determines the response (and the prompt version)."""
-    payload = json.dumps({"v": PROMPT_VERSION, "provider": provider, "model": model, "instructions": instructions,
-                          "input": user, "params": params}, sort_keys=True, ensure_ascii=False)
+def cache_key(provider: str, model: str, instructions: str, user: str, params: dict, base_url: str | None = None) -> str:
+    """sha256 over everything that determines the response: prompt version, provider, endpoint, model,
+    instructions, the full user message (question + packed sources, so retrieval config is in it) and params."""
+    payload = json.dumps({"v": PROMPT_VERSION, "provider": provider, "base_url": base_url, "model": model,
+                          "instructions": instructions, "input": user, "params": params},
+                         sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -159,7 +249,8 @@ class CachedLLM:
 
     def _key(self, instructions: str, user: str) -> str:
         params = self.inner.params() if hasattr(self.inner, "params") else {}
-        return cache_key(self.inner.provider, self.inner.model, instructions, user, params)
+        return cache_key(self.inner.provider, self.inner.model, instructions, user, params,
+                         getattr(self.inner, "base_url", None))
 
     def generate(self, instructions: str, user: str) -> LLMResult:
         key = self._key(instructions, user)
@@ -168,10 +259,10 @@ class CachedLLM:
             hit = repo.llm_cache_get(conn, key)
         if hit:
             return LLMResult(hit[0], self.inner.model, self.inner.provider, hit[1], hit[2],
-                             (time.perf_counter() - t0) * 1000, cached=True)
+                             (time.perf_counter() - t0) * 1000, cached=True, finish_reason=hit[3])
         r = self.inner.generate(instructions, user)
         with self._conn() as conn:
-            repo.llm_cache_put(conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens)
+            repo.llm_cache_put(conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens, r.finish_reason)
         return r
 
     def stream(self, instructions: str, user: str) -> Iterator[str]:
@@ -181,26 +272,37 @@ class CachedLLM:
             hit = repo.llm_cache_get(conn, key)
         if hit:
             self.last_result = LLMResult(hit[0], self.inner.model, self.inner.provider, hit[1], hit[2],
-                                         (time.perf_counter() - t0) * 1000, cached=True)
+                                         (time.perf_counter() - t0) * 1000, cached=True, finish_reason=hit[3])
             yield hit[0]
             return
         yield from self.inner.stream(instructions, user)
         r = self.inner.last_result
         with self._conn() as conn:
-            repo.llm_cache_put(conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens)
+            repo.llm_cache_put(conn, key, r.provider, r.model, r.text, r.input_tokens, r.output_tokens, r.finish_reason)
         self.last_result = r
 
 
-@lru_cache(maxsize=1)
-def get_llm():
-    """The configured client (not cached-wrapped; CachedLLM needs a connection)."""
+KEY_SETTING = {"gemini": ("gemini_api_key", "GEMINI_API_KEY"), "openai": ("openai_api_key", "OPENAI_API_KEY")}
+
+
+@lru_cache(maxsize=4)
+def get_llm(role: str = "generate"):
+    """The configured client for a role ("generate" or "judge"); not cache-wrapped (CachedLLM needs a DB)."""
     s = get_settings()
+    if role not in ("generate", "judge"):
+        raise ValueError(f"unknown LLM role {role!r}")
     if s.llm_provider == "fake":
-        return FakeLLM()
-    if s.llm_provider != "openai":
-        raise ValueError(f"LLM_PROVIDER must be 'openai' or 'fake', not {s.llm_provider!r}")
-    key = s.openai_api_key.get_secret_value() if s.openai_api_key else ""
-    if not key.strip():
-        raise MissingAPIKey("LLM_PROVIDER=openai but OPENAI_API_KEY is empty. Add it to .env, "
+        return FakeLLM(model="fake-extractive-1" if role == "generate" else "fake-judge")
+    if s.llm_provider not in KEY_SETTING:
+        raise ValueError(f"LLM_PROVIDER must be one of {sorted(KEY_SETTING) + ['fake']}, not {s.llm_provider!r}")
+    attr, env = KEY_SETTING[s.llm_provider]
+    secret = getattr(s, attr)
+    key = secret.get_secret_value().strip() if secret else ""
+    if not key:
+        raise MissingAPIKey(f"LLM_PROVIDER={s.llm_provider} but {env} is empty. Add it to .env, "
                             "or set LLM_PROVIDER=fake to run offline with the deterministic fake model.")
-    return OpenAIClient(key.strip(), s.llm_model, s.llm_max_output_tokens, s.llm_temperature, s.llm_timeout_s)
+    judge = role == "judge"
+    return ChatClient(s.llm_provider, key, s.llm_judge_model if judge else s.llm_model, s.llm_base_url,
+                      s.llm_judge_max_output_tokens if judge else s.llm_max_output_tokens, s.llm_temperature,
+                      s.llm_judge_reasoning_effort if judge else s.llm_reasoning_effort, s.llm_timeout_s,
+                      s.llm_max_retries, s.llm_retry_base_s, s.llm_retry_max_s)
