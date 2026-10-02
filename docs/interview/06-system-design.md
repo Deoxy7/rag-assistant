@@ -207,3 +207,29 @@
 **Trap.** Parallelising without idempotency — retries then create duplicates.
 
 **Bridge.** "Idempotency is the same property that makes my eval runs reproducible."
+
+---
+
+### Q: How does vector search scale from 7,000 to 100 million chunks?
+**ID:** P5-06 · **Round:** system design  **Difficulty:** 4/5
+
+**30-second answer.** "Exact search is linear — 11.4 ms for 7,411 vectors would be ~150 s for 100 M, so an index is mandatory. HNSW search stays a few milliseconds, but its memory grows linearly: I measured ~1.9 KB per 384-d vector including links, so 100 M is ~190 GB of index, which must fit in RAM to stay fast. Levers in order: halfvec (measured −43% size, same recall), partitioning by tenant or time, read replicas for throughput, then a dedicated vector store."
+
+**2-minute answer.** Add build time and inserts (HNSW builds ~1.4 s per 7k here; at scale builds take hours and need large `maintenance_work_mem`), filtered search (iterative scans become essential once the planner picks the index for selective filters), and QPS: each replica serves searches independently; writes go to the primary.
+
+**If they push — level 2.** *"What's the arithmetic for halfvec?"* 190 GB × ~0.57 ≈ 110 GB — fits a large instance.
+
+**If they push — level 3.** *"How would you shard?"* By a filter that's on every query (tenant, document set) so each query hits one shard; otherwise scatter-gather to all shards and merge top-k (a k-way merge).
+
+**If they push — level 4.** *"When pgvector stops being right?"* When one node's RAM can't hold the hot index even quantised, or you need sharding built in — then a dedicated system with Postgres as source of truth (card #15).
+
+**Whiteboard it.**
+```text
+ 7,411 vec:  exact 11 ms · HNSW 3 ms · index 14 MB
+ 100 M vec:  exact ~150 s · HNSW ~ms · index ~190 GB (halfvec ~110 GB)
+ levers: halfvec → partition → replicas → dedicated store
+```
+
+**Trap.** Extrapolating latency only; memory is the first wall.
+
+**Bridge.** "That memory wall is why card #19 measured quantisation even though I don't need it."

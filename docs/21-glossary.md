@@ -41,6 +41,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Corpus manifest | A committed list of corpus files with source URL, size and sha256 (`data/manifest.json`). | [04](04-corpus.md) |
 | Cosine similarity | a·b / (‖a‖‖b‖): cosine of the angle between vectors; equals the dot product for unit vectors. | [07](07-embeddings.md) |
 | Cross-encoder | A model that reads the query and a passage *together* to score relevance; accurate but slower. | [12](12-reranking.md) (Phase 8) |
+| Custom vs generic plan | Plan built with actual parameter values vs one cached plan built without them (after 5 executions). | [09](09-vector-search.md) |
 | Dehyphenation | Rejoining a word hyphenated across a line break. | [05](05-pdf-parsing.md) |
 | Digest | A sha256 hash of an image's content; unlike a tag it can never point at different bytes. | [03](03-environment-and-infra.md) |
 | Distance operator | pgvector operator comparing two vectors: `<->` L2, `<=>` cosine distance, `<#>` negative inner product. | [03](03-environment-and-infra.md) |
@@ -64,7 +65,9 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Golden set | Questions whose correct answers and evidence locations are known in advance, used to score the system. | [15](15-eval-harness.md) (Phase 11) |
 | Grounding | Making the model answer from supplied evidence: instructions, evidence placement and checks. | [01](01-what-is-rag.md) |
 | Half-open range | [start, end): includes start, excludes end; length = end − start. | [05](05-pdf-parsing.md) |
+| halfvec | pgvector's 16-bit float vector type; halves memory. | [09](09-vector-search.md) |
 | Hallucination | Fluent output that no source supports, or that is simply false. | [01](01-what-is-rag.md) |
+| Hamming distance | Number of differing bits between two bit strings; used for binary-quantised vectors. | [09](09-vector-search.md) |
 | Hard negative | A non-relevant passage very similar to the relevant one (e.g. the same sentence from last year's filing). | [interview/04](interview/04-retrieval.md) |
 | Heading level | 1 = PART, 2 = ITEM, 3 = other heading, 0 = not a heading. | [05](05-pdf-parsing.md) |
 | Healthcheck | A command run periodically to decide whether a service is ready, not just running. | [03](03-environment-and-infra.md) |
@@ -75,9 +78,11 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
+| Iterative index scan | pgvector ≥ 0.8: keep walking HNSW until enough rows pass the filter. | [09](09-vector-search.md) |
 | IVFFlat | Vector index that clusters vectors into lists and searches only the nearest lists. | [08](08-database-schema.md) |
 | Kernel | The core of an operating system: schedules processes, manages memory, talks to hardware. | [03](03-environment-and-infra.md) |
 | Keyword (lexical) search | Search that matches the words themselves after normalising them. | [01](01-what-is-rag.md); details [10](10-keyword-search.md) |
+| kNN (k-nearest neighbours) | Find the k stored vectors closest to a query; exact = compare with all. | [09](09-vector-search.md) |
 | Latency | How long one request takes. | [02](02-architecture-overview.md) |
 | Layering | Lower layers never depend on higher ones; enforced here by `tests/test_architecture.py`. | [02](02-architecture-overview.md) |
 | Lexeme | A normalised word form stored by Postgres full-text search (e.g. "revenue" → `revenu`). | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
@@ -112,13 +117,18 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Pipeline / stage | A sequence of steps where each step's output feeds the next; each step is a stage. | [02](02-architecture-overview.md) |
 | Pooling | Turning per-token vectors into one text vector (bge: the [CLS] vector). | [07](07-embeddings.md) |
 | Port publishing | Making a container's port reachable from the host, e.g. `127.0.0.1:5432:5432`. | [03](03-environment-and-infra.md) |
+| Post-filter / pre-filter | Apply metadata conditions after vs before the vector search. | [09](09-vector-search.md) |
+| Prepared statement | A statement parsed/planned once and executed many times; psycopg auto-prepares after 5 runs. | [09](09-vector-search.md) |
 | Primary key | Column(s) that uniquely identify a row. | [08](08-database-schema.md) |
 | Protocol (Python typing) | An interface defined by attributes/methods; any class with them qualifies, no inheritance. | [06](06-chunking.md) |
 | QPS | Queries per second. | [02](02-architecture-overview.md) |
+| Quantisation | Storing vector numbers with fewer bits (float16, 1-bit) to save memory. | [09](09-vector-search.md) |
 | Query instruction | Prefix bge v1.5 expects on queries: 'Represent this sentence for searching relevant passages: '. | [07](07-embeddings.md) |
+| Query planner | The Postgres component that picks a plan (indexes, join order) by estimated cost. | [09](09-vector-search.md) |
 | RAG (Retrieval-Augmented Generation) | Retrieve relevant passages at question time, then have the LLM answer from them with citations. | [01](01-what-is-rag.md) |
 | Re-embedding migration | Recomputing every vector for a new model, side by side, before switching queries. | [07](07-embeddings.md) |
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
+| Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
 | Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) (Phase 8) |
 | Retrieval | Finding the passages most relevant to a query. | [01](01-what-is-rag.md) |
 | Role (Postgres) | A database user identity you log in as. | [03](03-environment-and-infra.md) |
@@ -126,10 +136,12 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Ruled / unruled table | A table drawn with lines (found by pdfplumber's default strategy) vs one aligned by spacing only. | [05](05-pdf-parsing.md) |
 | Running header / footer | A line repeated at the top or bottom of most pages; noise for search. | [04](04-corpus.md) |
 | Running-header fingerprint | Band text with digits → '#' and leading/trailing page numbers removed, used to detect repeats. | [05](05-pdf-parsing.md) |
+| Savepoint | A nested transaction marker; psycopg's nested conn.transaction() creates one. | [09](09-vector-search.md) |
 | Scanned PDF page | A page that is a picture of text: an image and little or no extractable text. | [04](04-corpus.md) |
 | SCRAM-SHA-256 | Challenge-response password authentication; the password never crosses the network readably. | [03](03-environment-and-infra.md) |
 | Section path | The chain of headings a block sits under, e.g. PART II › ITEM 8 › … | [05](05-pdf-parsing.md) |
 | Semantic chunking | Cutting text where similarity between consecutive sentence embeddings drops. | [06](06-chunking.md) |
+| SET LOCAL | Change a setting until the end of the current top-level transaction. | [09](09-vector-search.md) |
 | Span / line / block (PyMuPDF) | Run of text in one font / spans on one baseline / lines grouped by PyMuPDF. | [05](05-pdf-parsing.md) |
 | Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
 | SSE (Server-Sent Events) | A one-way HTTP stream of events from server to client, used to stream answer tokens. | [14](14-api-and-streaming.md) (Phase 10) |

@@ -56,9 +56,10 @@ Decisions: separate embeddings table keyed by (chunk, model) with untyped vector
 Open:     confirm partial-index use with prepared statements (Phase 5); HNSW recall vs exact (Phase 5); embeddings.chunk_set_id equality not DB-enforced.
 Next:     Phase 5 — Vector retrieval.
 
-## Phase 5 — Vector retrieval   [IN PROGRESS — code + tests committed, docs pending]
+## Phase 5 — Vector retrieval   [DONE 2026-10-02]
 
 Built:    `app/retrieve/types.py` (Filters, Hit); `app/retrieve/vector.py` (VectorRetriever: post / iterative / exact filter modes, literal chunk-set + model so the partial HNSW index survives generic plans, ef_search default 160, both HNSW settings SET LOCAL on every search); `scripts/bench_vector.py` (`make bench-vector`); `tests/test_vector.py` (6). Diagrams `09-vector-search-path`, `09-filter-modes`, chart `09-recall-vs-ef-search.png` rendered. Raw bench output: `docs/diagrams/bench_vector_2026-10-02.txt`.
 Numbers:  recall@10 vs exact: ef_search 10/20/40/80/160/320 → 0.742/0.849/0.928/0.976/0.996/0.998 at 2.8–3.9 ms p50; exact scan 11.4 ms. Filter Corning 2021 (6.9%): planner pre-filters by itself (recall 1.0); with HNSW path forced, post-filter avg 3.8 rows, 31/150 queries return 0, recall 0.379; iterative 10 rows, recall 0.973. halfvec index 7.93 MB vs 13.87 MB at recall 0.925 vs 0.928; binary+rerank40 recall 0.572.
 Bugs found (log as T-025, T-026 in docs/23): SET LOCAL leaks across searches because conn.transaction() inside an open transaction is a savepoint; psycopg auto-prepare (after 5 runs) caches plans so planner settings like enable_sort stop applying.
-TODO next session: write docs/09-vector-search.md (cards #18, #19), add 09 where-it-sits embeds, ≥8 interview questions P5-xx, glossary, troubleshooting T-025/T-026, status tables; `make docs` then commit docs(phase-5). Then Phases 6–16.
+Docs:     `docs/09-vector-search.md`; cards #18, #19; 8 interview questions (P5-01…P5-08); T-025…T-027.
+Next:     Phase 6 — Keyword retrieval.

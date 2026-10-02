@@ -183,3 +183,30 @@
 **Trap.** "GPU results are approximate, so I avoid them." The difference is rounding noise; measure it.
 
 **Bridge.** "That noise level is also why my eval reruns are stable."
+
+---
+
+### Q: Explain HNSW search as an algorithm. What's its complexity?
+**ID:** P5-08 · **Round:** DSA · ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "HNSW is a layered proximity graph. Search starts at an entry node on the top layer and greedily moves to whichever neighbour is closer to the query until none is; then it drops a layer and repeats. On the bottom layer it keeps a priority queue of the best `ef_search` candidates, expanding their neighbours until the queue stops improving, and returns the top k. Expected cost is roughly logarithmic in the number of vectors times ef_search, each step costing a d-dimensional distance."
+
+**2-minute answer.** Detail the data structures: a min-heap of candidates to expand and a max-heap (bounded at ef_search) of the best found; a visited set. Upper layers have exponentially fewer nodes (each node's top level drawn from a geometric distribution), giving the "express lanes". Approximate because greedy search can get stuck in a local region; larger ef_search widens the beam.
+
+**If they push — level 2.** *"Insertion?"* Search for the new node's neighbours at each of its layers (beam ef_construction), connect to the best m, prune neighbours' lists to keep them at most m (2m on layer 0).
+
+**If they push — level 3.** *"Memory?"* Vectors plus up to m links per layer per node — measured ~1.9 KB per 384-d vector here.
+
+**If they push — level 4.** *"Deletions?"* Postgres marks rows dead; vacuum removes index entries. How pgvector repairs neighbours around removed nodes I'd need to read in its source — honest gap.
+
+**Whiteboard it.**
+```text
+ L2: A ─greedy─▶ B
+ L1:        B ─greedy─▶ D
+ L0:                    D → beam(ef_search) with min/max heaps → top-k
+ cost ≈ O(log N · ef_search · d)
+```
+
+**Trap.** Calling it a tree, or exact.
+
+**Bridge.** "The beam width is ef_search — the knob I measured."

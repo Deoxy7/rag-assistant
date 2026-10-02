@@ -208,3 +208,23 @@ AssertionError: forbidden imports: app/store/repository.py: store -> ingest
 - **Symptoms:** `assert 12 == 24` (FTS matches), `assert 0 > 0` (cross-set reuse), `IndexError` in the test helper, `assert 7 == 12` (dedup).
 - **Cause:** test expectations, not code: tail windows of split paragraphs don't contain "revenue"; recursive and structure chunks of the synthetic text never coincide; the helper assumed ≥4 paragraphs; and identical tail windows inside one document are deduplicated too.
 - **Fix:** assertions compare against what the database actually contains (`count(*) FILTER (WHERE text ILIKE …)`, `count(DISTINCT content_sha256)`), and the reuse test uses an overlap-only change, which yields identical chunks by construction.
+
+## Phase 5
+
+### T-025 · HNSW settings leak between searches — hit
+
+- **Symptom:** a "post-filter" benchmark returned 10 rows with recall 1.0; the same experiment in a fresh script returned 3.8 rows.
+- **Cause:** `SET LOCAL` lasts until the end of the *top-level* transaction; psycopg's `conn.transaction()` inside an already-open transaction is only a savepoint. An earlier iterative search left `hnsw.iterative_scan = relaxed_order` on for later searches.
+- **Fix:** `VectorRetriever.search` sets both `hnsw.ef_search` and `hnsw.iterative_scan` on every call. Test `test_settings_do_not_leak_between_searches` fails on the old code with `assert 'relaxed_order' == 'off'`.
+
+### T-026 · Planner settings ignored by a cached plan — hit
+
+- **Symptom:** after the leak fix, the benchmark still showed 10 rows; bisecting showed it flipped only after the retriever had run the same query 50 times.
+- **Cause:** psycopg server-side-prepares a query after 5 executions (`prepare_threshold`); Postgres caches the plan, and planner settings like `enable_sort` don't re-plan it. (`pg_prepared_statements` showed 3 statements.)
+- **Fix:** the forced-path experiment uses its own connection with `prepare_threshold = None`. Executor settings (`hnsw.ef_search`) are unaffected.
+
+### T-027 · Quantisation benchmark inherited ef_search — hit
+
+- **Symptom:** the float32 row showed recall 0.996 one run and 0.928 another.
+- **Cause:** raw benchmark queries didn't set `hnsw.ef_search`, so they used whatever an earlier search left (T-025 again).
+- **Fix:** each quantisation query sets `ef_search = 40` explicitly.

@@ -36,6 +36,9 @@
 | Default ingest from empty | 80.2 | s | `make ingest` |
 | Distinct texts / chunks (structure/256) | 6,812 / 7,411 | — | SQL |
 | HNSW index (7,411 vectors) | 13.8 MB, 1.4 s build, 2.6 ms query | — | `make ingest`, EXPLAIN |
+| HNSW recall@10 vs exact (ef 40 / 160) | 0.928 / 0.996 | — | `make bench-vector` |
+| Exact vs HNSW latency (7,411 vectors) | 11.4 vs 3.4 | ms p50 | same |
+| Recall cliff, post-filter (forced, 6.9% filter) | 3.8 rows avg, 31/150 zero, recall 0.379 | — | same |
 | Retrieval metrics, latencies | not yet measured | | Phases 11, 13 |
 
 ## Flashcards (Phase 0)
@@ -68,6 +71,9 @@
 | Why a separate embeddings table? | Multiple models per chunk; per-model partial HNSW; side-by-side upgrades. |
 | Why partial HNSW per chunk set? | A shared index would post-filter ANN results → fewer than k (recall cliff). |
 | What repeats between years? | 5–17% of FY2022 chunks are identical to an FY2021 chunk → identical vectors. |
+| Recall cliff fix? | Iterative index scan (pgvector 0.8) — 10 rows, recall 0.973. |
+| Why literals for chunk set/model? | Generic plans can't prove a partial index predicate with $params. |
+| SET LOCAL gotcha? | Lasts to the end of the top-level transaction; nested transaction = savepoint. |
 
 ## Top questions so far
 

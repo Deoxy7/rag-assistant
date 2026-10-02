@@ -276,3 +276,34 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Adding more indexes instead of reading the plan.
 
 **Bridge.** "Phase 5 pins this with a test that checks the plan under prepared statements."
+
+---
+
+### Q: The same benchmark gives two different answers depending on what ran before it. Debug it.
+**ID:** P5-05 · **Round:** backend screen · project deep-dive  **Difficulty:** 4/5
+
+**30-second answer.** "That's hidden state on the connection. I found two layers. First, `SET LOCAL` lasts until the end of the top-level transaction, and psycopg's nested `conn.transaction()` is only a savepoint — so an iterative-scan setting from an earlier search leaked into later searches. Second, after the same query runs five times psycopg prepares it server-side, and the cached plan ignored my later `enable_sort = off`. I proved each by bisecting: fresh connection, then 'after 50 exact searches', then 'after 50 post searches'."
+
+**2-minute answer — the tree.**
+1. **Reproduce in isolation**: fresh connection → 3.8 rows; inside the benchmark → 10 rows. State, not data.
+2. **Bisect the preceding work**: 50 exact searches → no change; 50 post searches → flips. So something those searches leave behind.
+3. **Hypothesis A — settings leak**: check `SHOW hnsw.iterative_scan` after searches inside an open transaction → leaked. Fix: set every setting on every search; regression test.
+4. **Still flips → Hypothesis B — plan cache**: `prepare_threshold = None` → 3.8 rows; default → 10. Confirmed: `pg_prepared_statements` showed 3 statements.
+5. **Fix the experiment**, not just the result: dedicated connection with auto-prepare off; document both (T-025, T-026).
+
+**If they push — level 2.** *"How would you have caught this without two disagreeing runs?"* A test that runs searches in different orders and asserts identical results, and asserting settings after each call.
+
+**If they push — level 3.** *"Does it affect production?"* The leak would have: a post-mode search after an iterative one on a pooled connection. The plan-cache issue doesn't change correctness — only planner experiments.
+
+**If they push — level 4.** *"Connection pools?"* Pools reuse connections across requests, so any session state (settings, prepared statements, temp tables) leaks between requests unless reset. That's why per-transaction `SET LOCAL`, set explicitly every time, is the right pattern.
+
+**Whiteboard it.**
+```text
+ fresh conn: 3.8   after 50 exact: 3.8   after 50 post: 10   ← state
+ SET LOCAL in savepoint → survives → leak (fix: always set both)
+ auto-prepare after 5 → cached plan ignores enable_sort (fix: prepare_threshold=None)
+```
+
+**Trap.** Rerunning until the numbers look right.
+
+**Bridge.** "Benchmarks are code too — they need the same tests."

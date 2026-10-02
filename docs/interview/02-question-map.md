@@ -1,6 +1,6 @@
 # 02 — Question map
 
-**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **46 / 150+** questions.
+**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **54 / 150+** questions.
 
 Every question in `docs/interview/` appears here (a test in `tests/test_docs_integrity.py` fails if one is missing). **Confidence** is yours to fill: 1 = can't answer, 3 = can answer level 1–2, 5 = survives level 4. Re-rate after each drill.
 
@@ -54,6 +54,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P4-06 | What is an embedding; why do similar meanings cluster? | [03](03-fundamentals.md) | embeddings | ML, viva | 2 | | |
 | P4-07 | Why is the GPU 2.5× faster; same output? | [11](11-cs-core-touchpoints.md) | hardware | viva, ML | 2 | | |
 | P4-08 | HNSW index exists but EXPLAIN shows seq scan | [08](08-debugging-scenarios.md) | debugging | backend | 3 | | |
+| P5-01 | The recall cliff in filtered vector search | [04](04-retrieval.md) | vector search | ML, deep-dive | 4 | | |
+| P5-02 | How did you tune HNSW; is an index needed? | [04](04-retrieval.md) | vector search | ML, backend | 3 | | |
+| P5-03 | Would you quantise your vectors? | [04](04-retrieval.md) | vector search | ML, design | 3 | | |
+| P5-04 | Generic plans and the partial index | [05](05-database-and-sql.md) | DB | backend | 4 | | |
+| P5-05 | Benchmark answers depend on what ran before — debug | [08](08-debugging-scenarios.md) | debugging | backend, deep-dive | 4 | | |
+| P5-06 | Vector search from 7k to 100M chunks | [06](06-system-design.md) | scale | design | 4 | | |
+| P5-07 | Why vector search missed the income-statement line | [03](03-fundamentals.md) | retrieval | ML, deep-dive | 3 | | |
+| P5-08 | HNSW search as an algorithm; complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA, ML | 4 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

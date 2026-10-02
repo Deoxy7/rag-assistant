@@ -111,3 +111,81 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** "More overlap is always safer." It multiplies vectors and near-duplicate hits.
 
 **Bridge.** "Near-duplicates are also what the reranker and RRF have to cope with."
+
+---
+
+## Phase 5 questions
+
+### Q: What is the recall cliff in filtered vector search, and how did you measure it?
+**ID:** P5-01 · **Round:** ML screen · project deep-dive  **Difficulty:** 4/5
+
+**30-second answer.** "An approximate index returns its best few dozen candidates; if a metadata filter runs *after* that, most candidates can be thrown away and you get fewer than k results — sometimes none. With a filter matching 6.9% of rows and the HNSW path forced, post-filtering averaged 3.8 of 10 results and returned nothing for 31 of 150 questions. pgvector's iterative scan keeps walking the graph until enough rows pass: 10 results, recall 0.973."
+
+**2-minute answer.** Explain the arithmetic: ef_search 40 candidates × 6.9% ≈ 2.8 survivors expected. Then the twist: without forcing, Postgres pre-filtered by itself — B-tree for the 514 matching rows, exact distances, sort — so all modes scored recall 1.0. The cliff only appears when the index is chosen, which on a big table it would be. I forced it with `enable_sort = off` on a connection with auto-prepare disabled.
+
+**If they push — level 2.** *"Why not always pre-filter?"* Exact over the filtered subset costs one distance per matching row; for a broad filter on millions of rows that's millions of distances per query.
+
+**If they push — level 3.** *"What about multi-tenant systems?"* Tenant filters are on every query, so partitioning or a partial index per tenant is better than relying on iterative scans.
+
+**If they push — level 4.** *"Worst case for iterative scans?"* A filter matching almost nothing: the walk continues until `hnsw.max_scan_tuples`, doing lots of work for few results. Route tiny filters to exact search after a cardinality check. Not measured.
+
+**Whiteboard it.**
+```text
+ HNSW top-40 ──filter 6.9%──▶ ~2.8 rows   (post: avg 3.8, 31/150 zero)
+ HNSW walk until 10 pass ───▶ 10 rows     (iterative: recall 0.973)
+ B-tree 514 rows → exact ───▶ 10 rows     (exact: 1.000)
+```
+
+**Trap.** "Just add WHERE company = …". Where the filter runs decides whether results exist.
+
+**Bridge.** "The same filter matters for the wrong-year problem — identical boilerplate across years."
+
+---
+
+### Q: How did you tune HNSW, and is an index even necessary at your size?
+**ID:** P5-02 · **Round:** ML screen · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "I measured recall against exact search on 150 real financial questions: ef_search 10 gives 0.742, 40 (pgvector's default) 0.928, 160 gives 0.996 — for 3.35 instead of 2.81 ms median. So 160 is the default. Honestly, an exact scan is only 11.4 ms on 7,411 vectors, so the index isn't necessary yet; it's there because the same design must work at a million vectors."
+
+**2-minute answer.** Explain tuning order: `ef_search` first (query time, no rebuild), then `m`/`ef_construction` only if recall plateaus too low (rebuild needed). Show the curve (doc 09 chart). Note the measurement method: exact ground truth via an ORDER BY the index can't serve (`+ 0`), verified against numpy in tests.
+
+**If they push — level 2.** *"How does latency scale?"* Exact grows linearly with rows; HNSW roughly logarithmically plus ef_search work. At 10× the rows exact would be ~110 ms; HNSW a few ms more.
+
+**If they push — level 3.** *"Why measure on FinanceBench questions rather than random vectors?"* Recall depends on the query distribution; real questions cluster in parts of the space differently from random points.
+
+**If they push — level 4.** *"Is recall vs exact the metric that matters?"* No — it measures the index, not relevance. Retrieval quality against labelled evidence is Phase 11; an index at 0.93 recall vs exact might cost nothing if the missed neighbours weren't relevant anyway.
+
+**Whiteboard it.**
+```text
+ ef_search: 10    20    40    80    160   320  | exact
+ recall:    .742  .849  .928  .976  .996  .998 | 1.0
+ p50 ms:    2.77  2.82  2.81  3.02  3.35  3.90 | 11.4
+```
+
+**Trap.** Tuning `m` and rebuilding before trying `ef_search`.
+
+**Bridge.** "Recall vs exact is index quality; relevance is what the eval harness measures."
+
+---
+
+### Q: Would you quantise your vectors?
+**ID:** P5-03 · **Round:** ML screen · system design  **Difficulty:** 3/5
+
+**30-second answer.** "Not at this size — but I measured it. A half-precision index was 7.93 MB instead of 13.87 with recall 0.925 vs 0.928. Binary quantisation shrank it to 2.37 MB but recall fell to 0.572 even after reranking 40 candidates with full vectors — one bit per dimension is too little for 384 dimensions. At ~100 M vectors, halfvec would be my first lever."
+
+**2-minute answer.** Mechanism: float16 halves memory; binary keeps the sign of each dimension and compares by Hamming distance, then a full-precision rerank fixes the order of a candidate pool. Why latency didn't change: at 7,411 vectors fixed overhead dominates; quantisation pays when the index stops fitting in memory.
+
+**If they push — level 2.** *"How would you make binary work?"* Larger rerank pool (200+), or a higher-dimensional model where signs carry more information.
+
+**If they push — level 3.** *"Store halfvec or index halfvec?"* Expression index on `::halfvec` keeps float32 in the table for reranking; storing halfvec also halves table size but loses precision permanently.
+
+**If they push — level 4.** *"Product quantisation?"* Codebook compression of sub-vectors; much smaller; not in pgvector — a reason to move to FAISS/Milvus at billion scale.
+
+**Whiteboard it.**
+```text
+ float32 13.87 MB  .928 | float16 7.93 MB .925 | 1-bit+rerank40 2.37 MB .572
+```
+
+**Trap.** "Quantisation makes it faster" — not when the index already fits in RAM.
+
+**Bridge.** "Memory is the first wall at scale — the system-design answer for 10 M documents starts there."

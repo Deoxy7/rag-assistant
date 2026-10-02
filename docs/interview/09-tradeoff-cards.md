@@ -27,8 +27,8 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 15 | Postgres + pgvector vs Pinecone / Qdrant / Weaviate / Milvus / FAISS / Elasticsearch | 0 | ✅ [03-environment-and-infra](../03-environment-and-infra.md) |
 | 16 | HNSW vs IVFFlat vs exact scan; m, ef_construction, ef_search | 4 | ✅ [08-database-schema](../08-database-schema.md) |
 | 17 | Vectors in the same table vs a separate table | 4 | ✅ [08-database-schema](../08-database-schema.md) |
-| 18 | Metadata filtering: pre-filter vs post-filter, and the recall cliff | 5 | not yet written |
-| 19 | Quantisation (scalar / binary): when it is worth the recall loss | 5 | not yet written |
+| 18 | Metadata filtering: pre-filter vs post-filter, and the recall cliff | 5 | ✅ [09-vector-search](../09-vector-search.md) |
+| 19 | Quantisation (scalar / binary): when it is worth the recall loss | 5 | ✅ [09-vector-search](../09-vector-search.md) |
 | 20 | Dense-only vs sparse-only vs hybrid retrieval | 7 | not yet written |
 | 21 | Postgres FTS vs Elasticsearch/OpenSearch BM25 vs SPLADE | 6 | not yet written |
 | 22 | RRF vs weighted-score fusion vs learned fusion | 7 | not yet written |
@@ -643,6 +643,78 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Would you keep this design at 100 M vectors? → A (honest): Probably not in one table: I'd partition `embeddings` by model (and maybe by chunk set) so indexes and vacuums stay per partition. Postgres declarative partitioning supports that; I haven't tested pgvector indexes on partitions.
 
 **The trap.** "Store the vector with the text, it's simpler" — true until the first model change.
+
+### Card 18 — from [09-vector-search](../09-vector-search.md)
+
+#### Decision: Iterative index scans (`hnsw.iterative_scan = relaxed_order`) as the default filter mode, with the planner free to pre-filter  (rejected: plain post-filtering, always pre-filtering, one index per filter value)
+
+**One-line defence.** Post-filtering an approximate search returned zero results for 31 of 150 questions when the HNSW path was used; iterative scans fixed that (recall 0.973) at no measurable cost, and the planner still switches to an exact pre-filter when the filter is selective enough.
+
+**What problem is this even solving?** Users scope questions: "Corning, 2021". The index finds nearest neighbours among *all* vectors; if the filter runs afterwards, most neighbours may be thrown away. That's the **recall cliff** — results shrink, or vanish, as the filter gets more selective.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Iterative scan + planner choice | HNSW keeps walking until k rows pass; planner may pre-filter instead | k results even for selective filters; one index | Slightly more graph traversal; `relaxed_order` needs a re-sort; pgvector ≥ 0.8 | Default for filtered vector search |
+| Post-filter | HNSW returns ef_search candidates, then filter | Fastest | Fewer than k — or zero — results under selective filters (measured 3.8 avg, 31 zeros) | Unfiltered or very broad filters only |
+| Always pre-filter (exact) | Fetch rows passing the filter, compute every distance | Perfect recall | Cost grows with filtered rows; slow for broad filters on big tables | Small filtered subsets |
+| Index per filter value | Partial HNSW per company or year | Search only matching vectors | Explodes with combinations (company × year × …) | A few large, fixed partitions (e.g. tenants) |
+
+**What would actually change if we swapped it.** To post-filtering: one setting (`filter_mode="post"`); on a table where the planner can't pre-filter cheaply, filtered questions lose most of their evidence — a silent quality bug. To always-exact: correct everywhere, but broad filters on millions of rows would scan millions of vectors per query.
+
+**The decision rule.** Filtered ANN needs one of: an index that only contains the filtered rows (partial / partitioned), a search that continues until enough rows pass (iterative), or an exact search over the filtered subset. Choose by filter selectivity: exact when the subset is small, iterative otherwise, partitioned indexes when one filter (like tenant) is on every query.
+
+**Where our choice breaks.** Extremely selective filters on huge tables: the iterative walk may traverse much of the graph before finding k matches (pgvector caps it with `hnsw.max_scan_tuples`), and latency grows. Then an exact pre-filter (planner's choice) or a partitioned index is the fix.
+
+**The number.** Filter Corning 2021 (514 rows, 6.9%), HNSW path forced, 150 questions: post — avg 3.8 rows, 31 queries with 0 rows, recall@10 0.379; iterative — 10 rows, recall 0.973; exact — recall 1.000. With the planner free, it pre-filtered by itself (all modes recall 1.000, ~3 ms).
+
+**Interview script (3 sentences).** "Filtering after an approximate search is a classic trap: when I forced the HNSW path with a filter matching 7% of rows, post-filtering returned under four of ten results on average and nothing at all for 31 of 150 questions. pgvector 0.8's iterative scan keeps walking the graph until enough rows pass, which brought recall back to 0.97, so that's my default. At this table size Postgres's planner actually avoids the problem by itself by pre-filtering with a B-tree and computing exact distances — which is exactly why I had to force the index path to see the cliff."
+
+**Follow-ups they will ask:**
+- Q: Why didn't you see the cliff without forcing it? → A: The planner estimated 514 matching rows and found an exact pre-filter plan (B-tree, then sort) cheaper than walking the HNSW graph. On a table of millions, the same filter would match tens of thousands of rows and the planner would choose the index — where the cliff lives.
+- Q: What does `relaxed_order` give up? → A: Strict distance order during the scan; rows may come back slightly unordered, so I re-sort the final k. `strict_order` exists but does more work.
+- Q: How did you force the HNSW path? → A: `SET LOCAL enable_sort = off` removes the Sort the exact plan needs. And I had to do it on a connection with auto-prepare off, because a cached plan ignores later planner-setting changes (T-026).
+- Q: Would a partial index per company help? → A: For one fixed filter dimension, yes; for company × year × any future filter, the number of indexes explodes.
+- Q (the hard one): How does iterative scan behave when *nothing* matches the filter? → A (honest): It keeps walking until it hits `hnsw.max_scan_tuples` (a pgvector limit) and returns what it has — possibly nothing — after more work than a post-filter would do. I haven't measured that worst case; a guard is to check filter cardinality first and route empty or tiny filters to exact search.
+
+**The trap.** "Just add a WHERE clause." With approximate search, where the filter runs decides whether you get your k results at all.
+
+### Card 19 — from [09-vector-search](../09-vector-search.md)
+
+#### Decision: Keep full-precision (32-bit) vectors and index; no quantisation at this size  (rejected for now: halfvec, binary quantisation with rerank)
+
+**One-line defence.** halfvec would halve the index (13.87 → 7.93 MB) at the same recall (0.925 vs 0.928) — a good trade at scale, irrelevant at 14 MB; binary quantisation of 384-d vectors loses too much (recall 0.572 even after reranking 40 candidates).
+
+**What problem is this even solving?** Memory. HNSW is fast when the graph is in RAM; at hundreds of millions of vectors, 1,536 bytes each is the binding constraint. Quantisation stores fewer bits per number.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ `vector` (float32) | 4 bytes per dimension | Exact distances; simplest | Largest | Small/medium corpora |
+| `halfvec` (float16) | 2 bytes per dimension, index on `embedding::halfvec(384)` | Half the index (7.93 MB); measured recall unchanged (0.925 vs 0.928) | Small precision loss; another expression to keep in sync | When memory binds and recall must stay |
+| Binary + rerank | 1 bit per dimension (sign), Hamming distance, rerank top N with full vectors | 6× smaller than float32 here (2.37 MB); fast | Recall 0.572 with 384 dims and rerank-40 | High-dimensional models (1,000+ dims) with large rerank pools |
+| Product quantisation (PQ) | Compress sub-vectors to codebook ids | Very compact | Not in pgvector; training; recall loss | Billion-scale systems (FAISS, Milvus) |
+
+**What would actually change if we swapped it.** halfvec: the index expression and query cast become `::halfvec(384)` with `halfvec_cosine_ops`; stored vectors could stay float32 (expression index) or be stored as halfvec to save table space too. A test would need to check the cast in the query matches the index.
+
+**The decision rule.** Quantise when vector memory, not latency or recall, is the binding constraint. Try half precision first (cheap, small recall loss); binary only for high-dimensional embeddings and always with a full-precision rerank; measure recall against exact search each time.
+
+**Where our choice breaks.** At ~100 M vectors (≈ 190 GB of float32 HNSW index by our 1.9 KB/vector measurement) — then halfvec roughly halves it.
+
+**The number.** At ef_search 40: float32 13.87 MB recall 0.928; halfvec 7.93 MB recall 0.925, built in 0.69 s; binary + rerank 40: 2.37 MB recall 0.572. Latencies all ~2.3–2.4 ms on the raw query.
+
+**Interview script (3 sentences).** "I measured quantisation instead of guessing: a half-precision HNSW index was 43% smaller with essentially the same recall, while binary quantisation of 384-dimensional vectors dropped recall to 0.57 even with a full-precision rerank of 40 candidates. At 14 MB of index there's nothing to save, so I keep float32. At a hundred million vectors halfvec would be my first move."
+
+**Follow-ups they will ask:**
+- Q: Why does binary do so badly here? → A: One bit per dimension keeps only the sign; with 384 dimensions that's too little information to rank finely, and the 40 candidates often don't include the true top 10. It works better for 1,024+ dimension models and larger rerank pools.
+- Q: Does halfvec change scores? → A: Slightly — float16 has ~3 significant digits — enough to swap near-ties, which is why recall moved 0.928 → 0.925.
+- Q: Could you keep float32 vectors but a halfvec index? → A: Yes — that's what the benchmark did: an expression index on `embedding::halfvec(384)`; the table keeps full precision for reranking.
+- Q: What's product quantisation? → A: Split each vector into sub-vectors, replace each by the id of its nearest centroid in a learned codebook; distances are approximated from lookup tables. Much smaller, needs training, not in pgvector.
+- Q (the hard one): Your latencies for all three are the same ~2.4 ms. Doesn't quantisation make search faster? → A (honest): At 7,411 vectors the query is dominated by fixed overheads (planning, the round trip), not by distance math or memory bandwidth, so smaller vectors don't show up in latency. The speed benefit appears when the index no longer fits in memory — which I can't demonstrate at this size.
+
+**The trap.** Quantising by default "because it's faster". Measure recall loss first; at small scale there's nothing to gain.
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

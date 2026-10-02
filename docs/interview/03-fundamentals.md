@@ -181,3 +181,29 @@
 **Trap.** "Cosine 0.7 means 70% similar." It's a geometric quantity, comparable only within one model and query.
 
 **Bridge.** "Because scores aren't absolute, abstention can't be a fixed cosine threshold — that's Phase 9."
+
+---
+
+### Q: Your vector search found segment revenue but not the income-statement line. Why?
+**ID:** P5-07 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "For 'What was AMD's net revenue in 2021?', the top hits were prose *about* revenue — 'Computing and Graphics net revenue of $9.3 billion in 2021 increased by 45%' — while the table row `Net revenue | $ 16,434 | $ 9,763 | $ 6,731` wasn't in the top 5. A sentence-embedding model represents meaning of natural language well; a row of numbers with pipes has little 'meaning' for it to match. That's exactly why the design adds keyword search, which matches 'net revenue' and '2021' literally."
+
+**2-minute answer.** Two reinforcing reasons: the table row lacks the year labels (they're in a separate block — the parser weakness), and numbers fragment into many WordPiece tokens that carry little semantic signal. Fixes: hybrid retrieval (Phase 7), prepending section/column headers to table chunks' embedding input, reranking.
+
+**If they push — level 2.** *"How would you test that hybrid fixes it?"* Golden questions whose evidence is a table row; compare vector-only vs hybrid recall on that subset.
+
+**If they push — level 3.** *"Why did 2022 hits appear?"* Similar wording across years; without a year filter, vector search can't tell them apart.
+
+**If they push — level 4.** *"Would a better embedding model fix tables?"* Somewhat — some models handle tables better — but the structural problem (headers separated from the row) remains.
+
+**Whiteboard it.**
+```text
+ query: "AMD net revenue 2021"
+ vector top-1: "C&G net revenue of $9.3 billion in 2021 increased 45%" (0.793)
+ missed:       "Net revenue | $ 16,434 | $ 9,763 | $ 6,731"  (no year labels, numbers)
+```
+
+**Trap.** "Embeddings understand tables." Mostly they don't.
+
+**Bridge.** "Which is the argument for hybrid search — Phase 6 and 7."

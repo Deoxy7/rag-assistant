@@ -184,3 +184,29 @@
 **Trap.** "We update the rows." Chunk boundaries move; there's no row-to-row mapping.
 
 **Bridge.** "This is over-prep question H4 — the honest-answers file tracks the VACUUM part."
+
+---
+
+### Q: What's a generic plan, and why did it matter for your vector query?
+**ID:** P5-04 · **Round:** backend screen (DB)  **Difficulty:** 4/5
+
+**30-second answer.** "A prepared statement is planned once and reused. Postgres builds custom plans with the actual parameter values for the first five executions, then may switch to a generic plan built without them. A partial index can only be used if the planner proves the query's WHERE implies the index's WHERE — impossible for `chunk_set_id = $1` in a generic plan. So I write chunk set and model as literals, and a test forces a generic plan to show the literal version uses the index while the `$3` version doesn't."
+
+**2-minute answer.** Add the psycopg angle: it auto-prepares any query executed 5 times on a connection (`prepare_threshold`). And the second consequence I hit: a cached plan ignores later *planner* settings like `enable_sort`, so an experiment that toggled them silently did nothing until I disabled auto-prepare. Executor settings like `hnsw.ef_search` still apply because they're read at execution time.
+
+**If they push — level 2.** *"Isn't interpolating literals an injection risk?"* Only for user input. These values come from configuration and go through `psycopg.sql.Literal`, which quotes correctly; user-supplied filters stay bound parameters.
+
+**If they push — level 3.** *"Other fixes?"* `plan_cache_mode = force_custom_plan` for the session, or partitioning by chunk set (partition pruning works at execution time with parameters).
+
+**If they push — level 4.** *"When are generic plans good?"* When parameters don't change the best plan — they save planning time (1.4 ms here, a third of the query).
+
+**Whiteboard it.**
+```text
+ runs 1-5: custom plan (knows $1=1) → partial index ✓
+ run 6+:   generic plan ($1 unknown) → can't prove predicate → seq scan
+ fix: WHERE chunk_set_id = 1 (literal)  → ✓ in both
+```
+
+**Trap.** "Prepared statements are always faster." Not if the generic plan is worse.
+
+**Bridge.** "That's also why my vector benchmark needed a separate connection for one experiment."

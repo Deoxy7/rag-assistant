@@ -81,6 +81,7 @@ make test
 | `make parse` | parses every PDF into blocks with page + character offsets (cached in `data/parsed/`) |
 | `make migrate` | applies pending SQL migrations |
 | `make ingest` | parses, chunks, embeds and indexes the corpus (default chunking from settings) |
+| `make bench-vector` | vector search: recall vs exact, ef_search, filter modes, quantisation |
 | `make diagrams` | renders every diagram to SVG + PNG |
 | `make docs` | renders diagrams, mirrors Decision Cards, checks every link, image and ASCII twin |
 | `make down` | stops the database (data kept) |
@@ -100,7 +101,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [06](06-chunking.md) | Chunking | 3 | ✅ written |
 | [07](07-embeddings.md) | Embeddings | 4 | ✅ written |
 | [08](08-database-schema.md) | Database schema | 4 | ✅ written |
-| [09](09-vector-search.md) | Vector search | 5 | not yet written |
+| [09](09-vector-search.md) | Vector search | 5 | ✅ written |
 | [10](10-keyword-search.md) | Keyword search | 6 | not yet written |
 | [11](11-hybrid-rrf.md) | Hybrid search + RRF | 7 | not yet written |
 | [12](12-reranking.md) | Reranking | 8 | not yet written |
