@@ -1,0 +1,55 @@
+%% Owner: docs/08-database-schema.md — the schema from app/store/migrations/0001_documents_chunks_embeddings.sql.
+erDiagram
+    documents ||--o{ pages : "has"
+    documents ||--o{ blocks : "has"
+    documents ||--o{ chunks : "is cut into"
+    chunk_sets ||--o{ chunks : "groups"
+    chunks ||--o{ embeddings : "has one per model"
+
+    documents {
+        bigint id PK
+        text doc_key UK "AMD_2021_10K"
+        int fiscal_year
+        char64 source_sha256 "PDF bytes"
+        text parser_version
+        text canonical_text "all offsets index this"
+    }
+    pages {
+        bigint document_id PK, FK
+        int page_number PK
+        int char_start
+        int char_end
+        text region "body or after_signatures"
+    }
+    blocks {
+        bigint document_id PK, FK
+        int block_index PK
+        text kind "text heading table"
+        text_array section
+        real_array bbox "x0 y0 x1 y1"
+    }
+    chunk_sets {
+        int id PK
+        text strategy "fixed recursive structure"
+        int chunk_size "max 510"
+        int chunk_overlap
+        text tokenizer
+    }
+    chunks {
+        bigint id PK
+        int chunk_set_id FK
+        bigint document_id FK
+        int char_start
+        int char_end
+        int page_number
+        int page_end
+        int token_count
+        char64 content_sha256 "embedding cache key"
+        tsvector tsv "generated, GIN index"
+    }
+    embeddings {
+        bigint chunk_id PK, FK
+        text model PK "name@revision"
+        int chunk_set_id "for partial HNSW index"
+        vector embedding "384 dims for bge-small"
+    }

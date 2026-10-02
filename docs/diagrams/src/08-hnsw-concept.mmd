@@ -1,0 +1,33 @@
+%% Owner: docs/08-database-schema.md — conceptual HNSW search (Hierarchical Navigable Small World).
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    q["query vector"]:::io
+    subgraph l2["Layer 2 · few nodes, long links"]
+        a["entry point A"]:::store
+        b["B"]:::store
+    end
+    subgraph l1["Layer 1 · more nodes"]
+        b1["B"]:::store
+        c["C"]:::store
+        d["D"]:::store
+    end
+    subgraph l0["Layer 0 · every vector, short links"]
+        d0["D"]:::store
+        e["E"]:::retrieve
+        f["F"]:::retrieve
+    end
+    res["top-k = E, F, … best of ef_search candidates"]:::io
+    legend["Legend<br/>grey = stored vector · green = result · white = query / output"]:::legend
+
+    q -->|start at the top| a
+    a -->|greedy hop: closer to query| b
+    b -->|same node, one layer down| b1
+    b1 -->|greedy hop| d
+    d -->|one layer down| d0
+    d0 -->|explore neighbours, keep ef_search best| e
+    d0 -->|explore| f
+    e -->|return k nearest| res

@@ -77,3 +77,110 @@
 **Trap.** "Autocommit is just faster." The point here is failure isolation, not speed.
 
 **Bridge.** "Ingestion is where transactions really matter — re-ingesting a document is a delete-and-insert that must be atomic."
+
+---
+
+## Phase 4 questions
+
+### Q: Walk me through your schema. Why these tables?
+**ID:** P4-01 · **Round:** backend screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Six tables. `documents` holds each filing and its canonical text — every offset in the system points into it. `pages` and `blocks` record where pages and paragraphs sit in that text, with bounding boxes. `chunk_sets` names a chunking configuration; `chunks` holds that configuration's passages with a generated tsvector and a GIN index; `embeddings` holds one vector per chunk per model, with a partial HNSW index per configuration and model."
+
+**2-minute answer.** Defend the two non-obvious choices: `chunk_sets` exists so nine ablation configurations coexist in one table (no re-ingesting per experiment), and `embeddings` is separate and keyed by model so models can be compared and upgraded side by side (cards #14, #17). Then constraints: CHECKs on offsets, `ON DELETE CASCADE` so replacing a document is one transaction, `UNIQUE (chunk_set_id, document_id, chunk_index)` so re-runs can't duplicate.
+
+**If they push — level 2.** *"Why store the canonical text in `documents` when chunks already have text?"* Chunks overlap and don't cover whitespace; evidence spans in the golden set, citation context windows and highlighting all need the full text by offset.
+
+**If they push — level 3.** *"Normalisation?"* Mostly third normal form, with two deliberate denormalisations: chunk text duplicates a slice of canonical text (so search returns text without substring math), and `embeddings.chunk_set_id` copies the chunk's set so the HNSW index can be partial without a join.
+
+**If they push — level 4.** *"How would you enforce that copied chunk_set_id?"* A composite foreign key `(chunk_id, chunk_set_id) REFERENCES chunks(id, chunk_set_id)` with a matching unique constraint on `chunks`. Not added yet — the pipeline writes it correctly, but the database doesn't guarantee it.
+
+**Whiteboard it.**
+```text
+ documents ─< pages
+     │    └─< blocks
+     └──────< chunks >── chunk_sets
+                 └─< embeddings (chunk_id, model)  ── partial HNSW per (set, model)
+```
+
+**Trap.** "One table with text and a vector column." Works for a demo, fails the first model comparison.
+
+**Bridge.** "The partial-index choice is the interesting part — want the recall-cliff reason?"
+
+---
+
+### Q: What's a partial index and an expression index, and why does your HNSW index need both?
+**ID:** P4-02 · **Round:** backend screen (DB)  **Difficulty:** 4/5
+
+**30-second answer.** "A partial index covers only rows matching a WHERE clause; an expression index indexes the result of an expression. My vector column is an untyped `vector` so models of different dimensions can share it — but HNSW needs a fixed dimension, so the index is on `embedding::vector(384)`. And it's partial on `chunk_set_id = 1 AND model = '…'`, so each configuration's search walks a graph of only its own vectors."
+
+**2-minute answer.** Consequences for queries: the planner uses an expression index only if the query contains the identical expression, and a partial index only if it can prove the query's WHERE implies the index's predicate at planning time. Real plan: `Index Scan using embeddings_hnsw_set1_da415afb … Order By: ((embedding)::vector(384) <=> …)`, 2.6 ms. Why partial instead of one index: filtering after an approximate search can return fewer than k rows.
+
+**If they push — level 2.** *"How many indexes do you end up with?"* One per (chunk set, model): nine for the ablation with one model. Each is small (13.8 MB for 7,411 vectors).
+
+**If they push — level 3.** *"What breaks the planner's proof?"* Bound parameters in a generic plan: if `chunk_set_id = $1` is planned without knowing `$1`, the planner can't match it to `chunk_set_id = 1`. That's checked in Phase 5.
+
+**If they push — level 4.** *"Alternative without many indexes?"* Table partitioning by chunk set, each partition with its own index — the planner prunes partitions at execution time even with parameters. More machinery; worth it at hundreds of configurations.
+
+**Whiteboard it.**
+```text
+ CREATE INDEX … USING hnsw ((embedding::vector(384)) vector_cosine_ops)
+        WHERE chunk_set_id = 1 AND model = 'bge-small@5c38ec7c';
+ query must say: WHERE chunk_set_id = 1 AND model = '…'
+                 ORDER BY embedding::vector(384) <=> $q LIMIT 5
+```
+
+**Trap.** Writing `ORDER BY embedding <=> $q` (no cast) and wondering why it sequential-scans.
+
+**Bridge.** "Which leads straight into the recall cliff on filtered vector search."
+
+---
+
+### Q: How does a GIN index make full-text search fast?
+**ID:** P4-03 · **Round:** backend screen · viva  **Difficulty:** 3/5
+
+**30-second answer.** "GIN is an inverted index: for each lexeme it stores the list of rows containing it. A query like `goodwill & impairment` looks up both lists and intersects them, instead of reading every row. In my plan, a Bitmap Index Scan on `chunks_tsv_gin` found 208 matching chunks, the heap scan filtered to one chunk set and stopped at 10 — 0.099 ms."
+
+**2-minute answer.** Walk the plan: `Bitmap Index Scan` produces a bitmap of matching row locations; `Bitmap Heap Scan` visits only those pages (`Heap Blocks: exact=8`), rechecks the condition and applies the `chunk_set_id` filter. Mention the generated `tsv` column — Postgres keeps it in sync with the text. And the estimate mismatch (20 estimated vs 208 actual) — harmless here, worth knowing how to read.
+
+**If they push — level 2.** *"Why not B-tree?"* B-trees index whole values in sorted order; a tsvector contains many lexemes, and "does it contain X" is a set-membership question that an inverted index answers directly.
+
+**If they push — level 3.** *"Cost of GIN?"* Slower inserts (every lexeme's list is updated); Postgres buffers updates in a "pending list" (fastupdate) and merges later. Here ingest is batch, so it doesn't matter.
+
+**If they push — level 4.** *"Ranking?"* GIN finds matches; ranking with `ts_rank` reads each matching row's tsvector afterwards — that's Phase 6.
+
+**Whiteboard it.**
+```text
+ 'goodwil' → [r12, r88, r301, …]
+ 'impair'  → [r88, r301, r977, …]   ∩ → [r88, r301, …] → heap → filter set=1 → LIMIT 10
+```
+
+**Trap.** "Full-text search scans the text with LIKE." That's what the index exists to avoid.
+
+**Bridge.** "Phase 6 covers ranking, which is where BM25 vs ts_rank comes in."
+
+---
+
+### Q: A filing is re-filed with corrections. Walk me through what your system does — and what a concurrent query sees.
+**ID:** P4-04 · **Round:** system design · backend screen  **Difficulty:** 4/5
+
+**30-second answer.** "On the next ingest, the PDF's sha256 differs from the stored one, so inside one transaction the old `documents` row is deleted — cascades remove its pages, blocks, chunks and embeddings — and the new version is inserted, chunked and embedded. A concurrent query sees the old version until that transaction commits, then the new one; never a mix, because of MVCC."
+
+**2-minute answer.** Detail the order: the document transaction (delete + insert + chunks) commits first; embeddings for the new chunks are computed afterwards in batches, so for a short window the new chunks exist without vectors — vector search simply doesn't find them yet, while keyword search (generated tsvector) does immediately. Old HNSW entries point at dead tuples until VACUUM; the index skips them. Caches: the query-embedding cache is unaffected (queries didn't change); any answer cache would need invalidation by document id (Phase 13).
+
+**If they push — level 2.** *"Can you close the vectorless window?"* Compute the new embeddings first (in memory), then do delete + insert + embeddings in one transaction. Costs a longer transaction; worth it if freshness gaps matter.
+
+**If they push — level 3.** *"What about evidence spans in the golden set?"* They point at character offsets of the old canonical text and become stale. They're derived from quotes, so they're re-located in the new text by a script rather than edited by hand (Phase 11).
+
+**If they push — level 4.** *"What does VACUUM do to HNSW here?"* It removes dead tuples and their index entries. Exactly how pgvector re-links the graph around removed nodes I'd have to read in its source — honest gap.
+
+**Whiteboard it.**
+```text
+ sha changed → BEGIN; DELETE doc (cascade); INSERT doc, pages, blocks, chunks; COMMIT
+             → embed new chunks (batches)  → vectors visible
+ readers: old version ……… | new (keyword) | new (keyword + vector)
+```
+
+**Trap.** "We update the rows." Chunk boundaries move; there's no row-to-row mapping.
+
+**Bridge.** "This is over-prep question H4 — the honest-answers file tracks the VACUUM part."

@@ -15,18 +15,18 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 3 | Abstention policy: answer with weak evidence vs refuse | 9 | not yet written |
 | 4 | PyMuPDF vs pdfplumber vs unstructured.io vs OCR vs LLM-based parsing | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
 | 5 | Store page_number + char_start + char_end vs text only | 2 | ✅ [05-pdf-parsing](../05-pdf-parsing.md) |
-| 6 | Batch vs incremental ingest; updated and deleted documents | 4 | not yet written |
-| 7 | Deduplication strategy; near-duplicate boilerplate | 4 | not yet written |
+| 6 | Batch vs incremental ingest; updated and deleted documents | 4 | ✅ [08-database-schema](../08-database-schema.md) |
+| 7 | Deduplication strategy; near-duplicate boilerplate | 4 | ✅ [08-database-schema](../08-database-schema.md) |
 | 8 | Fixed-size vs recursive-character vs structure-aware vs semantic chunking | 3 | ✅ [06-chunking](../06-chunking.md) |
 | 9 | Chunk size and overlap: the quality/cost curve | 3 | ✅ [06-chunking](../06-chunking.md) |
 | 10 | Chunk-level vs sentence-level vs parent-document retrieval | 3 | ✅ [06-chunking](../06-chunking.md) |
-| 11 | Local open embedding model vs API embeddings | 4 | not yet written |
-| 12 | Embedding dimension: 384 vs 768 vs 1536 | 4 | not yet written |
-| 13 | Normalisation and distance metric: cosine vs inner product vs L2 | 4 | not yet written |
-| 14 | Re-embedding cost when the model is upgraded | 4 | not yet written |
+| 11 | Local open embedding model vs API embeddings | 4 | ✅ [07-embeddings](../07-embeddings.md) |
+| 12 | Embedding dimension: 384 vs 768 vs 1536 | 4 | ✅ [07-embeddings](../07-embeddings.md) |
+| 13 | Normalisation and distance metric: cosine vs inner product vs L2 | 4 | ✅ [07-embeddings](../07-embeddings.md) |
+| 14 | Re-embedding cost when the model is upgraded | 4 | ✅ [07-embeddings](../07-embeddings.md) |
 | 15 | Postgres + pgvector vs Pinecone / Qdrant / Weaviate / Milvus / FAISS / Elasticsearch | 0 | ✅ [03-environment-and-infra](../03-environment-and-infra.md) |
-| 16 | HNSW vs IVFFlat vs exact scan; m, ef_construction, ef_search | 4 | not yet written |
-| 17 | Vectors in the same table vs a separate table | 4 | not yet written |
+| 16 | HNSW vs IVFFlat vs exact scan; m, ef_construction, ef_search | 4 | ✅ [08-database-schema](../08-database-schema.md) |
+| 17 | Vectors in the same table vs a separate table | 4 | ✅ [08-database-schema](../08-database-schema.md) |
 | 18 | Metadata filtering: pre-filter vs post-filter, and the recall cliff | 5 | not yet written |
 | 19 | Quantisation (scalar / binary): when it is worth the recall loss | 5 | not yet written |
 | 20 | Dense-only vs sparse-only vs hybrid retrieval | 7 | not yet written |
@@ -208,6 +208,78 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **The trap.** "Store the page number, that's enough for citations." It's not enough to evaluate retrieval across chunking strategies or to highlight evidence — and retrofitting offsets is the expensive part.
 
+### Card 6 — from [08-database-schema](../08-database-schema.md)
+
+#### Decision: Idempotent batch ingestion — skip, insert or replace per document, keyed by PDF hash + parser version  (rejected: wipe-and-reload, streaming/CDC ingestion, append-only versions)
+
+**One-line defence.** Filings change once a year, so a re-runnable batch job is enough; keying on the PDF's sha256 and the parser version makes re-runs cheap (2.8 s with nothing to do) and makes a changed document replace its old rows atomically.
+
+**What problem is this even solving?** Documents get added, corrected and re-parsed. Ingestion must handle all three without duplicates, without stale derived rows, and without leaving a half-updated document visible.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Idempotent upsert per document | Compare hash + parser version; skip, insert, or delete-cascade-and-reinsert in one transaction | Safe to re-run and interrupt; updates are atomic; cheap no-op runs | Replacing a document re-embeds all its chunks; no history of old versions | Low change rate, batch arrivals |
+| Wipe and reload everything | `TRUNCATE`, re-ingest all | Simplest | Downtime; re-embeds everything every time (~80 s here, days at scale) | Tiny prototypes |
+| Streaming / change-data-capture | Each document change becomes an event processed continuously | Fresh within seconds | Queues, ordering, retries, dead letters; overkill for annual filings | High change rates (news, tickets) |
+| Append-only versions | Keep every version, mark the current one | Full history, time-travel queries | Storage grows; every query must filter to current | Audit or "as of date" requirements |
+
+**What would actually change if we swapped it.** To streaming: an event queue in front of `ingest()`, a worker that processes one document per message, and HNSW inserts per message instead of a batch build (slower per vector); the same per-document transaction still applies. To append-only: a `version` and `is_current` on `documents`, every query filtered on `is_current`, and an index per version or a filtered index.
+
+**The decision rule.** Match ingestion to the change rate: batch for daily-or-slower changes, streaming when freshness requirements are minutes. Always make ingestion idempotent (keyed on content), so retries and re-runs are safe either way.
+
+**Where our choice breaks.** If documents changed constantly, re-embedding a whole document for one changed paragraph would be wasteful — then diff at chunk level (content hashes already exist) and update only changed chunks. If users needed "what did the 2021 filing say before its amendment", append-only versions.
+
+**The number.** First ingest 80.2 s; re-run with nothing changed 2.8 s (`documents=… unchanged`, `computed 0`); replacement path covered by `test_changed_pdf_replaces_the_document_and_cascades`.
+
+**Interview script (3 sentences).** "Ingestion is an idempotent batch job: for each document it compares the PDF's hash and the parser version with what's stored, then skips, inserts, or deletes and re-inserts inside one transaction, with cascading deletes removing old chunks and vectors. A re-run with nothing changed takes under three seconds, and an interrupted run resumes cleanly. With annual filings, streaming would add a queue and retry machinery for no freshness gain."
+
+**Follow-ups they will ask:**
+- Q: What does a query see while a document is being replaced? → A: The old version until commit, then the new one — never a mix. Postgres's MVCC (multi-version concurrency control) keeps the old rows visible to other transactions until the replacing transaction commits.
+- Q: Why delete-and-reinsert rather than update in place? → A: Chunk boundaries can all move when a document changes, so there's no stable mapping from old chunks to new; deleting and inserting is simpler and, inside one transaction, equally atomic.
+- Q: What happens to the HNSW index on delete? → A: Deleted rows become dead tuples; their index entries are cleaned up by VACUUM. I'm not certain how pgvector repairs graph links around removed nodes — it's on my honest-answers list.
+- Q: How would you ingest 10,000 new filings a day? → A: Same idempotent unit (one document per transaction), many workers in parallel, embedding on GPU workers, and periodic index maintenance. The per-document contract doesn't change.
+- Q (the hard one): Two workers ingest the same changed document at once. What happens? → A (honest): Both may try to delete and insert; the unique `doc_key` makes one of them fail at insert rather than create duplicates, but the loser's work is wasted and its error must be handled. I'd add a per-document advisory lock (`pg_advisory_xact_lock(hash(doc_key))`). Not built — ingestion here is single-process.
+
+**The trap.** Describing ingestion as "a script that loads PDFs" with no answer for re-runs, updates or partial failures.
+
+### Card 7 — from [08-database-schema](../08-database-schema.md)
+
+#### Decision: Keep duplicate chunks as separate rows (they're in different filings) but embed each distinct text once  (rejected: dropping duplicate chunks, near-duplicate merging at ingest, embedding every chunk)
+
+**One-line defence.** 599 of 7,411 chunks repeat another chunk word for word — mostly boilerplate copied from 2021 into 2022 — and each copy must stay, because it's citable evidence in *its* filing; but identical text gets an identical vector, so it's computed once.
+
+**What problem is this even solving?** Ten-Ks repeat themselves year to year (5–17% of FY2022 chunks are exact copies of FY2021 chunks here). Duplicates waste embedding compute and storage, and in results they crowd the top-k with copies.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Keep rows, dedupe embedding by content hash | One model call per distinct text; vector copied to every duplicate row | No lost evidence; 8% fewer model calls; deterministic | Duplicate rows still appear together in results | Versioned documents where each copy is citable |
+| Drop exact duplicates | Keep one chunk per distinct text | Smaller index, no duplicate hits | Loses the citation for the other filing; which year "owns" the text? | Single-version corpora |
+| Near-duplicate merging (MinHash/SimHash) | Treat almost-identical chunks as one | Catches small edits | Merges chunks whose differing numbers are the whole point ("grew 19%" vs "grew 8%") | Web crawls, forum posts |
+| Embed everything | No dedupe | Simplest | 599 extra calls (~8% more embed time) | When compute is free |
+
+**What would actually change if we swapped it.** Dropping duplicates would delete rows from `chunks` and break evidence spans pointing at them (Phase 11), and year-filtered searches would find nothing for boilerplate sections in one of the years. Embedding everything: remove ~10 lines in `pipeline.py`, +8% embedding time.
+
+**The decision rule.** Deduplicate *computation* by exact content hash always (it's free and lossless). Deduplicate *data* only when copies carry no distinct meaning — not when the same text in two documents is two different facts ("this was in the 2021 filing" vs "this was in the 2022 filing").
+
+**Where our choice breaks.** Near-duplicates that differ by one number (the dangerous ones) aren't deduplicated and look almost identical to vector search; only metadata filters and keyword search on the number can separate them. And duplicate rows can still fill the top-k with copies — collapsing identical results at query time (keep one, cite both) is a Phase 9 option.
+
+**The number.** Structure/256: 7,411 chunks, 6,812 distinct texts; FY2022 chunks identical to an FY2021 chunk — AMD 14%, Boeing 16%, Corning 5%, PepsiCo 17%, Verizon 14%. Embedding: 6,812 computed, 599 copied.
+
+**Interview script (3 sentences).** "About 8% of my chunks are exact copies of another chunk — mostly boilerplate repeated between the 2021 and 2022 filings. I keep every row, because each copy is evidence for its own filing, but I embed each distinct text once and copy the vector. The dangerous duplicates are the *near* ones that differ by a single number, and those are handled by year filters and keyword search, not deduplication."
+
+**Follow-ups they will ask:**
+- Q: How do you detect duplicates? → A: sha256 of the chunk text, stored in `content_sha256` with a B-tree index; identical hash = identical text.
+- Q: Why not MinHash for near-duplicates? → A: Near-duplicate filings differ exactly in the numbers users ask about; merging them would erase the answer.
+- Q: Do duplicates hurt retrieval? → A: Identical chunks get identical scores, so both years appear together in the top-k, using two slots for one piece of text. Without a year filter, that's 50/50 which year gets cited first.
+- Q: Could you exploit duplicates? → A: Yes — a duplicate pair is a signal that a passage didn't change between years, useful for "what changed?" questions. Not built.
+- Q (the hard one): Your cross-set cache only reused 8 vectors between fixed and structure chunking. Is it worth having? → A (honest): Between strategies, barely — chunk boundaries rarely coincide. It pays off for overlap-only changes (identical chunks, 100% reuse in the test) and for re-ingests. Within a set, the distinct-text grouping saved 599 calls. I measured both; the second matters more.
+
+**The trap.** "Deduplicate the corpus" without asking whether the copies mean different things.
+
 ### Card 8 — from [06-chunking](../06-chunking.md)
 
 #### Decision: Three pluggable chunkers — fixed, recursive, structure-aware — with structure-aware as the default  (rejected: one hard-coded strategy, semantic chunking, LLM-based chunking)
@@ -319,6 +391,148 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **The trap.** Assuming the unit of retrieval must be the unit of context. Separating them is a standard technique — and a sign you understand the trade-off.
 
+### Card 11 — from [07-embeddings](../07-embeddings.md)
+
+#### Decision: A local open model — BAAI/bge-small-en-v1.5, pinned by revision  (rejected: OpenAI / Cohere / Voyage embedding APIs, larger local models as the default)
+
+**One-line defence.** A 134 MB MIT-licensed model running on the laptop's GPU embeds the whole corpus in about 70 seconds for $0, deterministically, offline — which matters when the ablation re-embeds the corpus for every chunking configuration.
+
+**What problem is this even solving?** Vector search needs a function from text to vector. Without one there is no semantic retrieval at all — only keywords.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ bge-small-en-v1.5 (local) | 33 M-parameter BERT-style model via sentence-transformers | Free; fast on MPS (116 chunks/s); deterministic; data never leaves the machine; pinned revision | 384 dims, 512-token limit; likely weaker than large API models (not measured here); English only | Experiments, privacy, offline, cost-sensitive |
+| OpenAI embeddings API | Send text, receive vectors | Strong general quality; long inputs; no local compute | Cost per token on every re-embed; network latency; vendor can retire models; data leaves your machine | Production apps without ML infrastructure |
+| Cohere / Voyage APIs | Same model-as-a-service shape | Retrieval-tuned models; some domain-specific options | Same cost/latency/vendor issues | Teams that want a hosted model tuned for retrieval |
+| Larger local (bge-base 768d, bge-large 1024d) | Same family, bigger | Usually better quality | 3–10× slower on this laptop (not measured); 2–2.7× the storage | When eval shows small is the bottleneck |
+
+**What would actually change if we swapped it.** To an API: `app/embed/embedder.py` becomes an HTTP client with retries and rate limiting; ingest time becomes network-bound; each re-embed of the corpus (~1.3 M tokens per chunking configuration, Phase 3 table) costs money — and the ablation runs nine configurations; the `embedding_dims` setting, the HNSW index cast and `vector_literal` sizes change to the API model's dimension. A new failure mode: the provider deprecates the model and every stored vector must be regenerated on their schedule. About a day of work.
+
+**The decision rule.** Use a local model when you'll re-embed often, need determinism or privacy, or the corpus is small enough that local throughput is fine. Use an API when quality must be state of the art, there's no ML infrastructure, and the embed-once cost is acceptable. The crossover is roughly when corpus size × re-embed frequency × price exceeds the cost of running inference yourself.
+
+**Where our choice breaks.** Quality on hard financial paraphrases is probably below larger models — unmeasured. Speed at scale: this corpus averages 741 chunks per filing, so 10 M filings is ~7.4 billion chunks — at ~100 chunks/s, about 2.3 years on one laptop. Migration path: GPU inference servers, or an API model, with the re-embedding migration in card #14.
+
+**The number.** 6,812 distinct chunks in 69.6 s on MPS (whole-ingest rate ~98/s); model 134 MB; vectors equal across CPU/MPS within 3.3 × 10⁻⁷. Quality vs a larger model: not yet measured (candidate Phase 12 axis).
+
+**Interview script (3 sentences).** "I embed with bge-small-en-v1.5 locally, pinned to an exact model revision: 384 dimensions, 116 chunks a second on the M1's GPU, zero cost and fully deterministic. That matters because my ablation re-embeds the corpus for every chunking configuration. If evaluation showed the embedding model was the bottleneck, I'd test a larger bge model or an API model on the same golden set before switching."
+
+**Follow-ups they will ask:**
+- Q: Why not OpenAI's embeddings — they're better? → A: Possibly, on general benchmarks; I haven't measured them on this corpus. For this project determinism, zero marginal cost per re-embed, and keeping data local outweighed an unmeasured quality gain. It's a one-class swap if the eval says otherwise.
+- Q: What does "pinned by revision" mean? → A: Hugging Face models are git repositories; `from_pretrained(..., revision="5c38ec7c…")` loads that exact commit, so a model update upstream can't silently change my vectors.
+- Q: Why bge and not all-MiniLM-L6-v2? → A: Both are small; bge v1.5 was trained specifically for retrieval with a query instruction. I didn't benchmark MiniLM; I'd expect the difference to show on paraphrase-heavy questions.
+- Q: What's the GPU doing that makes it 2.5× faster? → A: The model is mostly matrix multiplications; a batch of 64 chunks becomes large matrix operations that the GPU parallelises far better than four CPU cores.
+- Q (the hard one): Your query and document embeddings are produced differently. Isn't that inconsistent? → A (honest): It's by design for this model family — bge v1.5 was trained with an instruction on the query side, so the model expects it. I verified the instruction changes the vector; I haven't measured how much it improves retrieval here. That's a cheap ablation I could add.
+
+**The trap.** "Bigger model = better retrieval" without measuring. On a narrow corpus, chunking and hybrid search often matter more than model size.
+
+### Card 12 — from [07-embeddings](../07-embeddings.md)
+
+#### Decision: 384 dimensions  (rejected for now: 768, 1024, 1536)
+
+**One-line defence.** 384 is what bge-small produces; it keeps vectors at 1,536 bytes each, and whether more dimensions buy recall on this corpus is a measurement for Phase 12, not an assumption.
+
+**What problem is this even solving?** The dimension is how many numbers describe each text: more numbers can encode finer distinctions, but every vector costs memory, index size and distance-computation time in proportion.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ 384 (bge-small) | 384 float32 numbers per chunk | 1,536 B/vector; fast distance math; small index (13.9 MB for 7,411) | Less capacity for fine distinctions | Small/medium corpora, laptop scale |
+| 768 (bge-base) | 768 numbers | More capacity | 2× storage and distance cost | When small measurably underperforms |
+| 1024 (bge-large) | 1,024 numbers | Even more capacity | 2.7× storage; slower model | High-stakes retrieval |
+| 1536 (typical API models) | 1,536 numbers | Strong general models | 4× storage; HNSW memory grows | Hosted-model setups |
+
+**What would actually change if we swapped it.** Setting `embedding_dims`, the HNSW index cast `vector(768)`, and a new `embeddings` row per chunk under the new model key — no schema change, because the column is an untyped `vector` and indexes are per model. Storage for the default set: vectors 7,411 × 3,072 B ≈ 22.8 MB instead of 11.4 MB (raw); index roughly doubles.
+
+**The decision rule.** Choose the smallest dimension that meets your recall target on *your* evaluation; dimension is a proxy for model capacity, not a quality guarantee. Reduce dimensions (smaller model, or truncation-trained models) when memory or latency binds.
+
+**Where our choice breaks.** At hundreds of millions of vectors memory dominates any dimension (card #15); at the other end, if 768 dims improves recall@5 meaningfully on the golden set, 384 was the wrong economy.
+
+**The number.** 1,536 bytes per vector (384 × 4); embeddings table 26.8 MB and HNSW index 13.9 MB for 7,411 rows. Recall vs 768: not yet measured.
+
+**Interview script (3 sentences).** "My vectors are 384-dimensional because that's what bge-small outputs — 1,536 bytes each, a 14 MB index for the whole default chunk set. Dimension is really a proxy for model capacity, so the honest comparison is bge-small vs bge-base on my golden set. The schema already supports both side by side because the vector column is untyped and indexes are per model."
+
+**Follow-ups they will ask:**
+- Q: Do more dimensions always help? → A: No — extra dimensions only help if the model learned to use them; a well-trained small model can beat a poorly matched large one on a narrow domain.
+- Q: Can you just cut a 1,536-d vector to 384? → A: Only for models trained for it (Matryoshka-style training); for others, truncating destroys the geometry. bge-small isn't truncation-trained, so I'd change models instead.
+- Q: How does dimension affect HNSW speed? → A: Each distance computation is O(d), so search cost scales roughly linearly with dimension for the same number of visited nodes.
+- Q: Why float32 and not float16? → A: Default and exact enough; pgvector's `halfvec` would halve storage (card #19) at a small precision cost — measured in Phase 5 if at all.
+- Q (the hard one): How would you know dimension, not the model, explains a quality difference? → A (honest): You can't separate them by switching models — bge-base differs in size, training and dimension at once. The clean experiment is one truncation-trained model at several dimensions; I don't have one here, so I'd describe the result as "model A vs model B", not "384 vs 768".
+
+**The trap.** Treating dimension as an independent quality knob.
+
+### Card 13 — from [07-embeddings](../07-embeddings.md)
+
+#### Decision: Normalise every vector to unit length; rank by cosine distance (`<=>`, `vector_cosine_ops`)  (rejected: inner product on unnormalised vectors, L2 distance)
+
+**One-line defence.** bge is trained with cosine similarity; with unit vectors, cosine, inner product and L2 all give the same ranking, and cosine stays correct even if a future model returns unnormalised vectors.
+
+**What problem is this even solving?** "Nearest" needs a definition. Different distance functions can rank the same vectors differently when lengths vary; matching the function the model was trained with keeps "nearest" meaning "most similar".
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Cosine distance on unit vectors | `1 − (a·b)/(‖a‖‖b‖)`, operator `<=>` | Ignores length; matches training; robust to unnormalised inputs | Computes norms (trivially cheap here) | Default for sentence-embedding models |
+| Inner product | `a·b`, operator `<#>` (negated) | Cheapest; equals cosine when normalised | Wrong ranking if vectors aren't unit length — long vectors win | Normalised vectors when every cycle counts |
+| L2 (Euclidean) | `‖a − b‖`, operator `<->` | Intuitive geometry | Sensitive to length; for unit vectors `‖a−b‖² = 2 − 2cos`, so same ranking | Models trained with L2 |
+
+**What would actually change if we swapped it.** To inner product: the index opclass becomes `vector_ip_ops` and queries use `<#>`; rankings would be identical today because every vector is unit length (tested). Without normalisation, inner product would favour longer vectors — often longer or more generic texts — a silent quality bug.
+
+**The decision rule.** Use the similarity the model was trained with. If vectors are normalised, cosine and inner product are interchangeable and inner product is marginally cheaper; if you're not sure they're normalised, cosine is the safe choice.
+
+**Where our choice breaks.** Practically never for this model; the only cost is a few extra multiplications per comparison, invisible at our scale.
+
+**The number.** All stored vectors have norm 1 within 10⁻⁵ (`test_vectors_are_384_dimensional_and_unit_length`); the Phase 0 smoke tests pin the operators' arithmetic.
+
+**Interview script (3 sentences).** "Vectors are normalised to length one at embedding time and searched with cosine distance, which is what bge was trained with. For unit vectors cosine, inner product and L2 all give the same ranking — L2 squared is two minus two cosine — so the choice is about robustness: cosine stays correct even if a future model doesn't normalise. A test checks every vector's length."
+
+**Follow-ups they will ask:**
+- Q: Prove cosine and L2 rank the same for unit vectors. → A: `‖a−b‖² = ‖a‖² + ‖b‖² − 2a·b = 2 − 2cos(a,b)`; a monotone decreasing function of cosine, so smallest L2 = largest cosine.
+- Q: Why does pgvector negate inner product? → A: Every operator is a distance (smaller = closer), so `ORDER BY … ASC` always means nearest-first; negating the dot product keeps that convention.
+- Q: Would inner product be faster? → A: Slightly — no division by norms. At 384 dims and thousands of rows the difference is far below measurement noise; I didn't measure it.
+- Q: What if one model normalises and another doesn't? → A: Each model has its own rows and its own index; normalising at our embedding step makes every model's vectors unit length regardless.
+- Q (the hard one): Is cosine similarity a meaningful absolute score? → A (honest): No. Unrelated text scored 0.37 in my test, not 0, because embedding spaces are anisotropic. Scores are only comparable within one model and one query, which is why abstention can't be a fixed cosine threshold.
+
+**The trap.** "Cosine similarity of 0.7 means 70% relevant." It's a geometric quantity, not a probability.
+
+### Card 14 — from [07-embeddings](../07-embeddings.md)
+
+#### Decision: Store vectors per (chunk, model) so an embedding-model upgrade runs side by side  (rejected: one vector column overwritten in place, a table per model)
+
+**One-line defence.** Vectors from different models live in different spaces and can't be mixed, so an upgrade means re-embedding everything — the schema lets the new model's vectors and index be built next to the old ones and switched over only after the golden set says so.
+
+**What problem is this even solving?** Upgrading the embedding model is a data migration, not a deploy: a query embedded with model B searched against vectors from model A returns garbage with no error.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ `embeddings(chunk_id, model)` rows + per-model partial index | Each model's vectors and index coexist | Zero-downtime switch; A/B on the golden set; rollback = keep old rows | Storage for both during migration; queries must name the model | Any system that will ever change models |
+| Overwrite one column in place | `UPDATE chunks SET embedding = …` | Simplest | During re-embed, half the rows are model A and half B — mixed results; no rollback | Throwaway prototypes |
+| Separate table per model | `embeddings_bge_small`, `embeddings_bge_base` | Fixed dimension per table | Schema change per model; joins per table | When dimensions must be typed columns |
+
+**What would actually change if we swapped it.** Overwriting in place would remove the `model` column and per-model indexes; re-embedding 6,812 texts (~70 s here, hours to days at scale) would leave search inconsistent for that whole window.
+
+**The decision rule.** Treat a model change like a schema migration: build the new representation alongside the old, validate it offline, switch reads atomically, then delete the old. Never mix vectors from two models in one search.
+
+**Where our choice breaks.** At very large scale, holding two full copies of the vectors and two indexes during migration may not fit; then migrate shard by shard, or route each query to the model its shard was built with.
+
+**The number.** Re-embedding the default chunk set: 69.6 s for 6,812 texts. Storage overhead of a second 384-d model: another ~27 MB of rows and ~14 MB of index.
+
+**Interview script (3 sentences).** "Vectors are stored per chunk *and* per model, with a separate partial HNSW index for each, because vectors from two models live in different spaces and can't be compared. Upgrading the model means embedding everything again into new rows, evaluating on the golden set, then switching the query side to the new model key — the old rows are the rollback. Here a re-embed takes about 70 seconds; in production it's the expensive part, so it's planned like a migration."
+
+**Follow-ups they will ask:**
+- Q: Why can't you mix old and new vectors? → A: Each model defines its own coordinate system; dimension 17 of model A means nothing in model B. Even same-dimension models are incompatible.
+- Q: How do you prevent a query from using the wrong model? → A: The query path embeds with the configured model and filters `WHERE model = <that key>`; the partial index exists only for that model, so a mismatch returns no index rather than wrong neighbours.
+- Q: How do you handle documents added during the migration? → A: Ingest writes vectors for both models until the switch, so neither side falls behind.
+- Q: What about the query cache? → A: It's keyed by text inside one Embedder instance; switching models creates a new instance, so no stale vectors cross over.
+- Q (the hard one): Your pipeline reuses vectors by content hash. Could that reuse a vector from the wrong model? → A (honest): The reuse query joins on `e.model = <current model>`, so no — but it's exactly the kind of bug that would be silent, so I'd want a test that ingests with two models and checks no cross-model copy happens. The current test covers reuse within one model only.
+
+**The trap.** "Just re-run the embedding job." Without side-by-side storage, the system is broken for the whole duration of the re-run.
+
 ### Card 15 — from [03-environment-and-infra](../03-environment-and-infra.md)
 
 #### Decision: Postgres + pgvector as the only datastore  (rejected: Pinecone, Qdrant, Weaviate, Milvus, FAISS, Elasticsearch/OpenSearch)
@@ -358,6 +572,77 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q: Why not Pinecone and skip the operations work? → A: For a company already on a cloud with no database people, that's a defensible trade. Here the documents stay local, there's no per-query bill, and the eval harness can run a whole ablation matrix without network calls.
 
 **The trap.** Either "vector databases are always faster, so use one" or "pgvector doesn't scale" — both without numbers. The defensible answer is about workload size and the cost of keeping two systems consistent.
+
+### Card 16 — from [08-database-schema](../08-database-schema.md)
+
+#### Decision: HNSW with pgvector defaults (m = 16, ef_construction = 64), one partial index per chunk set + model  (rejected: IVFFlat, exact scan only, one shared index)
+
+**One-line defence.** HNSW gives high recall without a training step and keeps working as rows are added; at 7,411 vectors it builds in 1.4 s and answers in a few milliseconds — and partial indexes mean each configuration searches its own graph.
+
+**What problem is this even solving?** Finding the nearest vectors without comparing the query to every row. Without an index, search is exact but linear in rows.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ HNSW | Layered proximity graph, greedy search | High recall at low latency; no training; incremental inserts | More memory (13.8 MB for 7,411 here); slower builds than IVFFlat; approximate | Default for most workloads |
+| IVFFlat | Cluster vectors into `lists`; search the nearest `probes` clusters | Smaller, faster to build | Needs data present before building (clusters are trained); recall drops as data drifts from the clusters | Large, mostly static data where build time matters |
+| Exact scan | Compute distance to every row, sort | Perfect recall; no index | Linear cost; slow at scale | Small tables, or as ground truth for measuring ANN recall |
+| One shared index for all chunk sets | One graph; filter by chunk set after | Fewer indexes | Filter applied after approximate search → fewer than k results (recall cliff) | Never with many configurations in one table |
+
+**What would actually change if we swapped it.** IVFFlat: `USING ivfflat … WITH (lists = N)` built *after* loading, with `SET ivfflat.probes` at query time; adding many vectors later would require a rebuild to keep recall. Exact: drop the index; queries stay correct and get slower roughly linearly in rows — measured in Phase 5. Shared index: one `CREATE INDEX` without `WHERE`; filtered queries would need iterative scans (`hnsw.iterative_scan`, pgvector ≥ 0.8) to avoid returning fewer than k rows.
+
+**The decision rule.** Under ~10⁴–10⁵ vectors exact search is often fast enough — measure it. Above that, HNSW for recall and dynamic data; IVFFlat when build time or memory dominates and data is static. Tune `ef_search` for the recall target before touching `m` or `ef_construction`.
+
+**Where our choice breaks.** Memory: the graph wants to be in RAM; at ~2 KB per 384-d vector here, 100 M vectors would need ~190 GB of index. Builds: `maintenance_work_mem` is 64 MB in this container — enough for 7,411 vectors, not for millions. Migration: quantised vectors (`halfvec`), larger memory, partitioning, or a dedicated vector database (card #15).
+
+**The number.** Build 1.4 s for 7,411 vectors; index 13.84 MB; one query via the index 2.6 ms execution. Recall vs exact search and latency vs `ef_search`: not yet measured — Phase 5.
+
+**Interview script (3 sentences).** "Vectors are indexed with HNSW — a layered proximity graph searched greedily — using pgvector's defaults, m = 16 and ef_construction = 64. Each chunk set and model gets its own partial index, so a search never has to filter out other configurations' vectors after the approximate step. At this size it builds in 1.4 seconds and queries in about 2.6 milliseconds; whether it's even faster than an exact scan here is something I measure in Phase 5."
+
+**Follow-ups they will ask:**
+- Q: What do m and ef_construction control? → A: `m` is how many neighbours each node links to (more = better recall, more memory); `ef_construction` is how widely the builder searches for those neighbours (more = better graph, slower build). `ef_search` is the query-time equivalent and the knob to tune first.
+- Q: Why not IVFFlat? → A: It needs representative data before building (its clusters are trained), and recall degrades as new data drifts from them. HNSW handles inserts without retraining. IVFFlat would be smaller and faster to build.
+- Q: Why a partial index per chunk set? → A: All nine ablation configurations share one table; a single index would make every search walk a graph of all configurations' vectors and filter afterwards — returning fewer than k results when the wanted set is a minority.
+- Q: What's the index's memory footprint? → A: Measured 13.84 MB for 7,411 vectors (~1.9 KB each, including a copy of the 1,536-byte vector plus links).
+- Q (the hard one): Do queries with bound parameters still use the partial index? → A (honest): Postgres can only use a partial index if it can prove the query's WHERE matches the index's at planning time. With literal values it does (EXPLAIN shows it). With prepared statements, after five executions Postgres may switch to a generic plan that can't prove it. I verify that in Phase 5 and design the query to be safe either way.
+
+**The trap.** "HNSW is exact" or "always use an index". It's approximate, and below some size an exact scan is simpler and fast enough.
+
+### Card 17 — from [08-database-schema](../08-database-schema.md)
+
+#### Decision: Vectors in a separate `embeddings` table keyed by (chunk_id, model)  (rejected: a vector column on `chunks`, a separate table per model)
+
+**One-line defence.** One chunk can have vectors from several models (the dimension and model ablation, and every future upgrade), which a single column can't hold; a separate table keeps `chunks` narrow and lets each model have its own index.
+
+**What problem is this even solving?** Where the vector lives determines how many models you can keep, how wide the hot table is, and how you swap models.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ `embeddings(chunk_id, model)` table | One row per chunk per model | Multiple models; per-model partial indexes; `chunks` stays narrow; side-by-side upgrades | A join (or second lookup) to get chunk text; duplicate `chunk_set_id` column | Anything that will compare or change models |
+| `embedding vector(384)` column on `chunks` | Vector stored with the text | No join; simplest | One model only; changing models rewrites the hot table; wide rows slow keyword scans | One fixed model forever |
+| Table per model | `embeddings_bge_small`, `embeddings_bge_base` | Typed dimension column | Schema change per model; code branches by table name | A handful of permanent models |
+
+**What would actually change if we swapped it.** Column on `chunks`: the migration adds `embedding vector(384)`, the HNSW index moves to `chunks`, vector search needs no join, and a second model needs a second column (`ALTER TABLE` on the biggest table). Keyword scans would read wider rows.
+
+**The decision rule.** Keep vectors in their own table when you'll have more than one model or need to re-embed without downtime; inline them when the model is fixed and the join cost matters.
+
+**Where our choice breaks.** If a single model were final, the join on every vector search would be pure overhead (small, but non-zero; Phase 13 will show whether it's visible). The denormalised `chunk_set_id` must always equal the chunk's — enforced by the pipeline, not by a constraint.
+
+**The number.** `embeddings` 26.8 MB vs `chunks` 21.4 MB for one chunk set: putting vectors inline would roughly double the width of every `chunks` row read by keyword search.
+
+**Interview script (3 sentences).** "Vectors live in their own table keyed by chunk and model, because one chunk can have vectors from several models — for the model comparison and for upgrades — and each model gets its own partial HNSW index. The cost is a join from a vector hit back to chunk text, which is a primary-key lookup. I also copied `chunk_set_id` into the vector table on purpose, so the index can be partial without a join."
+
+**Follow-ups they will ask:**
+- Q: Isn't copying `chunk_set_id` denormalisation? → A: Yes, deliberately: a partial index can only filter on columns of its own table. The pipeline writes it from the chunk; a test ingests and checks counts, but no database constraint enforces equality — a composite foreign key on `(chunk_id, chunk_set_id)` would, and that's a reasonable hardening.
+- Q: What does the join cost? → A: For top-k results it's k primary-key lookups — microseconds each. I'll see its share in Phase 13's latency breakdown.
+- Q: Why an untyped `vector` column? → A: So vectors of different dimensions can share the table; each row's `dims` is checked, and each index casts to its model's dimension.
+- Q: How do you delete a model's vectors? → A: `DELETE FROM embeddings WHERE model = …` and drop its partial index; no schema change.
+- Q (the hard one): Would you keep this design at 100 M vectors? → A (honest): Probably not in one table: I'd partition `embeddings` by model (and maybe by chunk set) so indexes and vacuums stay per partition. Postgres declarative partitioning supports that; I haven't tested pgvector indexes on partitions.
+
+**The trap.** "Store the vector with the text, it's simpler" — true until the first model change.
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

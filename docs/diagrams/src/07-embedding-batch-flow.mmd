@@ -1,0 +1,23 @@
+%% Owner: docs/07-embeddings.md — how app/ingest/pipeline.py turns chunks into stored vectors.
+flowchart TB
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    missing[("chunks without a vector<br/>for this model")]:::store
+    reuse["1 · reuse by content hash<br/>copy vectors from identical text<br/>in other chunk sets (SQL)"]:::ingest
+    dedupe["2 · group remaining chunks<br/>by identical text"]:::ingest
+    batch["3 · batches of 512 distinct texts"]:::ingest
+    encode["4 · SentenceTransformer.encode<br/>batch 64 · MPS · normalise"]:::ingest
+    copy["5 · COPY rows into embeddings<br/>one transaction per batch"]:::ingest
+    emb[("embeddings<br/>chunk_id · model · vector")]:::store
+    hnsw["6 · build partial HNSW index<br/>per chunk set + model"]:::ingest
+    legend["Legend<br/>blue = ingestion · grey = storage"]:::legend
+
+    missing -->|chunk ids + text| reuse
+    reuse -->|still missing| dedupe
+    dedupe -->|6,812 distinct of 7,411| batch
+    batch -->|512 texts| encode
+    encode -->|512 × 384 float32, unit length| copy
+    copy -->|commit| emb
+    emb -->|after all batches| hnsw

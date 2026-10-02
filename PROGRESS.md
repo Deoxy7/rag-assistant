@@ -45,3 +45,13 @@ Numbers:  at 256 tokens: fixed 5,604 chunks, recursive 6,538 (p50 223), structur
 Decisions: LangChain's `start_index` not used (unit bug); windows cut between whole words; separators kept at chunk end; heading runs merged with following body; default structure/256/32.
 Open:     structure creates many tiny chunks for short sections (1,061 under 64 tokens at 256) — watch in Phase 12; parent-document retrieval deferred unless Phase 11 shows multi-chunk evidence.
 Next:     Phase 4 — Embeddings + schema.
+
+## Phase 4 — Embeddings + schema   [DONE 2026-10-02]
+
+Built:    `app/store/migrations/0001_documents_chunks_embeddings.sql` (documents, pages, blocks, chunk_sets, chunks with generated tsvector + GIN, embeddings per (chunk, model)); `app/store/migrate.py` (`make migrate`); `app/store/repository.py` (all ingestion SQL, COPY, content-hash embedding reuse, partial expression HNSW index per chunk set + model); `app/embed/embedder.py` (bge-small on MPS, normalised, query instruction + LRU cache); `app/ingest/pipeline.py` (`make ingest`, idempotent, per-document transactions, distinct-text embedding); `tests/test_store.py` (7, against `rag_test`), `tests/test_embedder.py` (4); `db.connect(dbname=…)`.
+Docs:     `docs/07-embeddings.md`, `docs/08-database-schema.md`; cards #6, #7, #11, #12, #13, #14, #16, #17; 8 interview questions (P4-01…P4-08).
+Diagrams: `07-embedding-batch-flow`, `08-er-diagram`, `08-hnsw-concept`, generated `07-` and `08-where-it-sits`.
+Numbers:  embedding MPS 116.4 vs CPU 45.7 chunks/s (Δ ≤ 3.3e-7); default ingest 80.2 s (6,812 computed, 599 reused); re-run 2.8 s; HNSW 13.84 MB built in 1.4 s, query 2.6 ms; GIN query 0.099 ms; FY2022 chunks identical to FY2021: 5–17% per company.
+Decisions: separate embeddings table keyed by (chunk, model) with untyped vector + per-model partial HNSW (cosine, m=16, ef_construction=64); keep duplicate chunk rows, embed distinct text once; idempotent per-document batch ingest; pgvector Python adapter not needed (text literals + COPY).
+Open:     confirm partial-index use with prepared statements (Phase 5); HNSW recall vs exact (Phase 5); embeddings.chunk_set_id equality not DB-enforced.
+Next:     Phase 5 — Vector retrieval.

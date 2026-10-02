@@ -182,3 +182,28 @@
 **Trap.** Optimising only storage. Prompt tokens are the recurring cost.
 
 **Bridge.** "That's why size is in the ablation with both quality and cost reported."
+
+---
+
+### Q: How would you design ingestion for thousands of new documents a day?
+**ID:** P4-05 · **Round:** system design  **Difficulty:** 4/5
+
+**30-second answer.** "Keep the same idempotent unit — one document per transaction, keyed by content hash and parser version — and parallelise around it: a queue of document ids, parse workers on CPU, embedding workers on GPU, and a writer that commits per document. Embedding is the bottleneck: here ~100 chunks per second on a laptop GPU, at ~740 chunks per filing."
+
+**2-minute answer.** Do the arithmetic: 5,000 filings/day × 741 chunks ≈ 3.7 M chunks/day ≈ 43 chunks/s sustained — under one laptop GPU's rate, so a couple of real GPUs give comfortable headroom. Then the HNSW cost: inserting into a big graph is slower than batch-building; for bulk backfills build the index after loading, for steady-state insert continuously. Failure handling: dead-letter queue for PDFs that crash the parser; per-document timeouts.
+
+**If they push — level 2.** *"How do you avoid re-embedding unchanged text?"* Content-hash reuse — already implemented: identical text reuses its vector (599 of 7,411 here).
+
+**If they push — level 3.** *"Ordering between parse and embed?"* Write chunks without vectors first so keyword search sees them immediately; vectors arrive later. Or hold them until embedded if partial visibility is unacceptable.
+
+**If they push — level 4.** *"Backpressure?"* Bound the queues between stages; if embedding falls behind, parsing pauses rather than piling chunks into memory.
+
+**Whiteboard it.**
+```text
+ queue(doc ids) → parse workers (CPU) → embed workers (GPU, batch 64) → writer (1 txn/doc)
+ 5,000 docs/day × 741 chunks ≈ 43 chunks/s  vs  ~100/s per laptop GPU
+```
+
+**Trap.** Parallelising without idempotency — retries then create duplicates.
+
+**Bridge.** "Idempotency is the same property that makes my eval runs reproducible."

@@ -32,6 +32,10 @@
 | Parse time, whole corpus | 3 min 4 s | — | `make parse` (no cache) |
 | Max chunk size | 510 | bge-small tokens | 512 − [CLS] − [SEP] |
 | Chunks at 256 tokens (fixed / recursive / structure) | 5,604 / 6,538 / 7,411 | chunks | `python -m app.ingest.chunk_corpus` |
+| Embedding speed (M1) | MPS 116 / CPU 46 | chunks/s | benchmark, batch 64 |
+| Default ingest from empty | 80.2 | s | `make ingest` |
+| Distinct texts / chunks (structure/256) | 6,812 / 7,411 | — | SQL |
+| HNSW index (7,411 vectors) | 13.8 MB, 1.4 s build, 2.6 ms query | — | `make ingest`, EXPLAIN |
 | Retrieval metrics, latencies | not yet measured | | Phases 11, 13 |
 
 ## Flashcards (Phase 0)
@@ -60,6 +64,10 @@
 | Three chunkers? | fixed (token windows), recursive (LangChain, ¶→line→sentence), structure (whole blocks per section). |
 | Why not LangChain's start_index? | It subtracts token overlap from a character position → -1. |
 | Why cut windows between words? | Mid-word slices re-tokenize differently (257 ≠ 256). |
+| Cosine for unit vectors? | = dot product; L2² = 2 − 2cos, so all three rank identically. |
+| Why a separate embeddings table? | Multiple models per chunk; per-model partial HNSW; side-by-side upgrades. |
+| Why partial HNSW per chunk set? | A shared index would post-filter ANN results → fewer than k (recall cliff). |
+| What repeats between years? | 5–17% of FY2022 chunks are identical to an FY2021 chunk → identical vectors. |
 
 ## Top questions so far
 

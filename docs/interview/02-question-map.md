@@ -1,6 +1,6 @@
 # 02 — Question map
 
-**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **38 / 150+** questions.
+**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **46 / 150+** questions.
 
 Every question in `docs/interview/` appears here (a test in `tests/test_docs_integrity.py` fails if one is missing). **Confidence** is yours to fill: 1 = can't answer, 3 = can answer level 1–2, 5 = survives level 4. Re-rate after each drill.
 
@@ -46,6 +46,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P3-06 | Design patterns in the chunking code | [11](11-cs-core-touchpoints.md) | OOP | viva, backend | 2 | | |
 | P3-07 | Chunk size vs cost and storage at scale | [06](06-system-design.md) | scale | design | 3 | | |
 | P3-08 | Compare retrieval across chunkers fairly | [07](07-evaluation.md) | eval | ML | 4 | | |
+| P4-01 | Walk me through your schema | [05](05-database-and-sql.md) | schema | backend, deep-dive | 3 | | |
+| P4-02 | Partial + expression index for HNSW — why both? | [05](05-database-and-sql.md) | indexes | backend | 4 | | |
+| P4-03 | How does GIN make full-text search fast? | [05](05-database-and-sql.md) | indexes | backend, viva | 3 | | |
+| P4-04 | A filing is re-filed — what happens, what do readers see? (H4) | [05](05-database-and-sql.md) | consistency | design, backend | 4 | | |
+| P4-05 | Ingestion for thousands of documents a day | [06](06-system-design.md) | scale | design | 4 | | |
+| P4-06 | What is an embedding; why do similar meanings cluster? | [03](03-fundamentals.md) | embeddings | ML, viva | 2 | | |
+| P4-07 | Why is the GPU 2.5× faster; same output? | [11](11-cs-core-touchpoints.md) | hardware | viva, ML | 2 | | |
+| P4-08 | HNSW index exists but EXPLAIN shows seq scan | [08](08-debugging-scenarios.md) | debugging | backend | 3 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

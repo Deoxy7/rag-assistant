@@ -245,3 +245,34 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Counting tokens once and assuming any slice keeps the same count.
 
 **Bridge.** "That's the kind of bug a property test catches — every chunk's count is re-measured."
+
+---
+
+### Q: Your vector query is slow and EXPLAIN shows a sequential scan, although an HNSW index exists. Why?
+**ID:** P4-08 · **Round:** backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "The planner uses an index only if the query matches it exactly. My index is on the expression `embedding::vector(384)` with operator class `vector_cosine_ops` and a partial predicate on chunk set and model. Any mismatch — no cast, the `<->` operator instead of `<=>`, a different chunk set, or a predicate the planner can't prove at planning time — and it falls back to scanning every row."
+
+**2-minute answer — the tree.**
+1. **Expression match?** `ORDER BY embedding <=> $q` vs `ORDER BY embedding::vector(384) <=> $q` — only the second can use the index.
+2. **Operator match?** A cosine index serves `<=>` only; `<#>` or `<->` won't use it.
+3. **Predicate match?** `WHERE chunk_set_id = 1 AND model = '…'` must imply the index's WHERE. With bound parameters in a generic plan, the planner can't prove it.
+4. **LIMIT present?** HNSW serves `ORDER BY … LIMIT k`; without LIMIT the planner may prefer a full sort.
+5. **Statistics?** After a big load, `ANALYZE` so the planner knows row counts (the pipeline runs it).
+
+**If they push — level 2.** *"How do you confirm it's the predicate?"* Run the same query with literal values; if that uses the index and the parameterised one doesn't, it's plan caching. `SET plan_cache_mode = force_custom_plan` is the diagnostic.
+
+**If they push — level 3.** *"Fix?"* Interpolate the chunk-set id and model as SQL literals via `psycopg.sql.Literal` (they come from configuration, not user input), or force custom plans for that session.
+
+**If they push — level 4.** *"Could the planner pick a seq scan on purpose?"* On a tiny table, yes — scanning a few rows is cheaper than the index. My test sets `enable_seqscan = off` to show the index *can* be used.
+
+**Whiteboard it.**
+```text
+ index: hnsw((embedding::vector(384)) vector_cosine_ops) WHERE set=1 AND model='m'
+ query: ORDER BY embedding::vector(384) <=> q  WHERE set=1 AND model='m'  LIMIT 5   ✓
+        ORDER BY embedding <=> q                                               ✗ seq scan
+```
+
+**Trap.** Adding more indexes instead of reading the plan.
+
+**Bridge.** "Phase 5 pins this with a test that checks the plan under prepared statements."

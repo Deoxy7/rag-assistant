@@ -12,13 +12,18 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Ablation | Removing or swapping one component while holding everything else fixed, to measure what it contributes. | [02](02-architecture-overview.md) |
 | Aborted transaction | A transaction in which a statement failed; Postgres rejects every further statement until rollback. | [03](03-environment-and-infra.md) |
 | Abstention | Deliberately answering "not in the documents" when the evidence is too weak, instead of guessing. | [01](01-what-is-rag.md) |
+| Anisotropy (embeddings) | Embedding vectors cluster in a narrow cone, so unrelated texts still have positive cosine (0.37 here). | [07](07-embeddings.md) |
+| ANN (approximate nearest neighbour) | Search that visits part of an index and usually, not always, finds the true nearest vectors. | [08](08-database-schema.md) |
 | Autocommit | Driver mode in which every statement is committed as its own transaction. | [03](03-environment-and-infra.md) |
+| B-tree index | Sorted index for equality and range lookups (primary keys, hashes). | [08](08-database-schema.md) |
 | Backend process | The Postgres server process started for each client connection. | [03](03-environment-and-infra.md) |
+| Bi-encoder | Model that embeds query and passage separately, so passages can be embedded in advance. | [07](07-embeddings.md) |
 | Bind address | The network interface a port listens on; `127.0.0.1` = this machine only, `0.0.0.0` = every interface. | [03](03-environment-and-infra.md) |
 | Born-digital PDF | A PDF whose pages contain real text drawing instructions (not pictures of text). | [04](04-corpus.md) |
 | Bounding box (bbox) | Smallest rectangle around an element: (x0, y0, x1, y1) in PDF points, origin top-left. | [05](05-pdf-parsing.md) |
 | Canonical text | One normalised string per document that every block and chunk offset indexes into. | [05](05-pdf-parsing.md) |
 | cgroups | Linux kernel feature limiting how much CPU and memory a group of processes may use. | [03](03-environment-and-infra.md) |
+| CHECK constraint | A condition every row must satisfy; violations abort the insert. | [08](08-database-schema.md) |
 | Chunk | A passage of a document small enough to search precisely and to fit, several at a time, in a prompt. | [01](01-what-is-rag.md) |
 | Chunk overlap | Repeating the last tokens of one chunk at the start of the next so boundary-cut sentences survive. | [06](06-chunking.md) |
 | Chunking strategy | How boundaries are chosen: fixed windows, recursive (¶/line/sentence), structure-aware, semantic. | [06](06-chunking.md) |
@@ -31,20 +36,30 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Content hash (sha256) | A 64-hex-character fingerprint of a file's bytes; any change alters it. | [04](04-corpus.md) |
 | Content stream | A PDF page's drawing instructions (fonts, positions, glyphs) — not paragraphs. | [05](05-pdf-parsing.md) |
 | Context window | The maximum number of tokens (input + output) a model can handle in one call. | [01](01-what-is-rag.md) |
+| Contrastive training | Training that pulls matching pairs' vectors together and pushes non-matching ones apart. | [07](07-embeddings.md) |
+| COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
 | Corpus manifest | A committed list of corpus files with source URL, size and sha256 (`data/manifest.json`). | [04](04-corpus.md) |
+| Cosine similarity | a·b / (‖a‖‖b‖): cosine of the angle between vectors; equals the dot product for unit vectors. | [07](07-embeddings.md) |
 | Cross-encoder | A model that reads the query and a passage *together* to score relevance; accurate but slower. | [12](12-reranking.md) (Phase 8) |
 | Dehyphenation | Rejoining a word hyphenated across a line break. | [05](05-pdf-parsing.md) |
 | Digest | A sha256 hash of an image's content; unlike a tag it can never point at different bytes. | [03](03-environment-and-infra.md) |
 | Distance operator | pgvector operator comparing two vectors: `<->` L2, `<=>` cosine distance, `<#>` negative inner product. | [03](03-environment-and-infra.md) |
 | Docker Compose | A YAML file declaring containers, ports and volumes, and the command that makes them match it. | [03](03-environment-and-infra.md) |
+| Dot product | Sum of position-wise products: [1,2,3]·[4,5,6] = 32. | [07](07-embeddings.md) |
+| ef_construction / ef_search / m | HNSW knobs: build-time candidate list, query-time candidate list, links per node. | [08](08-database-schema.md) |
 | Embedding | A list of numbers representing a text's meaning, so that similar meanings are close together. | [07](07-embeddings.md) (Phase 4) |
+| Embedding cache | Reusing a stored vector when identical text (same hash) and model appear again. | [07](07-embeddings.md) |
 | Environment variable | A named value a process inherits from whoever started it. | [03](03-environment-and-infra.md) |
 | Exhibit (10-K) | A document attached to a filing — contracts, plans, certifications — usually after the signature page. | [04](04-corpus.md) |
+| Expression index | An index on an expression's result (embedding::vector(384)); queries must use the same expression. | [08](08-database-schema.md) |
 | Extension (Postgres) | A package adding types, functions, operators or index types; enabled per database with `CREATE EXTENSION`. | [03](03-environment-and-infra.md) |
 | Factory pattern | One function that turns configuration into the right implementation (`get_chunker`). | [06](06-chunking.md) |
 | Fine-tuning | Continuing to train an already-trained model on new examples, changing its weights. | [01](01-what-is-rag.md) |
 | Fiscal year | A company's accounting year, which need not match the calendar year. | [04](04-corpus.md) |
+| Foreign key | A column that must match a primary key in another table. | [08](08-database-schema.md) |
 | Form 10-K | The annual report US public companies file with the SEC, with a structure fixed by regulation. | [04](04-corpus.md) |
+| Generated column | A column Postgres computes from other columns of the row (tsv from text). | [08](08-database-schema.md) |
+| GIN index | Generalized Inverted Index: maps each element (lexeme) to the rows containing it. | [08](08-database-schema.md) |
 | Glyph | A drawn character shape from a font; mapped back to Unicode during extraction. | [05](05-pdf-parsing.md) |
 | Golden set | Questions whose correct answers and evidence locations are known in advance, used to score the system. | [15](15-eval-harness.md) (Phase 11) |
 | Grounding | Making the model answer from supplied evidence: instructions, evidence placement and checks. | [01](01-what-is-rag.md) |
@@ -53,10 +68,14 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Hard negative | A non-relevant passage very similar to the relevant one (e.g. the same sentence from last year's filing). | [interview/04](interview/04-retrieval.md) |
 | Heading level | 1 = PART, 2 = ITEM, 3 = other heading, 0 = not a heading. | [05](05-pdf-parsing.md) |
 | Healthcheck | A command run periodically to decide whether a service is ready, not just running. | [03](03-environment-and-infra.md) |
+| HNSW | Hierarchical Navigable Small World: layered proximity graph for approximate nearest-neighbour search. | [08](08-database-schema.md) |
 | Idempotent | Doing it twice has the same effect as doing it once. | [03](03-environment-and-infra.md) |
+| Idempotent ingestion | Re-running ingestion changes nothing that's already up to date. | [08](08-database-schema.md) |
+| Identity column | Auto-assigned increasing id; values consumed by failed/conflicting inserts leave gaps. | [08](08-database-schema.md) |
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
+| IVFFlat | Vector index that clusters vectors into lists and searches only the nearest lists. | [08](08-database-schema.md) |
 | Kernel | The core of an operating system: schedules processes, manages memory, talks to hardware. | [03](03-environment-and-infra.md) |
 | Keyword (lexical) search | Search that matches the words themselves after normalising them. | [01](01-what-is-rag.md); details [10](10-keyword-search.md) |
 | Latency | How long one request takes. | [02](02-architecture-overview.md) |
@@ -67,11 +86,16 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Lost in the middle | The finding that models use information in the middle of long inputs worse than at the edges (Liu et al., 2023). | [01](01-what-is-rag.md) |
 | Make target / prerequisite | What Make builds, and what it must be newer than; a phony target is a command name, not a file. | [03](03-environment-and-infra.md) |
 | Microservices | Each component deployed as its own network service. | [02](02-architecture-overview.md) |
+| Migration | A numbered, ordered schema change applied once and recorded. | [08](08-database-schema.md) |
 | Modular monolith | One deployable application divided into modules with enforced boundaries. | [02](02-architecture-overview.md) |
+| MPS (Metal Performance Shaders) | PyTorch's backend for Apple GPUs. | [07](07-embeddings.md) |
+| MVCC | Multi-version concurrency control: updates write new row versions; readers see committed versions. | [08](08-database-schema.md) |
 | Namespaces | Linux kernel feature giving a process its own view of files, network and process ids. | [03](03-environment-and-infra.md) |
 | NFKC normalisation | Unicode normal form that folds compatibility characters (non-breaking space, ligatures) to plain forms. | [05](05-pdf-parsing.md) |
 | Non-breaking space | U+00A0, a space that looks normal but isn't to many tools; inflates token counts and breaks exact matching. | [04](04-corpus.md) |
 | Non-parametric memory | Knowledge stored outside the model in a searchable index (term from Lewis et al., 2020). | [01](01-what-is-rag.md) |
+| Norm | A vector's length: ‖[3,4]‖ = 5. | [07](07-embeddings.md) |
+| Normalisation (vectors) | Dividing a vector by its norm so its length is 1. | [07](07-embeddings.md) |
 | OCR (optical character recognition) | Recovering text from an image of text; needed only for scanned pages. | [04](04-corpus.md) |
 | Offline path | Work done ahead of time that nobody waits for (parsing, chunking, embedding). | [02](02-architecture-overview.md) |
 | Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
@@ -79,16 +103,21 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
 | Parser version (cache key) | Version string stored with parsed output; bumping it forces a re-parse. | [05](05-pdf-parsing.md) |
+| Partial index | An index over only the rows matching a WHERE clause. | [08](08-database-schema.md) |
 | PDF outline (bookmarks) | An optional table of contents stored inside a PDF; only Verizon's files have one here. | [04](04-corpus.md) |
 | PDF point | 1/72 inch; a US Letter page is 612 × 792 points. | [05](05-pdf-parsing.md) |
 | Percentile (p50 / p95 / p99) | The latency that 50% / 95% / 99% of requests beat; p50 is the median. | [02](02-architecture-overview.md) |
 | pgvector | Postgres extension adding a `vector` type, distance operators and HNSW / IVFFlat indexes. | [03](03-environment-and-infra.md) |
 | Pinning | Fixing a dependency to an exact version (`==`) so installs are reproducible. | [03](03-environment-and-infra.md) |
 | Pipeline / stage | A sequence of steps where each step's output feeds the next; each step is a stage. | [02](02-architecture-overview.md) |
+| Pooling | Turning per-token vectors into one text vector (bge: the [CLS] vector). | [07](07-embeddings.md) |
 | Port publishing | Making a container's port reachable from the host, e.g. `127.0.0.1:5432:5432`. | [03](03-environment-and-infra.md) |
+| Primary key | Column(s) that uniquely identify a row. | [08](08-database-schema.md) |
 | Protocol (Python typing) | An interface defined by attributes/methods; any class with them qualifies, no inheritance. | [06](06-chunking.md) |
 | QPS | Queries per second. | [02](02-architecture-overview.md) |
+| Query instruction | Prefix bge v1.5 expects on queries: 'Represent this sentence for searching relevant passages: '. | [07](07-embeddings.md) |
 | RAG (Retrieval-Augmented Generation) | Retrieve relevant passages at question time, then have the LLM answer from them with citations. | [01](01-what-is-rag.md) |
+| Re-embedding migration | Recomputing every vector for a new model, side by side, before switching queries. | [07](07-embeddings.md) |
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
 | Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) (Phase 8) |
 | Retrieval | Finding the passages most relevant to a query. | [01](01-what-is-rag.md) |
@@ -122,6 +151,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | tsvector | Postgres type holding a document's lexemes with their positions. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Twelve-factor app | A set of service-design principles, including "store config in the environment". | [03](03-environment-and-infra.md) |
 | Unix socket | A file that acts as a network connection between programs on the same machine. | [03](03-environment-and-infra.md) |
+| VACUUM | Postgres process that removes dead row versions and their index entries. | [08](08-database-schema.md) |
 | Vector (semantic) search | Search by nearness of embeddings, so paraphrases match. | [01](01-what-is-rag.md); details [09](09-vector-search.md) |
 | Virtual environment (venv) | A per-project Python with its own installed packages. | [03](03-environment-and-infra.md) |
 | Virtual machine (VM) | Software emulating a whole computer, running its own kernel. | [03](03-environment-and-infra.md) |

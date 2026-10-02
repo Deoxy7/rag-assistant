@@ -155,3 +155,29 @@
 **Trap.** "512 tokens means 512 words." Words ≠ tokens, and special tokens count.
 
 **Bridge.** "Truncation is also why chunk size is an ablation axis capped at 510."
+
+---
+
+### Q: What is an embedding, and why do similar meanings end up close together?
+**ID:** P4-06 · **Round:** ML screen · viva  **Difficulty:** 2/5
+
+**30-second answer.** "An embedding is a vector — here 384 numbers — produced by a neural model from a piece of text. The model was trained contrastively on pairs like a question and its relevant passage: pull each pair's vectors together, push other passages away. After training, texts used in similar contexts land near each other. Measured on my model: 'Revenue increased in 2022' vs 'Sales grew last year' scores 0.715 cosine; vs 'The cafeteria serves lunch' 0.366."
+
+**2-minute answer.** Explain cosine on a 3-d example: [1,2,2]·[2,1,2] = 8, both norms 3, cosine 8/9 ≈ 0.889. Then the caveats: similarity is statistical, not understanding; unrelated texts still score ~0.37 (the space isn't spread evenly — anisotropy), so scores are relative; and identical text gets identical vectors — 5–17% of 2022 chunks match a 2021 chunk exactly, which embeddings cannot separate.
+
+**If they push — level 2.** *"What's pooling?"* The transformer outputs a vector per token; bge takes the vector at the [CLS] position as the whole text's embedding. Others average all token vectors.
+
+**If they push — level 3.** *"What's a bi-encoder?"* Query and passage are embedded independently, so passages can be embedded ahead of time and compared with a cheap dot product. The cost: the model never sees query and passage together — the reranker fixes that (Phase 8).
+
+**If they push — level 4.** *"Why the query instruction?"* bge v1.5 was trained with an instruction on the query side to make the asymmetric task explicit; I prepend it to queries only and verified it changes the vector. How much it helps here is unmeasured.
+
+**Whiteboard it.**
+```text
+ a=[1,2,2] b=[2,1,2]: a·b=8, ‖a‖=‖b‖=3 → cos=0.889
+ "revenue increased" ↔ "sales grew"  0.715
+ "revenue increased" ↔ "cafeteria"   0.366   (not 0!)
+```
+
+**Trap.** "Cosine 0.7 means 70% similar." It's a geometric quantity, comparable only within one model and query.
+
+**Bridge.** "Because scores aren't absolute, abstention can't be a fixed cosine threshold — that's Phase 9."

@@ -158,3 +158,28 @@
 **Trap.** Calling any class a "pattern". Name what varies (the algorithm) and what's fixed (the interface).
 
 **Bridge.** "That interface is what makes the ablation a loop instead of a rewrite."
+
+---
+
+### Q: Why is embedding 2.5× faster on the GPU, and is the output the same?
+**ID:** P4-07 · **Round:** viva · ML screen  **Difficulty:** 2/5
+
+**30-second answer.** "A transformer forward pass is mostly large matrix multiplications. Batching 64 chunks turns them into big matrices that the M1's GPU parallelises far better than four CPU cores: 116 chunks/s on MPS vs 46 on CPU, measured on 506 real chunks. The outputs differ by at most 3.3 × 10⁻⁷ — floating-point rounding — with cosine ≥ 0.99999988, so rankings are unaffected."
+
+**2-minute answer.** Explain why results differ at all: different hardware executes floating-point additions in different orders, and float addition isn't associative, so tiny rounding differences appear. Batch size has the same effect (1.5 × 10⁻⁷). These are eight orders of magnitude below differences that change rankings. Then batching's limits: larger batches help until memory or padding waste dominates (batch 16 → 64 raised MPS throughput 94.5 → 116.4).
+
+**If they push — level 2.** *"What's padding waste?"* A batch is padded to its longest text; mixing a 20-token and a 256-token chunk wastes compute on the short one. Sorting by length before batching reduces it — sentence-transformers does that internally.
+
+**If they push — level 3.** *"Would threads help on CPU?"* PyTorch already uses multiple threads for matrix ops (4 here). Python-level threads wouldn't help because of the GIL, but the heavy work runs in C++ outside it.
+
+**If they push — level 4.** *"Determinism guarantees?"* For bit-identical outputs you'd fix the device, batch composition and library versions. I pin versions and model revision; I accept 10⁻⁷ noise across devices.
+
+**Whiteboard it.**
+```text
+ batch 64 × 256 tokens → big matmuls → GPU parallel
+ CPU 45.7/s   MPS 116.4/s   max |Δ| 3.3e-7   (float add not associative)
+```
+
+**Trap.** "GPU results are approximate, so I avoid them." The difference is rounding noise; measure it.
+
+**Bridge.** "That noise level is also why my eval reruns are stable."

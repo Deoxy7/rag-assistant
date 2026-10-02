@@ -186,3 +186,25 @@ ValueError: AMD_2021_10K: LangChain start_index -1 does not match chunk 1
 
 - **Cause:** every heading started a new chunk, so "PART II" and "ITEM 5…" became chunks on their own.
 - **Fix:** a heading or new section closes the current chunk only if it already holds body text. 5th-percentile chunk at 256: 5 → 19 tokens.
+
+## Phase 4
+
+### T-022 · Second chunk set got id 3 — hit
+
+- **Cause:** `INSERT … ON CONFLICT DO NOTHING` on the idempotent re-run reserved identity value 2 before detecting the conflict; identity values are never returned.
+- **Fix:** `get_or_create_chunk_set` selects first and inserts only if missing. Test: `test_chunk_set_ids_are_not_burned_by_reruns` (ids 1, 1, 1, 2).
+
+### T-023 · Layering test caught store importing ingest — hit
+
+```text
+AssertionError: forbidden imports: app/store/repository.py: store -> ingest
+```
+
+- **Cause:** `repository.py` imported `Chunk` and `ParsedDocument` for type hints.
+- **Fix:** the repository accepts objects by shape (documented fields) instead of importing the ingest layer's types. The Phase 0 architecture test did its job on the first real violation.
+
+### T-024 · Store tests encoded wrong assumptions — hit
+
+- **Symptoms:** `assert 12 == 24` (FTS matches), `assert 0 > 0` (cross-set reuse), `IndexError` in the test helper, `assert 7 == 12` (dedup).
+- **Cause:** test expectations, not code: tail windows of split paragraphs don't contain "revenue"; recursive and structure chunks of the synthetic text never coincide; the helper assumed ≥4 paragraphs; and identical tail windows inside one document are deduplicated too.
+- **Fix:** assertions compare against what the database actually contains (`count(*) FILTER (WHERE text ILIKE …)`, `count(DISTINCT content_sha256)`), and the reuse test uses an overlap-only change, which yields identical chunks by construction.

@@ -79,6 +79,8 @@ make test
 | `make corpus` | downloads the 10-K PDFs listed in `data/manifest.json` and verifies their hashes |
 | `make inspect` | reports page counts, text, tables, Items and tokens per PDF; renders the corpus charts |
 | `make parse` | parses every PDF into blocks with page + character offsets (cached in `data/parsed/`) |
+| `make migrate` | applies pending SQL migrations |
+| `make ingest` | parses, chunks, embeds and indexes the corpus (default chunking from settings) |
 | `make diagrams` | renders every diagram to SVG + PNG |
 | `make docs` | renders diagrams, mirrors Decision Cards, checks every link, image and ASCII twin |
 | `make down` | stops the database (data kept) |
@@ -96,8 +98,8 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [04](04-corpus.md) | Corpus | 1 | ✅ written |
 | [05](05-pdf-parsing.md) | PDF parsing | 2 | ✅ written |
 | [06](06-chunking.md) | Chunking | 3 | ✅ written |
-| [07](07-embeddings.md) | Embeddings | 4 | not yet written |
-| [08](08-database-schema.md) | Database schema | 4 | not yet written |
+| [07](07-embeddings.md) | Embeddings | 4 | ✅ written |
+| [08](08-database-schema.md) | Database schema | 4 | ✅ written |
 | [09](09-vector-search.md) | Vector search | 5 | not yet written |
 | [10](10-keyword-search.md) | Keyword search | 6 | not yet written |
 | [11](11-hybrid-rrf.md) | Hybrid search + RRF | 7 | not yet written |

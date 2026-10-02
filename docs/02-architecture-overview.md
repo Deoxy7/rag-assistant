@@ -97,7 +97,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 | Corpus: 10 × 10-K, pinned manifest, inspection | [04](04-corpus.md) | 1 | ✅ built |
 | Parse (PyMuPDF + pdfplumber): blocks, offsets, tables, headings | [05](05-pdf-parsing.md) | 2 | ✅ built |
 | Chunk: fixed / recursive / structure-aware, exact offsets | [06](06-chunking.md) | 3 | ✅ built |
-| Embed + schema + `make ingest` | [07](07-embeddings.md), [08](08-database-schema.md) | 4 | planned |
+| Embed (bge-small, MPS) + schema + HNSW/GIN + `make ingest` | [07](07-embeddings.md), [08](08-database-schema.md) | 4 | ✅ built |
 | Vector search | [09](09-vector-search.md) | 5 | planned |
 | Keyword search | [10](10-keyword-search.md) | 6 | planned |
 | RRF fusion | [11](11-hybrid-rrf.md) | 7 | planned |
