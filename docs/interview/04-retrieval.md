@@ -244,3 +244,88 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Forgetting IDF, or thinking BM25 is a neural method.
 
 **Bridge.** "And measuring it against the built-in ranking changed my default."
+
+---
+
+## Phase 7 questions
+
+### Q: Derive Reciprocal Rank Fusion on a small example.
+**ID:** P7-01 · **Round:** ML screen · whiteboard  **Difficulty:** 3/5
+
+**30-second answer.** "Each chunk scores the sum, over the lists it appears in, of 1/(k + rank), with k = 60. Vector returns A, B, C, D and keyword returns C, E, B. C gets 1/63 + 1/61 = 0.032266 and B gets 1/62 + 1/63 = 0.032002. A was vector's #1 but only gets 1/61 = 0.016393, so it's third. Agreement between lists beats a single top rank. Raw scores never enter the formula, which is the point: a cosine and a ts_rank aren't comparable."
+
+**2-minute answer.** Walk the table term by term, then the three things it shows. First, a chunk in both lists earns two terms. Second, at k = 60 rank 1 and rank 4 differ by only 5% (0.016393 vs 0.015625). Third, k decides the trade: at k = 0, A scores 1.0 and B 0.833, so A overtakes B. Mention the explicit tie-break (best single rank, then chunk id), because ties between the two lists' #1s are common. The numbers are asserted in `tests/test_hybrid.py`.
+
+**If they push — level 2.** *"What's the complexity?"* O(total hits) to accumulate in a hash map, plus O(u log u) to sort the u distinct chunks. With two lists of 50, that's microseconds.
+
+**If they push — level 3.** *"What happens when the lists don't overlap at all?"* It becomes a zipper: vector #1, keyword #1, vector #2… Equal ranks give equal scores, so the tie-break decides who goes first.
+
+**If they push — level 4.** *"What if one list is much longer?"* Long lists only add low-weight tail terms. A chunk at rank 50 earns 1/110 ≈ 0.009, and appearing at rank 50 in *both* lists (0.018) beats rank 1 in one (0.016). Depth sets how deep agreement can come from.
+
+**Whiteboard it.**
+```text
+ vector: A B C D      keyword: C E B          k = 60
+ C = 1/63 + 1/61 = .032266   1
+ B = 1/62 + 1/63 = .032002   2
+ A = 1/61        = .016393   3     (k = 0: A = 1.0 > B = .833)
+ E = 1/62        = .016129   4
+ D = 1/64        = .015625   5
+```
+
+**Trap.** Adding or averaging raw scores, or forgetting that a chunk missing from a list contributes 0 from it.
+
+**Bridge.** "That arithmetic also explains the one place hybrid hurt us."
+
+---
+
+### Q: Your hybrid search scored worse than vector search on FinanceBench. Why ship it?
+**ID:** P7-02 · **Round:** project deep-dive · ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "At top-10, hybrid found the evidence for 8 of 28 FinanceBench questions and vector alone for 10. But on 50 exact-figure queries, vector found 0 in its top 5 and hybrid found all 50. Two questions out of 28 is within noise, and 50 of 50 isn't. From Phase 8, a reranker re-sorts the fused top 20. At 20, the gap is one question (0.393 vs 0.429), against a 0.02 → 1.00 gain on figures. The golden-set ablation decides finally."
+
+**2-minute answer.** Give the per-question breakdown: hybrid gained 2 questions and lost 4. The gains were questions where both lists ranked the evidence mediocre (13 and 7 → fused 6). The losses were questions where keyword search had nothing relevant in its top 50, and its noise interleaved with vector's list. Vector's rank 4 became fused 14 or 16, and rank 1 became 20. So the cost is a ranking problem, not a recall problem, and a cross-encoder fixes ranking problems by reading the text.
+
+**If they push — level 2.** *"So why not route queries — figures to keyword, the rest to vector?"* It's valid, but it needs a classifier that can be wrong. I'd try it only if rerank can't recover the loss.
+
+**If they push — level 3.** *"How do you know 2 of 28 is noise?"* One question is 3.6 points. The two methods disagree on only 6 questions, 4–2. A paired sign test on 6 discordant pairs gives p ≈ 0.69 two-sided, nowhere near significant.
+
+**If they push — level 4.** *"What would make you switch the default to vector-only?"* If the golden set, which includes exact-token, table and multi-hop questions, shows hybrid + rerank no better than vector + rerank. That would mean exact-token queries are rare or the reranker recovers them anyway.
+
+**Whiteboard it.**
+```text
+                FB hit@10  FB hit@20  figures hit@5
+ vector           10/28      12/28        0/50
+ keyword           4/28       6/28       50/50
+ hybrid RRF60      8/28      11/28       50/50
+ lost: vector rank 4 → fused 16 (keyword noise interleaves)
+```
+
+**Trap.** Hiding the regression, or claiming "hybrid is always better".
+
+**Bridge.** "The fix for interleaving is the reranker, which is the next stage."
+
+---
+
+### Q: What does the k in RRF actually control? How did you choose it?
+**ID:** P7-03 · **Round:** ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "k sets how steeply a top rank outweighs a lower one. The weight ratio of rank 1 to rank 10 is (k + 10)/(k + 1): 10× at k = 0, 1.82× at k = 10, 1.15× at k = 60. Small k trusts each list's top hit, and large k rewards appearing in both lists. I swept 1, 10, 60 and 100. FinanceBench hit@10 ranged from 0.357 to 0.286, which is two questions of 28, and hit@20 was identical, so I kept the paper's 60."
+
+**2-minute answer.** Show it flip the toy example: at k = 0, vector's #1 (A = 1.0) overtakes a chunk both lists liked (B = 0.833); at k = 60 it doesn't. Then the exact-figure bench, where every k gave identical results. The lists didn't overlap, so each chunk's score depended on one rank, and the order was the same for any k. k only matters when there's agreement to weigh against a top rank.
+
+**If they push — level 2.** *"Why not choose k = 1, since it scored best?"* That's choosing the best of four on the same 28 questions I report, which is fitting noise. Tuning belongs on a held-out set.
+
+**If they push — level 3.** *"Interpret k = 60 intuitively."* It's as if 60 imaginary results sat ahead of every real one in each list, which dampens differences among the top few positions.
+
+**If they push — level 4.** *"Does k interact with depth?"* Yes. With large k, two deep appearances (rank 50 in both lists: 2/110) beat one top appearance (1/61), so depth bounds how much agreement can be found.
+
+**Whiteboard it.**
+```text
+ weight(rank 1) / weight(rank 10) = (k+10)/(k+1)
+ k=0 → 10×    k=10 → 1.82×    k=60 → 1.15×
+ FB hit@10: k=1 .357  k=10 .321  k=60 .286  k=100 .286   (hit@20 all .393)
+```
+
+**Trap.** Calling 60 a magic number, or tuning it on the test set.
+
+**Bridge.** "The bigger lever wasn't k, it was what's downstream: a reranker."

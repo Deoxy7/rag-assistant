@@ -80,6 +80,15 @@
 | Why phrase for 16,434? | Parser splits at the comma into 16 and 434. |
 | Default keyword ranking? | ts_rank — BM25 built, measured, not better here; ts_rank_cd fooled by repetition. |
 | Stemming quirk? | "Corning" → `corn`. |
+| RRF formula? | Σ over lists of 1/(k + rank); raw scores ignored; k = 60. |
+| Toy RRF result? | vector A B C D + keyword C E B → C .032266, B .032002, A .016393, E, D. |
+| What does k do? | rank-1 : rank-10 weight = (k+10)/(k+1): 10× at 0, 1.15× at 60. |
+| Hybrid vs vector, FinanceBench hit@10? | 8 vs 10 of 28 (noise); hit@20 11 vs 12. |
+| Hybrid vs vector, exact figures hit@5? | 50 vs 0 of 50. |
+| Why does hybrid lose some questions? | Keyword noise interleaves; vector rank 4 → fused 16. |
+| Why fig hit@1 only 0.46? | The two lists' #1s tie at 1/61; tie-break by chunk id. |
+| Weighted fusion bug? | One-hit list normalised to 0 (T-032); fixed → α 0.5 competitive. |
+| Hybrid latency? | p50 48.5 ms vs vector 3.6 ms (sequential, keyword at depth 50). |
 
 ## Top questions so far
 

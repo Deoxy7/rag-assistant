@@ -1,0 +1,26 @@
+%% Owner: docs/11-hybrid-rrf.md — the retrieval_mode switch and what hybrid does with two ranked lists.
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    q["question + filters"]:::io
+    mode{"retrieval_mode<br/>vector · keyword · hybrid"}:::retrieve
+    pg[("Postgres<br/>HNSW + GIN")]:::store
+    vec["Vector search<br/>top 50 by cosine"]:::retrieve
+    kw["Keyword search<br/>top 50 by ts_rank"]:::retrieve
+    rrf["RRF (Reciprocal Rank Fusion)<br/>score = Σ 1 / (k + rank), k = 60<br/>raw scores ignored"]:::retrieve
+    top["top-k hits<br/>chunk id, page, char span, RRF score"]:::io
+    legend["Legend<br/>green = retrieval · grey = storage · white = input / output"]:::legend
+
+    q --> mode
+    mode -->|vector or hybrid| vec
+    mode -->|keyword or hybrid| kw
+    pg -.->|index scan| vec
+    pg -.->|index scan| kw
+    vec -->|hybrid: ranks 1..50| rrf
+    kw -->|hybrid: ranks 1..50| rrf
+    vec -.->|vector mode: first k as-is| top
+    kw -.->|keyword mode: first k as-is| top
+    rrf -->|one ranking, first k| top

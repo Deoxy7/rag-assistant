@@ -29,10 +29,10 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 17 | Vectors in the same table vs a separate table | 4 | ✅ [08-database-schema](../08-database-schema.md) |
 | 18 | Metadata filtering: pre-filter vs post-filter, and the recall cliff | 5 | ✅ [09-vector-search](../09-vector-search.md) |
 | 19 | Quantisation (scalar / binary): when it is worth the recall loss | 5 | ✅ [09-vector-search](../09-vector-search.md) |
-| 20 | Dense-only vs sparse-only vs hybrid retrieval | 7 | not yet written |
+| 20 | Dense-only vs sparse-only vs hybrid retrieval | 7 | ✅ [11-hybrid-rrf](../11-hybrid-rrf.md) |
 | 21 | Postgres FTS vs Elasticsearch/OpenSearch BM25 vs SPLADE | 6 | ✅ [10-keyword-search](../10-keyword-search.md) |
-| 22 | RRF vs weighted-score fusion vs learned fusion | 7 | not yet written |
-| 23 | The RRF k constant: what it actually controls | 7 | not yet written |
+| 22 | RRF vs weighted-score fusion vs learned fusion | 7 | ✅ [11-hybrid-rrf](../11-hybrid-rrf.md) |
+| 23 | The RRF k constant: what it actually controls | 7 | ✅ [11-hybrid-rrf](../11-hybrid-rrf.md) |
 | 24 | Top-k at each stage: over-retrieve, then narrow | 8 | not yet written |
 | 25 | Cross-encoder vs bi-encoder vs ColBERT vs LLM-as-reranker vs no rerank | 8 | not yet written |
 | 26 | Rerank depth N: the quality/latency curve | 8 | not yet written |
@@ -716,6 +716,40 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 
 **The trap.** Quantising by default "because it's faster". Measure recall loss first; at small scale there's nothing to gain.
 
+### Card 20 — from [11-hybrid-rrf](../11-hybrid-rrf.md)
+
+#### Decision: hybrid retrieval (vector + keyword, fused) as the default  (rejected: dense-only, sparse-only)
+
+**One-line defence.** The two searches fail on disjoint queries. Vector search found 0 of 50 exact figures in its top 5 and keyword search found all 50. Keyword search found evidence for 4 of 28 paraphrased questions and vector for 10. Fusing keeps both strengths, at about 45 ms of extra latency.
+
+**What problem is this even solving?** One retriever can't be good at both meaning and exact tokens. Users ask "how did sales do?" and also "where does 16,434 come from?"
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| Dense-only (vector) | Embed the question, nearest chunks by cosine | Paraphrase, synonyms; 3.6 ms DB time | Blurs figures, codes, names: fig hit@20 0.02 | Conversational queries without exact tokens |
+| Sparse-only (keyword / FTS) | Lexeme match, ts_rank | Exact tokens: fig hit@1 0.98 | Lexical mismatch ("FY22" vs "fiscal 2022"): FB hit@10 0.14 | Search boxes, codes, log search |
+| ✅ Hybrid (both + fusion) | Run both at depth 50, fuse ranks | fig hit@5 1.00 *and* FB hit@20 0.39 | Interleaving noise: FB hit@10 0.29 vs 0.36; 48.5 ms | Mixed queries, a reranker downstream |
+
+**What would actually change if we swapped it.** Going dense-only: one setting (`retrieval_mode=vector`), keyword search ~45 ms faster to skip, and every exact-figure question breaks. Going sparse-only: most paraphrased questions break. The code stays the same either way, because the switch is a factory argument.
+
+**The decision rule.** Look at the query mix. If any meaningful share of queries contains exact tokens (figures, IDs, names, section numbers), fuse. If queries are purely conversational and latency is tight, dense-only is defensible. Measure both columns, not one average.
+
+**Where our choice breaks.** When one list is pure noise for a query, RRF still gives that noise half the slots (the zipper). A reranker or query-type routing fixes it; RRF alone can't.
+
+**The number.** Exact figures hit@5: vector 0.00, keyword 1.00, hybrid 1.00. FinanceBench hit@10: vector 0.357, keyword 0.143, hybrid 0.286 (k = 60); hit@20: 0.429 / 0.214 / 0.393. p50 latency 3.6 / 31.6 / 48.5 ms.
+
+**Interview script (3 sentences).** "I run vector and keyword search and fuse them with RRF, because I measured that they fail on disjoint queries: vector found no exact figures, and keyword missed most paraphrased questions. Fusion fixed the figures completely but cost two of 28 FinanceBench questions at top-10, because keyword noise interleaves with good vector hits. I kept hybrid since a reranker re-sorts the top-N next, and at top-20 the loss is one question."
+
+**Follow-ups they will ask:**
+- Q: Your hybrid is worse than vector on the real benchmark. Why ship it? → A: On 28 questions the gap is 2 questions, which is noise, while the exact-figure gain is 0 → 50 of 50. The reranker reads the text and undoes interleaving. The golden-set ablation is the final judge.
+- Q: Why not route queries, sending figures to keyword? → A: It's a valid design. It needs a classifier that can itself be wrong. Fusion plus rerank needs no classifier, so I'd try routing only if rerank can't recover the loss.
+- Q: Why depth 50 instead of 10? → A: A chunk that each list puts at rank 15 should beat one that only one list puts at rank 5. RRF needs to see past k to find that agreement.
+- Q (the hard one): Isn't fusion just averaging two bad systems? → A: No, averaging would give the mean. Here hybrid matches the *better* system on each query type at hit@5 for figures and at hit@20 on FinanceBench within one question. That works because the two systems' errors barely overlap.
+
+**The trap.** "Hybrid is always better." It wasn't here at hit@10, and saying so is the strong answer.
+
 ### Card 21 — from [10-keyword-search](../10-keyword-search.md)
 
 #### Decision: Postgres full-text search, ranked by ts_rank with length normalisation; BM25 implemented in SQL as an alternative  (rejected: ts_rank_cd, Elasticsearch/OpenSearch BM25, SPLADE)
@@ -752,6 +786,74 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Your keyword search found nothing that vector search missed. Why keep it at all? → A (honest): On those 28 paraphrased questions, it earned nothing. Its measured wins are exact-token queries ("16,434", "MI250X") where vector search returned noise. Whether that matters overall depends on how many real questions contain exact tokens; the golden set includes such questions, and Phase 7/12 show whether fusion helps, hurts or does nothing.
 
 **The trap.** "BM25 is always better than Postgres's ranking" — or "keyword search is obsolete". Both are claims to measure; here the first was false and the second only half true.
+
+### Card 22 — from [11-hybrid-rrf](../11-hybrid-rrf.md)
+
+#### Decision: Reciprocal Rank Fusion  (rejected for now: weighted-score fusion; rejected: learned fusion)
+
+**One-line defence.** RRF uses only ranks, so it never compares a cosine (0.6) with a ts_rank (0.016) and needs no weight to tune. On our bench a weighted fusion at α = 0.5 was as good within noise, but only after picking that weight on the same queries.
+
+**What problem is this even solving?** Two lists, two incompatible score scales. A cosine between 0.58 and 0.61, a ts_rank around 0.015 and a BM25 of 16.9 can't be added.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ RRF | Σ 1/(k + rank) over lists | No calibration, no training; k barely mattered (§6) | Ignores how *confident* each list is; ties between the lists' tops | Default, especially with a reranker after |
+| Weighted score fusion | Normalise each list (min-max / z-score), weighted sum | Uses score magnitudes; α = 0.5 matched RRF here | Weight must be tuned per corpus (α 0.3 ↔ 0.7 swung FB hit@10 0.214 ↔ 0.357 and figures hit@5 0.98 ↔ 0.20); normalisation edge cases (one-hit lists, T-032) | Calibrated scores, or labelled queries to tune α |
+| Learned fusion | A model (e.g. logistic regression, LambdaMART) on features (both scores, ranks, query type) | Can learn when to trust each list | Needs labelled training queries; can overfit; more to maintain | Large labelled query logs |
+
+**What would actually change if we swapped it.** Weighted: one function call (`weighted_fusion` exists) plus a weight that must be tuned on held-out queries per corpus. Learned: a training set (the 50-question golden set is too small to be both train and test), a model artifact, and feature logging.
+
+**The decision rule.** Use RRF unless you have calibrated scores or enough labelled queries to tune or learn the fusion on data you don't report results on.
+
+**Where our choice breaks.** When one list is confident and right and the other is noise, RRF still splits the top slots 50/50. That is the "16,434" zipper: fused hit@1 0.46 while keyword alone gets 0.98. Weighted fusion at α = 0.5 has the same problem, because two normalised 1.0s tie.
+
+**The number.** RRF k = 60 vs weighted α = 0.5: FinanceBench hit@10 0.286 vs 0.357, hit@20 0.393 vs 0.393; figures hit@1 0.46 vs 0.46, hit@5 1.00 vs 0.98. Weighted α = 0.3 / 0.7 hit@10: 0.214 / 0.357; figures hit@5 0.98 / 0.20.
+
+**Interview script (3 sentences).** "Raw scores from different retrievers live on different scales, cosine near 0.6 and ts_rank near 0.016, so I fuse ranks with RRF and avoid calibration entirely. I benchmarked weighted fusion too: at an even weight it was as good within noise, but moving the weight 0.2 either way traded one query type away, and I'd have been choosing the weight on my test set. RRF has nothing to tune that mattered, so it's the default and weighted fusion is in the ablation."
+
+**Follow-ups they will ask:**
+- Q: Why is score normalisation hard? → A: Min-max depends on the result set, not on how good the results are. A list of junk still has a best hit at 1.0, and edge cases like a one-hit list (my own bug: it scored 0) are easy to get wrong. Z-scores assume a distribution the scores don't follow, and proper calibration needs labelled data.
+- Q: Isn't throwing away scores wasteful? → A: Yes. Rank 1 with cosine 0.95 and rank 1 with cosine 0.61 count the same. That loss is the price of not needing calibration, and the reranker recovers relevance from the text itself.
+- Q: Where does RRF come from? → A: Cormack, Clarke and Büttcher, SIGIR 2009, fusing TREC runs. k = 60 is their value.
+- Q (the hard one): Weighted 0.5 beat RRF by two questions. Why not ship it? → A: Two of 28 is noise, and I picked 0.5 from three values on those same questions. I'd ship it only if it still wins on held-out queries. The golden set ablation tests exactly that.
+
+**The trap.** Adding cosine and ts_rank directly, or claiming normalisation "fixes" the scale problem.
+
+### Card 23 — from [11-hybrid-rrf](../11-hybrid-rrf.md)
+
+#### Decision: RRF k = 60, the published default  (rejected for now: tuned k such as 1 or 10)
+
+**One-line defence.** k sets how steeply rank 1 outweighs rank 10. On our 28 questions, k = 1 and k = 60 differ by 2 questions at hit@10 and not at all at hit@20, which is noise. So the published default stays until the larger golden set says otherwise.
+
+**What problem is this even solving?** Deciding how much a list's top hit should count against agreement between lists.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| k → 0 | 1/rank: rank 1 = 1.0, rank 2 = 0.5 | Trusts each list's top hit | One list's #1 beats consensus (A beats B in the toy example) | When each list's top hit is very reliable |
+| ✅ k = 60 | 1/61 vs 1/70: ranks nearly flat | Rewards appearing in both lists; paper default | Single-list top hits get little credit | Default; noisy lists |
+| k → ∞ | All ranks ≈ equal | Pure "count the lists" | Order within a list ignored | Almost never |
+
+**What would actually change if we swapped it.** One setting (`RRF_K`). Nothing else changes.
+
+**The decision rule.** Keep k = 60 unless a labelled set *larger than the noise* shows a different k winning. Ratio of rank-1 to rank-10 weight: k = 0 → 10×, k = 10 → 1.82×, k = 60 → 1.15×.
+
+**Where our choice breaks.** When one list is reliably right at rank 1, as keyword is for exact figures, high k wastes that signal. A small k would help there, and our figures bench shows no difference only because the ties are symmetric.
+
+**The number.** FB hit@10: k = 1 0.357, k = 10 0.321, k = 60 0.286, k = 100 0.286. FB hit@20: 0.393 for every k. Figures: identical for every k (hit@1 0.46, hit@5 1.00).
+
+**Interview script (3 sentences).** "k is a smoothing constant. It sets the ratio between rank 1's and rank 10's contribution: 10× at k = 0, 1.15× at k = 60. So large k rewards appearing in both lists and small k rewards being top of one. I swept 1, 10, 60 and 100; the spread was two questions out of 28, so I kept the published 60 and deferred tuning to the golden-set ablation."
+
+**Follow-ups they will ask:**
+- Q: Why does the figure bench give the same result for every k? → A: In those queries the two lists don't overlap. Each chunk's score comes from one rank in one list, and equal ranks give equal scores for any k, so k changes the scores but not the order.
+- Q: Why not just pick k = 1 since it scored best? → A: Picking the best of four on 28 questions is fitting noise. I'd be tuning to this sample.
+- Q: Does k interact with depth? → A: Yes. With large k, a chunk at rank 50 in both lists (2/110 ≈ 0.018) beats one at rank 1 in a single list (1/61 ≈ 0.016). Depth bounds how deep agreement can come from.
+- Q (the hard one): What does k = 60 mean intuitively? → A: It works as if every list had 60 imaginary results ahead of its real ones. That dampens the difference between the top few positions.
+
+**The trap.** Treating k = 60 as magic, or tuning k on the same small set you report results on.
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

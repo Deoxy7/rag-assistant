@@ -138,3 +138,32 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Shipping the textbook-best option without measuring.
 
 **Bridge.** "Significance on small samples is exactly what the eval harness has to handle."
+
+---
+
+## Phase 7 questions
+
+### Q: With 28 labelled questions, how do you decide whether hybrid beats vector?
+**ID:** P7-07 · **Round:** project deep-dive · ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "Mostly, you can't. One question is 3.6 points. Hybrid and vector disagreed on 6 questions, hybrid winning 2 and losing 4, and a paired sign test on 6 discordant pairs isn't close to significant. So I didn't decide on that set alone. I added a second, mechanically labelled set of 50 exact-figure queries, where the gap is 0 vs 50, which is not noise. The real decision is deferred to a 50+ question golden set with question types chosen on purpose."
+
+**2-minute answer.** Explain why the comparison is paired. Both methods answer the same questions, so only the discordant questions carry information, not the two hit rates. Name the sweep problem: choosing the best k or weight out of several on these 28 questions and then reporting it is test-set tuning. Hence "k = 60 kept, weighted α = 0.5 not adopted despite +2 questions". Then the remedies: more questions, stratification by type (exact-token, table, multi-hop, unanswerable), and bootstrap confidence intervals in the harness.
+
+**If they push — level 2.** *"Compute the sign test."* 6 discordant pairs, split 4–2. P(≥ 4 of 6 one way | p = 0.5) = (15 + 6 + 1)/64 = 0.34, so 0.69 two-sided.
+
+**If they push — level 3.** *"Isn't your figures set unfair to vector?"* It's artificial: the query is just the figure. That's why it's reported as its own column, not merged into an average. It measures one capability, exact-token lookup.
+
+**If they push — level 4.** *"How many questions would you need?"* It depends on the discordance rate. To detect a 10-point difference with ~20% of questions discordant at 80% power, on the order of 200 questions. 50 detects only large effects, and I'll say so in the report.
+
+**Whiteboard it.**
+```text
+               hybrid hit   hybrid miss
+ vector hit        6             4   ← lost by hybrid
+ vector miss       2            16   ← 2 gained
+ discordant = 4 + 2 = 6 → split 4–2 → sign test p ≈ 0.69
+```
+
+**Trap.** Reporting "hybrid −7 points" as a finding, or tuning k on the test set.
+
+**Bridge.** "That's why the eval harness reports confidence intervals, not just means."

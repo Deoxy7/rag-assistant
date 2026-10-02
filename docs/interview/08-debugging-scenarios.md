@@ -338,3 +338,58 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** "Add BM25 and it's fixed" — plain ts_rank fixed it too.
 
 **Bridge.** "I built BM25 to test that claim and kept the simpler option."
+
+---
+
+## Phase 7 questions
+
+### Q: A benchmark says weighted fusion finds only 20 of 50 exact figures, but keyword search alone finds 50. Debug it.
+**ID:** P7-04 · **Round:** ML screen · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "This happened to me. Weighted fusion min-max normalises each list: (s − min)/(max − min). I guarded the divide-by-zero with `(max − min) or 1`, so a list with a single hit normalised to 0/1 = 0. Rare figures are usually matched by one or two keyword chunks, so the correct hit contributed nothing, and vector's junk filled the top 5. The fix: if all scores are equal, every hit counts as 1.0. After the fix, 49 of 50, and weighted fusion at 0.5 became competitive with RRF."
+
+**2-minute answer.** Walk the debugging. The fused result was worse than *both* inputs on one column, which is impossible for a sensible fusion. So print the normalised scores for one figure query. Keyword's list had length 1 and score 0.0. Then add a regression test (`test_weighted_fusion_single_hit_list_counts_as_its_best`), rerun the bench, and update the write-up. The original doc had concluded "weighted fusion is worse at every weight", and that conclusion came from the bug.
+
+**If they push — level 2.** *"Is a list of two still a problem?"* Min-max always maps the lower of two hits to 0. That's inherent to min-max, not a bug, and it's one reason rank-based fusion is more robust.
+
+**If they push — level 3.** *"What other normalisations exist?"* Z-score (subtract mean, divide by std; undefined for n = 1), dividing by the max, or calibration to probabilities with labelled data.
+
+**If they push — level 4.** *"How do you stop this class of bug?"* Treat a fused result worse than both inputs as a red flag in the bench output, and unit-test edge cases: empty list, one hit, all-equal scores.
+
+**Whiteboard it.**
+```text
+ keyword list: [ (chunk 812, ts_rank 0.016) ]       lo = hi = 0.016
+ buggy:  (0.016 − 0.016) / ((0) or 1) = 0.0   → contributes 0
+ fixed:  hi == lo → 1.0                        → contributes α_kw
+ figures hit@5 at α_vec = 0.3: 0.40 → 0.98
+```
+
+**Trap.** Concluding "weighted fusion is bad" from a bench that's worse than its own inputs.
+
+**Bridge.** "That's also why I re-check conclusions whenever a result looks too clean."
+
+---
+
+### Q: Hybrid search finds the right chunk for "16,434" at rank 2, not rank 1, although keyword search alone has it at rank 1. Why?
+**ID:** P7-05 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "The two lists don't overlap. Vector's top hits are unrelated number tables, and keyword's is the AMD revenue table. RRF gives each list's #1 the same 1/61, so it's a tie. My tie-break is best single rank, then chunk id, and vector's junk had the lower id. Across 50 figure queries, hybrid hit@1 is 0.46 but hit@5 is 1.00. RRF can't know which list to trust for a given query; the reranker, which reads the text, can."
+
+**2-minute answer.** Explain the zipper: with disjoint lists the fused order alternates between the two lists. Then the options. A reranker over the top-N (the plan). Query routing: detect a figure and trust keyword. A smarter tie rule: prefer the list whose match satisfied a required phrase. A smaller k doesn't help, because the tie is exact for any k.
+
+**If they push — level 2.** *"Why have a deterministic tie-break at all?"* Without it, the order depends on dictionary insertion order, and runs or refactors give different answers. Reproducibility first.
+
+**If they push — level 3.** *"Is chunk id a good tie-break?"* It's arbitrary but stable. That's fine as a last resort, but here it decided more than half the figure queries, and I report that rather than hide it.
+
+**If they push — level 4.** *"Would weighted fusion fix it?"* At an even weight, no: both normalised 1.0s tie the same way. At a keyword-heavy weight, yes, but then FinanceBench drops to 0.214.
+
+**Whiteboard it.**
+```text
+ vector:  #1 Corning p106 (junk)   keyword: #1 AMD p48 (contains 16,434)
+ RRF:     1/61 = 1/61  → tie → best rank 1 = 1 → chunk id 4853 < 5759
+ fused:   #1 junk, #2 correct      figures: hit@1 0.46, hit@5 1.00
+```
+
+**Trap.** Blaming k, or claiming RRF "knows" keyword is right for numbers.
+
+**Bridge.** "Which is exactly what a cross-encoder reranker is for."

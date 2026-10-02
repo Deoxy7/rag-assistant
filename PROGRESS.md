@@ -73,3 +73,14 @@ Numbers:  AND vs OR: 1 vs 2,808 matches; FinanceBench 28 q hit@10: vector 0.357,
 Decisions: ts_rank (normalisation 1) default after measuring; BM25 kept as ablation; phrase-required grouped numbers.
 Open:     "FY22" vs "fiscal 2022" lexical mismatch (query rewriting not built); stemmer maps Corning → corn.
 Next:     Phase 7 — Hybrid + RRF.
+
+## Phase 7 — Hybrid retrieval + RRF   [DONE 2026-10-02]
+
+Built:    `app/retrieve/hybrid.py` (`rrf` with deterministic tie-break, `weighted_fusion` (min-max), `HybridRetriever` at depth 50, `get_retriever` factory for `retrieval_mode` vector / keyword / hybrid); settings `retrieval_mode`, `rrf_k`, `retrieval_depth`; `scripts/bench_hybrid.py` (`make bench-hybrid`: FinanceBench 28 q + 50 rare exact-figure queries, k sweep, weighted sweep, latency); `tests/test_hybrid.py` (12).
+Docs:     `docs/11-hybrid-rrf.md` (RRF derived by hand); cards #20, #22, #23; 8 interview questions (P7-01…P7-08); story S-06; T-031, T-032.
+Diagrams: `11-rrf-fusion`, `11-rrf-worked-example`, generated `11-where-it-sits`.
+Numbers:  exact figures hit@5: vector 0.00, keyword 1.00, hybrid 1.00 (hit@1 0.46, tie-break decided); FinanceBench hit@10: vector 0.357, keyword 0.143, hybrid RRF k=60 0.286 (k=1 0.357); hit@20 vector 0.429, hybrid 0.393 (all k); weighted α=0.5: FB hit@10 0.357, figures hit@5 0.98; p50 vector 3.6 ms (embedding cached), keyword 31.6, hybrid 48.5.
+Decisions: hybrid RRF k=60 default — hybrid loses 2 of 28 FB questions (noise) but fixes exact figures; a reranker re-sorts the top-N next. Weighted α=0.5 competitive but its weight was picked on the test queries; both in the Phase 12 ablation.
+Open:     interleaving pushes good vector hits down when keyword is noise (reranker should fix); searches run sequentially (concurrency not built); long questions make keyword search slow (269 ms max).
+Next:     Phase 8 — cross-encoder reranking.
+

@@ -251,3 +251,17 @@ KeyError: 'evidence_doc_name'
 - **What happened:** the subsidiary-list result for "goodwill impairment Corning" was first blamed on `ts_rank` lacking IDF, and BM25 was made the default to fix it.
 - **Check that caught it:** running all three functions on the same query: `ts_rank` → goodwill note, `ts_rank_cd` → subsidiary list, BM25 → goodwill note. The first comparison had silently used `ts_rank_cd` (the early default).
 - **Fix:** default changed to `ts_rank` (also better on FinanceBench 4 vs 2 of 28 and 2.3× faster); BM25 kept as an ablation option; test `test_cover_density_is_fooled_by_repetition_but_ts_rank_and_bm25_are_not` pins the behaviour.
+
+### T-031 · Migration test hard-coded the migration list — hit (Phase 6)
+
+- **Symptom:** after adding `0002_text_stats.sql`, `test_migrations_are_recorded_and_idempotent` failed: it expected exactly `['0001_documents_chunks_embeddings']`.
+- **Cause:** the test listed migration names by hand, so every new migration broke it.
+- **Fix:** the test compares `schema_migrations` against the `.sql` files on disk.
+
+## Phase 7
+
+### T-032 · Weighted fusion zeroed out single-hit lists — hit (my bug)
+
+- **Symptom:** `make bench-hybrid` showed weighted fusion at α_vec = 0.3 finding 20 of 50 exact figures in the top 5, while keyword search alone found 50. The fusion was worse than one of its own inputs.
+- **Cause:** min-max normalisation was written `(s - lo) / ((hi - lo) or 1.0)`. For a list with one hit, lo = hi, so the hit scored 0 / 1 = 0. Rare figures are usually matched by one keyword chunk.
+- **Fix:** if `hi > lo` normalise, else every hit counts 1.0. Test `test_weighted_fusion_single_hit_list_counts_as_its_best`. After the fix, α_vec = 0.3 found 49 of 50. Doc 11 and card #22 were rewritten: weighted fusion at α = 0.5 is competitive with RRF, not "worse at every weight".

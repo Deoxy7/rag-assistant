@@ -80,6 +80,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | IDF (inverse document frequency) | ln(1 + (N − df + 0.5)/(df + 0.5)): high for rare terms. | [10](10-keyword-search.md) |
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
+| Interleaving | When two fused lists don't overlap, RRF alternates them (#1, #1, #2, #2…), because equal ranks earn equal scores. | [11](11-hybrid-rrf.md) |
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
 | Iterative index scan | pgvector ≥ 0.8: keep walking HNSW until enough rows pass the filter. | [09](09-vector-search.md) |
 | IVFFlat | Vector index that clusters vectors into lists and searches only the nearest lists. | [08](08-database-schema.md) |
@@ -89,6 +90,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | kNN (k-nearest neighbours) | Find the k stored vectors closest to a query; exact = compare with all. | [09](09-vector-search.md) |
 | Latency | How long one request takes. | [02](02-architecture-overview.md) |
 | Layering | Lower layers never depend on higher ones; enforced here by `tests/test_architecture.py`. | [02](02-architecture-overview.md) |
+| Learned fusion | Combining retrievers with a model trained on labelled queries (features: scores, ranks, query type). | [11](11-hybrid-rrf.md) |
 | Lexeme | A normalised word form stored by Postgres full-text search (e.g. "revenue" → `revenu`). | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | LLM (large language model) | A neural network trained to predict the next token of text. | [01](01-what-is-rag.md) |
 | Long-context stuffing | Pasting whole documents into a large context window instead of retrieving passages. | [01](01-what-is-rag.md) |
@@ -96,6 +98,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Make target / prerequisite | What Make builds, and what it must be newer than; a phony target is a command name, not a file. | [03](03-environment-and-infra.md) |
 | Microservices | Each component deployed as its own network service. | [02](02-architecture-overview.md) |
 | Migration | A numbered, ordered schema change applied once and recorded. | [08](08-database-schema.md) |
+| Min-max normalisation | Rescaling a list's scores to 0–1 via (s − min)/(max − min); the best hit always becomes 1.0. | [11](11-hybrid-rrf.md) |
 | Modular monolith | One deployable application divided into modules with enforced boundaries. | [02](02-architecture-overview.md) |
 | MPS (Metal Performance Shaders) | PyTorch's backend for Apple GPUs. | [07](07-embeddings.md) |
 | MVCC | Multi-version concurrency control: updates write new row versions; readers see committed versions. | [08](08-database-schema.md) |
@@ -130,14 +133,18 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Quantisation | Storing vector numbers with fewer bits (float16, 1-bit) to save memory. | [09](09-vector-search.md) |
 | Query instruction | Prefix bge v1.5 expects on queries: 'Represent this sentence for searching relevant passages: '. | [07](07-embeddings.md) |
 | Query planner | The Postgres component that picks a plan (indexes, join order) by estimated cost. | [09](09-vector-search.md) |
+| Query routing | Sending each query to the retriever suited to its type (e.g. figures → keyword) instead of fusing. | [11](11-hybrid-rrf.md) |
 | RAG (Retrieval-Augmented Generation) | Retrieve relevant passages at question time, then have the LLM answer from them with citations. | [01](01-what-is-rag.md) |
+| Rank fusion | Merging several ranked lists into one ranking. | [11](11-hybrid-rrf.md) |
 | Re-embedding migration | Recomputing every vector for a new model, side by side, before switching queries. | [07](07-embeddings.md) |
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
 | Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
 | Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) (Phase 8) |
 | Retrieval | Finding the passages most relevant to a query. | [01](01-what-is-rag.md) |
+| Retrieval depth | How many results each retriever returns before fusion (50 here); must exceed the final k. | [11](11-hybrid-rrf.md) |
 | Role (Postgres) | A database user identity you log in as. | [03](03-environment-and-infra.md) |
-| RRF (Reciprocal Rank Fusion) | Merging ranked lists by summing 1 / (k + rank) for each item across lists. | [11](11-hybrid-rrf.md) (Phase 7) |
+| RRF (Reciprocal Rank Fusion) | Merging ranked lists by summing 1 / (k + rank) for each item across lists. | [11](11-hybrid-rrf.md) |
+| RRF k constant | Added to every rank before inverting; small k favours each list's top hit, large k favours agreement (k = 60 default). | [11](11-hybrid-rrf.md) |
 | Ruled / unruled table | A table drawn with lines (found by pdfplumber's default strategy) vs one aligned by spacing only. | [05](05-pdf-parsing.md) |
 | Running header / footer | A line repeated at the top or bottom of most pages; noise for search. | [04](04-corpus.md) |
 | Running-header fingerprint | Band text with digits → '#' and leading/trailing page numbers removed, used to detect repeats. | [05](05-pdf-parsing.md) |
@@ -159,6 +166,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Term frequency (tf) | Occurrences of a term in a document. | [10](10-keyword-search.md) |
 | Text extractability | How much text extraction actually yields from a page. | [04](04-corpus.md) |
 | Throughput | How many requests per second a system can complete. | [02](02-architecture-overview.md) |
+| Tie-break | The rule ordering equal scores; RRF here uses best single rank, then chunk id, for reproducible order. | [11](11-hybrid-rrf.md) |
 | Time to first token (TTFT) | Time until the first word of an answer appears. | [02](02-architecture-overview.md) |
 | Token | The unit of text an LLM reads, writes and bills by — a word or part of a word. | [01](01-what-is-rag.md) |
 | Tokenizer | The program that splits text into a model's tokens. | [01](01-what-is-rag.md) |
@@ -177,5 +185,6 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Virtual environment (venv) | A per-project Python with its own installed packages. | [03](03-environment-and-infra.md) |
 | Virtual machine (VM) | Software emulating a whole computer, running its own kernel. | [03](03-environment-and-infra.md) |
 | Volume | Docker-managed storage that outlives containers; holds our database files. | [03](03-environment-and-infra.md) |
+| Weighted-score fusion | Normalise each list's scores, then take a weighted sum; needs a tuned weight. | [11](11-hybrid-rrf.md) |
 | WordPiece | BERT's subword tokenizer; continuation pieces are marked ## (16,434 → 16 , 43 ##4). | [06](06-chunking.md) |
 | Workload contract | The answers to: how big, how often, how many, who sees what, what if unsure, which latency matters. | [02](02-architecture-overview.md) |

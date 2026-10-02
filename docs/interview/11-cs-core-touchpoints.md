@@ -236,3 +236,30 @@
 **Trap.** Saying "it scans the text for the words".
 
 **Bridge.** "Merging ranked lists is also what RRF does — next phase."
+
+---
+
+## Phase 7 questions
+
+### Q: RRF as an algorithm: data structures, complexity, determinism.
+**ID:** P7-08 · **Round:** DSA  **Difficulty:** 2/5
+
+**30-second answer.** "Iterate over every hit in every list and add 1/(k + rank) into a hash map keyed by chunk id. Also keep each chunk's best rank and the Hit object from that list. Then sort the distinct ids by (−score, best rank, id). That's O(N) for N total hits plus O(u log u) for u distinct chunks, so two lists of 50 cost microseconds. The sort key makes it deterministic: no dependence on dictionary order or on which list came first."
+
+**2-minute answer.** Contrast with merging sorted lists. You can't k-way merge, because a chunk's final score depends on all lists, so you accumulate first. If only the top k is needed, a heap of size k gives O(u log k), which doesn't matter at u ≤ 100. Mention the immutability detail: Hit is a frozen dataclass, so the fused hit is a copy via `dataclasses.replace` with the new score and rank.
+
+**If they push — level 2.** *"Floating-point concerns?"* Summing two reciprocals is exact enough for ordering. Exact ties (two lists' #1s both 1/61) are bitwise equal, which is why the tie-break matters.
+
+**If they push — level 3.** *"Could you do it in SQL?"* Yes: UNION ALL the two ranked CTEs with `row_number()`, `GROUP BY chunk_id`, `SUM(1.0/(60 + rank))`, then ORDER BY. One round trip.
+
+**If they push — level 4.** *"Streaming version?"* With lists arriving incrementally, you can bound unseen chunks' maximum possible score (the threshold algorithm, Fagin) and stop early once the top k can't change.
+
+**Whiteboard it.**
+```text
+ for L in lists: for h in L: score[h.id] += 1/(k + h.rank); best[h.id] = min(best[h.id], h.rank)
+ sort ids by (-score, best, id)        O(N + u log u)
+```
+
+**Trap.** Proposing a k-way merge of the input lists.
+
+**Bridge.** "The expensive part is never fusion; it's the two searches and, next, the reranker."

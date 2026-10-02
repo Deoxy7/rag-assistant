@@ -45,3 +45,10 @@
 - **What I did:** implemented BM25 in SQL (document frequencies from `ts_stat`), then compared it with both built-in rankings on the same query and on 28 labelled FinanceBench questions.
 - **Outcome number:** the failure was `ts_rank_cd`'s, not `ts_rank`'s; `ts_rank` matched BM25 on the example, scored 4 vs 2 of 28, and ran in 31 vs 72 ms. I made `ts_rank` the default and corrected my own write-up.
 - **Lesson:** I was wrong about the cause until I compared all options on the same input; measuring beats the textbook, and being willing to say "my first explanation was wrong" is part of the job.
+
+### S-06 · A conclusion that came from my own bug
+
+- **Situation:** the hybrid benchmark said weighted-score fusion was worse than RRF at every weight, a clean result I had already written into the docs and a decision card.
+- **What I did:** checking the write-up's numbers, I noticed that at α_vec = 0.3 the fusion found 20 of 50 figures while its keyword input alone found 50. A fusion worse than its own input is a bug signal. Min-max normalisation scored a one-hit list as 0.
+- **Outcome number:** after the fix, 49 of 50. Weighted fusion at 0.5 turned out competitive with RRF (FinanceBench hit@10 0.357 vs 0.286, within noise). I rewrote the card, kept RRF for a different, honest reason (no weight to tune on the test set), and logged it as T-032.
+- **Lesson:** sanity-check results against their inputs before believing them, especially results that confirm what you expected.

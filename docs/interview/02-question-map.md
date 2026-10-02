@@ -70,6 +70,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P6-06 | Move keyword search to Elasticsearch? When? | [06](06-system-design.md) | design | design | 3 | | |
 | P6-07 | Stemming and stop words; what goes wrong | [03](03-fundamentals.md) | text | viva | 2 | | |
 | P6-08 | Inverted index AND/OR; complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA, backend | 3 | | |
+| P7-01 | Derive RRF on a small example | [04](04-retrieval.md) | fusion | ML, whiteboard | 3 | | |
+| P7-02 | Hybrid scored worse than vector — why ship it? | [04](04-retrieval.md) | fusion | deep-dive, ML | 4 | | |
+| P7-03 | What the RRF k controls; how you chose it | [04](04-retrieval.md) | fusion | ML | 3 | | |
+| P7-04 | Weighted fusion worse than its inputs — debug | [08](08-debugging-scenarios.md) | debugging | ML, backend | 3 | | |
+| P7-05 | Exact figure at fused rank 2, not 1 — why? | [08](08-debugging-scenarios.md) | debugging | ML, deep-dive | 3 | | |
+| P7-06 | Switchable retrieval modes; making hybrid fast | [06](06-system-design.md) | design | design | 3 | | |
+| P7-07 | Is hybrid better? Deciding on 28 questions | [07](07-evaluation.md) | eval | deep-dive, ML | 4 | | |
+| P7-08 | RRF as an algorithm: structures, complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

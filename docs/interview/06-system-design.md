@@ -258,3 +258,33 @@
 **Trap.** "Postgres FTS doesn't scale" without saying what scales badly.
 
 **Bridge.** "Either way the fusion step is the same — RRF on two ranked lists."
+
+---
+
+## Phase 7 questions
+
+### Q: Design the retrieval layer so vector-only, keyword-only and hybrid are switchable, and make hybrid fast.
+**ID:** P7-06 · **Round:** system design  **Difficulty:** 3/5
+
+**30-second answer.** "One interface: `search(conn, query, k, filters) → list[Hit]`, implemented by a vector retriever, a keyword retriever and a hybrid retriever that holds the other two. A factory, `get_retriever(mode, …)`, maps the `retrieval_mode` setting to an object, so the API and the eval harness never branch on mode. Hybrid asks both at depth 50 and fuses with RRF. Measured, hybrid is 48.5 ms p50 against 3.6 ms for vector, mostly keyword search at depth 50."
+
+**2-minute answer.** Cover what carries through: every Hit keeps page, char span and section, so citations don't care about mode. The eval harness gets ablations for free by constructing retrievers with different options. Then the speed levers. Run both searches concurrently on two connections; today they're sequential on one, so latency is the sum. Lower keyword depth. Cap OR terms for long questions: the slowest keyword query was the longest question (58 words, 69 tsquery nodes, 269 ms), against 12 ms for a 10-word question. Or move both into one SQL statement with two CTEs and fuse in SQL, which costs one round trip.
+
+**If they push — level 2.** *"Why fuse in Python rather than SQL?"* Testability and clarity. Fusion is microseconds; the time is in the searches. One-statement fusion is an optimisation I'd take if round trips dominated.
+
+**If they push — level 3.** *"How do you add a third retriever, say SPLADE?"* Implement `search`, add it to the list HybridRetriever fuses, and RRF takes any number of lists. Weighted fusion would need a new weight; RRF doesn't.
+
+**If they push — level 4.** *"What happens under load?"* Keyword search's cost grows with OR-matched candidates, so the tail is driven by long questions. Put a timeout on each half and degrade to the other list if one times out. RRF of one list is that list.
+
+**Whiteboard it.**
+```text
+ settings.retrieval_mode ─▶ get_retriever() ─▶ VectorRetriever | KeywordRetriever | HybridRetriever
+                                                                    ├─ vector.search(depth 50)
+                                                                    ├─ keyword.search(depth 50)
+                                                                    └─ rrf(k=60)[:k]
+ p50: 3.6 / 31.6 / 48.5 ms   (sequential; concurrent ≈ max of the two)
+```
+
+**Trap.** Mode `if`s scattered across the API and the eval code.
+
+**Bridge.** "The same interface is what the reranker wraps in Phase 8."
