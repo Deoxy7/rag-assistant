@@ -59,20 +59,54 @@ class MissingAPIKey(RuntimeError):
 
 # --- retries ---------------------------------------------------------------------------
 
-def quota_exhausted(exc: Exception) -> bool:
-    """An empty balance (OpenAI: insufficient_quota / credit_balance_exhausted) also arrives as HTTP 429,
-    but waiting never fixes it, so it must not be retried or reported as a rate limit (T-038)."""
+def _error_dict(exc: Exception) -> dict:
+    """The provider's error object: OpenAI sends {"error": {...}}, Gemini's compat endpoint [{"error": {...}}]."""
     body = getattr(exc, "body", None) or {}
+    if isinstance(body, list):
+        body = body[0] if body and isinstance(body[0], dict) else {}
     err = body.get("error", body) if isinstance(body, dict) else {}
-    if isinstance(err, list):   # Gemini's compat endpoint wraps errors in a list
-        err = err[0].get("error", {}) if err and isinstance(err[0], dict) else {}
-    codes = {getattr(exc, "code", None), err.get("code") if isinstance(err, dict) else None,
-             err.get("type") if isinstance(err, dict) else None}
-    return bool(codes & {"insufficient_quota", "credit_balance_exhausted"})
+    return err if isinstance(err, dict) else {}
+
+
+def server_retry_delay_s(exc: Exception) -> float | None:
+    """How long the provider says to wait: Retry-After header, Gemini's RetryInfo ("20949s"), or its
+    message ("Please retry in 5h49m5.47s"). None if it didn't say."""
+    headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+    try:
+        if headers.get("retry-after"):
+            return float(headers["retry-after"])
+    except ValueError:
+        pass
+    err = _error_dict(exc)
+    for d in err.get("details") or []:
+        if isinstance(d, dict) and str(d.get("@type", "")).endswith("RetryInfo"):
+            m = re.fullmatch(r"([\d.]+)s", str(d.get("retryDelay", "")))
+            if m:
+                return float(m.group(1))
+    m = re.search(r"retry in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", str(err.get("message", "")))
+    if m and any(m.groups()):
+        h, mi, s = (float(x) if x else 0.0 for x in m.groups())
+        return h * 3600 + mi * 60 + s
+    return None
+
+
+def quota_exhausted(exc: Exception) -> bool:
+    """A 429 that waiting won't fix within a run: an empty balance (OpenAI: insufficient_quota /
+    credit_balance_exhausted, T-038) or a *daily* quota (Gemini free tier: 20 requests/day per model,
+    quotaId GenerateRequestsPerDay…, T-052). Per-minute limits are not this: they clear in seconds."""
+    err = _error_dict(exc)
+    codes = {getattr(exc, "code", None), err.get("code"), err.get("type")}
+    if codes & {"insufficient_quota", "credit_balance_exhausted"}:
+        return True
+    for d in err.get("details") or []:
+        for v in (d.get("violations") or []) if isinstance(d, dict) else []:
+            if "PerDay" in str(v.get("quotaId", "")):
+                return True
+    return False
 
 
 def retryable(exc: Exception) -> bool:
-    """429 (rate limit, not an empty balance), any 5xx (e.g. Gemini's 503 'high demand'), timeouts, connection drops."""
+    """429 (rate limit, not an exhausted quota), any 5xx (e.g. Gemini's 503 'high demand'), timeouts, connection drops."""
     import openai
     if isinstance(exc, openai.RateLimitError):
         return not quota_exhausted(exc)
@@ -99,8 +133,10 @@ def with_retries(call: Callable, max_retries: int, base_s: float, max_s: float, 
         except Exception as exc:  # noqa: BLE001 — filtered by retryable()
             if attempt == max_retries or not retryable(exc):
                 raise
-            headers = getattr(getattr(exc, "response", None), "headers", None) or {}
-            wait = backoff_s(attempt, base_s, max_s, headers.get("retry-after"))
+            asked = server_retry_delay_s(exc)
+            if asked is not None and asked > max_s:
+                raise      # the provider wants longer than we'd ever wait inside one call: fail now
+            wait = backoff_s(attempt, base_s, max_s, str(asked) if asked is not None else None)
             log.warning("LLM call failed (%s %s); retry %d/%d in %.1f s", type(exc).__name__,
                         getattr(exc, "status_code", ""), attempt + 1, max_retries, wait)
             sleep(wait)

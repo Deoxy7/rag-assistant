@@ -25,7 +25,7 @@ from app.api.schemas import (CitationOut, DocumentOut, ErrorOut, Health, QueryRe
 from app.config import get_settings
 from app.embed.embedder import get_embedder, model_key
 from app.generate.answer import Answer, answer_question, stream_answer
-from app.generate.llm import CachedLLM, MissingAPIKey, get_llm, quota_exhausted
+from app.generate.llm import CachedLLM, MissingAPIKey, get_llm, quota_exhausted, server_retry_delay_s
 from app.generate.prompt import REFUSAL_TOKEN, PackedContext
 from app.retrieve.rerank import get_reranker, retriever_from_settings
 from app.retrieve.types import Filters
@@ -98,7 +98,10 @@ def classify(exc: Exception) -> tuple[int, str, str]:
     if isinstance(exc, openai.RateLimitError):
         # Both arrive as HTTP 429; only the first gets better by waiting.
         if quota_exhausted(exc):
-            return 503, "llm_quota_exhausted", "The LLM account has no credits left; add credits, then retry."
+            wait = server_retry_delay_s(exc)
+            when = f" It resets in about {wait / 3600:.1f} h." if wait else ""
+            return 503, "llm_quota_exhausted", ("The LLM provider's quota is used up (no credits, or the daily "
+                                                f"free-tier limit).{when} Add billing or wait, then retry.")
         return 503, "llm_rate_limited", "The LLM provider is rate-limiting requests; retry later."
     if isinstance(exc, openai.APITimeoutError):
         return 504, "llm_timeout", "The LLM provider did not respond in time."

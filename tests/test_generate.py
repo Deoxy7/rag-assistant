@@ -317,6 +317,39 @@ def test_does_not_retry_client_errors_or_an_empty_balance():
         assert len(calls) == 1
 
 
+GEMINI_DAILY = [{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                           "message": "You exceeded your current quota … limit: 20, model: gemini-3.5-flash\nPlease retry in 5h49m5.477998351s.",
+                           "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                                        "violations": [{"quotaMetric": "generativelanguage.googleapis.com/generate_content_free_tier_requests",
+                                                        "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}]},
+                                       {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "20945s"}]}}]
+GEMINI_MINUTE = [{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "Please retry in 12.5s.",
+                            "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                                         "violations": [{"quotaId": "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"}]}]}}]
+
+
+def test_gemini_daily_quota_is_not_retried_but_per_minute_is():
+    from app.generate.llm import retryable, server_retry_delay_s
+    daily, minute = api_error(429, GEMINI_DAILY), api_error(429, GEMINI_MINUTE)
+    assert quota_exhausted(daily) and not retryable(daily)
+    assert server_retry_delay_s(daily) == 20945.0              # RetryInfo wins over the message
+    assert not quota_exhausted(minute) and retryable(minute)
+    assert server_retry_delay_s(minute) == 12.5               # parsed from "Please retry in 12.5s"
+
+
+def test_a_server_delay_longer_than_the_cap_fails_immediately():
+    calls, slept = [], []
+    body = [{"error": {"code": 503, "message": "Please retry in 2h0m0s."}}]
+
+    def call():
+        calls.append(1)
+        raise api_error(503, body)
+    import openai
+    with pytest.raises(openai.InternalServerError):
+        with_retries(call, max_retries=6, base_s=1.0, max_s=30.0, sleep=slept.append)
+    assert len(calls) == 1 and slept == []
+
+
 def test_gives_up_after_max_retries():
     calls = []
 

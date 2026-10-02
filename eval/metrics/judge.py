@@ -66,7 +66,9 @@ def average_precision(useful: list[bool]) -> float | None:
     return total / hits if hits else 0.0
 
 
-def judge_answer(judge, question: str, answer: str, refused: bool, sources: list[str], reference: str | None) -> JudgeScores:
+def judge_answer(judge, question: str, answer: str, refused: bool, sources: list[str], reference: str | None,
+                 closed_book: bool = False) -> JudgeScores:
+    """closed_book=True: there are no sources, so faithfulness and context precision are not applicable (None)."""
     errors = 0
     numbered = "\n\n".join(f"PASSAGE {i + 1}:\n{s}" for i, s in enumerate(sources))
 
@@ -79,19 +81,20 @@ def judge_answer(judge, question: str, answer: str, refused: bool, sources: list
             return None
 
     faith = None
-    if not refused:
+    if not refused and not closed_book:
         r = ask(FAITHFULNESS, f"SOURCES:\n{numbered}\n\nANSWER:\n{answer}")
         if r is not None:
             claims = r.get("claims", [])
             faith = (sum(bool(c.get("supported")) for c in claims) / len(claims)) if claims else None
     r = ask(RELEVANCE, f"QUESTION:\n{question}\n\nANSWER:\n{answer}")
     rel = (min(5, max(1, int(r["score"]))) - 1) / 4 if r and "score" in r else None
-    r = ask(CONTEXT, f"QUESTION:\n{question}\n\n{numbered}")
     ctx = None
-    if r and isinstance(r.get("useful"), list) and len(r["useful"]) == len(sources):
-        ctx = average_precision([bool(x) for x in r["useful"]])
-    elif r is not None:
-        errors += 1
+    if not closed_book:
+        r = ask(CONTEXT, f"QUESTION:\n{question}\n\n{numbered}")
+        if r and isinstance(r.get("useful"), list) and len(r["useful"]) == len(sources):
+            ctx = average_precision([bool(x) for x in r["useful"]])
+        elif r is not None:
+            errors += 1
     corr = None
     if reference is not None:
         r = ask(CORRECTNESS, f"QUESTION:\n{question}\n\nREFERENCE:\n{reference}\n\nANSWER:\n{answer}")

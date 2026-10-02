@@ -29,12 +29,13 @@ from pathlib import Path
 from app.config import get_settings
 from app.embed.embedder import get_embedder, model_key
 from app.generate.answer import answer_question
-from app.generate.llm import CachedLLM, ChatClient, FakeLLM, get_llm
+from app.generate.llm import CachedLLM, ChatClient, FakeLLM, get_llm, quota_exhausted
 from app.retrieve.hybrid import get_retriever
 from app.retrieve.rerank import RerankingRetriever, get_reranker
 from app.store import repository as repo
 from app.store.db import connect
 from eval import golden
+from eval.closed_book import answer_closed_book
 from eval.metrics import abstention as ab
 from eval.metrics import judge as jd
 from eval.metrics import retrieval as rm
@@ -58,7 +59,7 @@ def git_state() -> dict:
 def build_retriever(args, chunk_set_id: int):
     s = get_settings()
     base = get_retriever(args.mode, chunk_set_id, embedder=get_embedder() if args.mode != "keyword" else None,
-                         rrf_k=args.rrf_k, depth=args.depth)
+                         rrf_k=args.rrf_k, depth=args.depth, rank_function=args.rank_function)
     if args.rerank:
         return RerankingRetriever(base, get_reranker(), n=args.rerank_n)
     return base
@@ -71,6 +72,26 @@ def ideal_grades(conn, chunk_set_id: int, q: golden.Question) -> list[int]:
             for cid, doc, cs, ce in repo.chunks_overlapping(conn, chunk_set_id, sp.doc_key, sp.char_start, sp.char_end):
                 chunks[cid] = rm.ChunkRef(cid, doc, cs, ce)
     return [g for g in (rm.chunk_grade(c, q.items) for c in chunks.values()) if g > 0]
+
+
+def closed_book_row(q: golden.Question, llm, judge) -> dict:
+    """One closed-book question: no retrieval, so no retrieval metrics, no citations, no faithfulness."""
+    row = {"id": q.id, "type": q.type, "answerable": q.answerable, "question": q.question}
+    try:
+        text, refused, r = answer_closed_book(llm, q.question)
+    except Exception as exc:  # noqa: BLE001
+        row.update({"error": f"{type(exc).__name__}: {str(exc)[:200]}", "refused": None})
+        return row
+    row.update({"refused": refused, "answer": text, "provider": r.provider, "model": r.model,
+                "input_tokens": r.input_tokens, "output_tokens": r.output_tokens, "cached": r.cached,
+                "truncated": r.truncated})
+    if judge is not None:
+        try:
+            js = jd.judge_answer(judge, q.question, text, refused, [], q.answer, closed_book=True)
+            row.update({f"judge_{k}": v for k, v in dataclasses.asdict(js).items()})
+        except Exception as exc:  # noqa: BLE001
+            row["judge_error"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+    return row
 
 
 def summarise(rows: list[dict], key: str) -> dict:
@@ -93,6 +114,12 @@ def open_exclusive(stem: str, suffix: str):
 
 
 def main(argv=None) -> int:
+    code, _ = run(argv)
+    return code
+
+
+def run(argv=None) -> tuple[int, Path | None]:
+    """Parse flags, run, write results. Returns (exit code, path of the JSON result or None)."""
     s = get_settings()
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--name", required=True)
@@ -102,6 +129,10 @@ def main(argv=None) -> int:
     ap.add_argument("--rrf-k", type=int, default=s.rrf_k)
     ap.add_argument("--depth", type=int, default=s.retrieval_depth)
     ap.add_argument("--k", type=int, default=s.answer_top_k, help="chunks retrieved per question (max of KS used)")
+    ap.add_argument("--rank-function", default="ts_rank", choices=("ts_rank", "bm25", "ts_rank_cd"),
+                    help="keyword ranking (keyword and hybrid modes)")
+    ap.add_argument("--closed-book", action="store_true",
+                    help="baseline: no retrieval, the model answers from its own knowledge (implies --generate)")
     ap.add_argument("--chunk-strategy", default=s.chunk_strategy)
     ap.add_argument("--chunk-size", type=int, default=s.chunk_size)
     ap.add_argument("--chunk-overlap", type=int, default=s.chunk_overlap)
@@ -111,6 +142,8 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, help="first N questions only (smoke runs)")
     ap.add_argument("--ids", help="comma-separated question ids only, e.g. G001,G045,G053 (smoke runs)")
     args = ap.parse_args(argv)
+    if args.closed_book:
+        args.generate = True
     if args.judge and not args.generate:
         ap.error("--judge needs --generate")
 
@@ -121,14 +154,14 @@ def main(argv=None) -> int:
         if cs is None:
             print(f"error: chunk set {args.chunk_strategy}/{args.chunk_size}/{args.chunk_overlap} not ingested",
                   file=sys.stderr)
-            return 2
+            return 2, None
         questions = golden.load(conn)
         if args.ids:
             wanted = [x.strip() for x in args.ids.split(",") if x.strip()]
             unknown = set(wanted) - {q.id for q in questions}
             if unknown:
                 print(f"error: unknown question ids {sorted(unknown)}", file=sys.stderr)
-                return 2
+                return 2, None
             questions = [q for q in questions if q.id in wanted]
         questions = questions[: args.limit]
         retriever = build_retriever(args, cs)
@@ -140,15 +173,18 @@ def main(argv=None) -> int:
             if isinstance(judge_client, FakeLLM):
                 print("error: --judge needs a real model (LLM_PROVIDER=gemini or openai); the fake model can't grade",
                       file=sys.stderr)
-                return 2
+                return 2, None
             if args.judge_model != judge_client.model:      # --judge-model overrides LLM_JUDGE_MODEL for one run
                 judge_client = ChatClient(judge_client.provider, judge_client.client.api_key, args.judge_model,
                                           judge_client.base_url, judge_client.max_output_tokens, judge_client.temperature,
                                           judge_client.reasoning_effort, s.llm_timeout_s, s.llm_max_retries,
                                           s.llm_retry_base_s, s.llm_retry_max_s)
             judge = CachedLLM(judge_client, connect)
-        rows = []
+        rows, quota_stop = [], None
         for q in questions:
+            if args.closed_book:
+                rows.append(closed_book_row(q, llm, judge))
+                continue
             t0 = time.perf_counter()
             hits = retriever.search(conn, q.question, k=args.k)
             ms = (time.perf_counter() - t0) * 1000
@@ -164,14 +200,23 @@ def main(argv=None) -> int:
                                 f"ndcg@{k}": round(sc.ndcg, 4)})
                     row["rr"], row["first_rank"] = sc.rr, sc.first_rank
                 row["relevant_in_set"] = len(ideal)
+            if llm is not None and quota_stop:
+                row.update({"error": f"skipped: {quota_stop}", "refused": None})
+                rows.append(row)
+                continue
             if llm is not None:
                 try:
                     a = answer_question(conn, q.question, retriever, llm, k=args.k)
                 except Exception as exc:  # noqa: BLE001 — after retries: record it and keep the run going
                     row.update({"error": f"{type(exc).__name__}: {str(exc)[:200]}", "refused": None})
                     rows.append(row)
-                    print(f"  {q.id}: generation failed after retries ({type(exc).__name__}); recorded, continuing",
-                          file=sys.stderr)
+                    if quota_exhausted(exc):
+                        quota_stop = f"LLM quota exhausted at {q.id}"
+                        print(f"  {q.id}: LLM quota exhausted; skipping generation for the remaining questions "
+                              "(cached answers are kept; re-run when the quota resets)", file=sys.stderr)
+                    else:
+                        print(f"  {q.id}: generation failed after retries ({type(exc).__name__}); recorded, continuing",
+                              file=sys.stderr)
                     continue
                 row.update({"refused": a.refused, "answer": a.text, "provider": a.provider, "model": a.model,
                             "input_tokens": a.input_tokens, "output_tokens": a.output_tokens, "cached": a.cached,
@@ -199,9 +244,10 @@ def main(argv=None) -> int:
                "by_type": {t: {m: summarise([r for r in answerable if r["type"] == t], m)["mean"]
                                for m in ("hit@5", "recall@5", "recall@10", "ndcg@10", "rr")}
                            for t in golden.TYPES if t != "unanswerable"},
-               "retrieve_ms_p50": sorted(r["retrieve_ms"] for r in rows)[len(rows) // 2]}
-    pos = [r["top_score"] for r in answerable if r["top_score"] is not None]
-    neg = [r["top_score"] for r in rows if not r["answerable"] and r["top_score"] is not None]
+               "retrieve_ms_p50": (sorted(r["retrieve_ms"] for r in rows)[len(rows) // 2]
+                                   if rows and "retrieve_ms" in rows[0] else None)}
+    pos = [r["top_score"] for r in answerable if r.get("top_score") is not None]
+    neg = [r["top_score"] for r in rows if not r["answerable"] and r.get("top_score") is not None]
     if pos and neg:
         sweep = ab.threshold_sweep(pos, neg)
         best = max(sweep, key=lambda x: (x[3], -x[1]))
@@ -226,6 +272,9 @@ def main(argv=None) -> int:
                                  "abstention": dataclasses.asdict(sc),
                                  "cited_evidence_rate": summarise([{"x": float(r["cited_evidence"])} for r in answerable
                                                                    if r.get("cited_evidence") is not None], "x"),
+                                 "refused_answerable": sum(bool(r.get("refused")) for r in done if r["answerable"]),
+                                 "answered_unanswerable": sum(r.get("refused") is False for r in done
+                                                              if not r["answerable"]),
                                  "input_tokens": sum(r["input_tokens"] for r in done if not r["cached"]),
                                  "output_tokens": sum(r["output_tokens"] for r in done if not r["cached"]),
                                  "errors": len(rows) - len(done),
@@ -241,7 +290,7 @@ def main(argv=None) -> int:
     config = {k: v for k, v in vars(args).items() if k not in ("limit", "ids")} | {"ids": args.ids,
         "chunk_set_id": cs, "ks": KS, "ef_search": 160, "embedding_model": model_key(s.embedding_model,
                                                                                    s.embedding_model_revision),
-        "rerank_model": s.rerank_model if args.rerank else None, "llm_provider": s.llm_provider if args.generate else None,
+        "rerank_model": s.rerank_model if args.rerank and not args.closed_book else None, "llm_provider": s.llm_provider if args.generate else None,
         "llm_base_url": s.llm_base_url if args.generate else None, "llm_model": s.llm_model if args.generate else None,
         "llm_reasoning_effort": s.llm_reasoning_effort if args.generate else None,
         "judge_model": args.judge_model if args.judge else None, "limit": args.limit}
@@ -260,10 +309,12 @@ def main(argv=None) -> int:
         w.writeheader()
         w.writerows(rows)
     o = summary["overall"]
-    print(f"{args.name}: {len(rows)} questions ({len(answerable)} answerable) · mode {args.mode} · "
-          f"rerank {args.rerank} · chunk set {cs}")
-    print("  " + "  ".join(f"{m} {o[m]['mean']:.3f} [{o[m]['ci95'][0]:.2f}–{o[m]['ci95'][1]:.2f}]"
-                           for m in ("hit@5", "recall@5", "recall@10", "ndcg@10", "rr")))
+    print(f"{args.name}: {len(rows)} questions ({len(answerable)} answerable) · "
+          + ("closed book (no retrieval)" if args.closed_book else
+             f"{args.chunk_strategy}/{args.chunk_size} · mode {args.mode} · rerank {args.rerank} · chunk set {cs}"))
+    if not args.closed_book:
+        print("  " + "  ".join(f"{m} {o[m]['mean']:.3f} [{o[m]['ci95'][0]:.2f}–{o[m]['ci95'][1]:.2f}]"
+                               for m in ("hit@5", "recall@5", "recall@10", "ndcg@10", "rr")))
     if "retrieval_abstention" in summary:
         ra = summary["retrieval_abstention"]
         print(f"  retrieval-only abstention: AUROC {ra['auroc']:.3f} · " + " · ".join(
@@ -281,7 +332,7 @@ def main(argv=None) -> int:
               ("faithfulness", "answer_relevance", "context_precision", "correctness"))
               + f" · parse errors {j['parse_errors']} · judge errors {j['judge_errors']}")
     print(f"  → {jpath.relative_to(ROOT)}\n  → {cpath.relative_to(ROOT)}")
-    return 0
+    return 0, jpath
 
 
 if __name__ == "__main__":
