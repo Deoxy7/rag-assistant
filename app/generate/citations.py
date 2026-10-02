@@ -15,6 +15,9 @@ from app.generate.prompt import Source
 
 # [1]  [1][3]  [1, 3]  [1,3]  — a group of numbers inside one pair of brackets.
 MARKER = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+# 【1】: full-width lenticular brackets, which gpt-oss models write for citations (Phase 14: 5 of 30
+# gpt-oss-20b answers, 0 of 141 qwen answers). normalize_markers turns them into [1].
+FULLWIDTH_MARKER = re.compile(r"【\s*(\d+(?:\s*[,，]\s*\d+)*)\s*】")
 # Sentence ends: . ! ? followed by space/end, or a line break. Decimal points
 # ("19.5%") and abbreviations are not split because a space must follow.
 SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
@@ -45,6 +48,10 @@ class CitationReport:
     citations: tuple[Citation, ...]       # one per distinct valid source number, in order of first use
     invalid_markers: tuple[int, ...]      # numbers with no such source
     uncited_sentences: tuple[str, ...]
+
+
+def normalize_markers(text: str) -> str:
+    return FULLWIDTH_MARKER.sub(lambda m: "[" + m.group(1).replace("，", ",") + "]", text)
 
 
 def marker_numbers(text: str) -> list[int]:

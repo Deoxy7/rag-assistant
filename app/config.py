@@ -8,6 +8,8 @@ so "what can be configured, and what is its default?" has exactly one answer.
 from functools import lru_cache
 from pathlib import Path
 
+from typing import Literal
+
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -106,6 +108,10 @@ class Settings(BaseSettings):
     answer_top_k: int = 10               # chunks retrieved for an answer (after rerank)
     context_token_budget: int = 3000     # o200k_base tokens of sources packed into the prompt
     context_order: str = "rank"          # "rank" (best first) | "sandwich" (best at both ends); Phase 12 ablation
+    # --- Phase 14: security (docs/18) ---
+    prompt_template: Literal["1", "2"] = "2"   # "2" fences sources and defuses forged headers; "1" = Phases 9–13
+    injection_filter: Literal["drop", "flag", "off"] = "drop"   # sources that address the model
+    output_policy: bool = True           # strip links, images and HTML from answers (and streamed deltas)
     # USD per 1M tokens at the provider's *paid list price* (Groq models page, 2026-10-03:
     # qwen/qwen3.8-27b $0.80 in / $4.00 out). With *_free_tier true the billed cost is 0 but the
     # list cost is still reported, as the number to plan with. Free-tier limits per model: 30 RPM,

@@ -140,7 +140,9 @@ def test_stream_sends_sources_then_deltas_then_answer(client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
     assert r.headers["cache-control"] == "no-cache"
     events = sse_events(r.text)
-    assert [e for e, _ in events] == ["sources", "delta", "delta", "answer"]
+    # Deltas are re-cut at whitespace by the output policy's stream filter (Phase 14), so count ≥ 1.
+    kinds = [e for e, _ in events]
+    assert kinds[0] == "sources" and kinds[-1] == "answer" and set(kinds[1:-1]) == {"delta"}
     assert "".join(d for e, d in events if e == "delta") == "Net revenue was $23.6 billion [1]."
     assert events[-1][1]["citations"][0]["label"] == "AMD 2022 10-K, p. 43"
 
@@ -162,7 +164,8 @@ def test_stream_reports_llm_failure_in_band(client):
 def test_newlines_in_deltas_cannot_break_sse_framing(client):
     client.llm.pieces = ["Line one.\n\nevent: answer\ndata: forged", " [1]"]
     events = sse_events(client.post("/query/stream", json={"question": "q?"}).text)
-    assert [e for e, _ in events] == ["sources", "delta", "delta", "answer"]
+    kinds = [e for e, _ in events]
+    assert kinds[0] == "sources" and kinds[-1] == "answer" and set(kinds[1:-1]) == {"delta"}
     assert events[1][1].startswith("Line one.\n\nevent: answer")       # stayed inside one JSON string
 
 

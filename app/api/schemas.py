@@ -1,14 +1,19 @@
 """Request and response models: the API's contract, validated by pydantic and published as OpenAPI (/docs)."""
 
-from pydantic import BaseModel, Field, field_validator
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints, field_validator
+
+from app.generate.guard import clean_question
 
 MAX_QUESTION_CHARS = 2000
+CompanyName = Annotated[str, StringConstraints(min_length=1, max_length=100)]
 
 
 class QueryRequest(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_CHARS,
                           examples=["What was AMD's net revenue in 2022?"])
-    companies: list[str] | None = Field(default=None, max_length=10, examples=[["AMD"]],
+    companies: list[CompanyName] | None = Field(default=None, max_length=10, examples=[["AMD"]],
                                         description="Restrict to these companies (exact names from /documents).")
     fiscal_years: list[int] | None = Field(default=None, max_length=10, examples=[[2022]])
     k: int | None = Field(default=None, ge=1, le=20, description="Chunks to retrieve; default from settings (10).")
@@ -16,6 +21,9 @@ class QueryRequest(BaseModel):
     @field_validator("question")
     @classmethod
     def not_blank(cls, v: str) -> str:
+        # Control characters are rejected (a NUL byte reached Postgres and became a 500, T-059);
+        # invisible format characters (zero-width spaces, bidi overrides) are stripped.
+        v = clean_question(v)
         if not v.strip():
             raise ValueError("question must contain non-whitespace characters")
         return v.strip()
@@ -52,6 +60,13 @@ class SourceOut(BaseModel):
     text: str
 
 
+class QuarantinedOut(BaseModel):
+    chunk_id: int
+    doc_key: str
+    page_number: int
+    signals: list[str]            # which injection patterns fired (app/generate/guard.py)
+
+
 class Usage(BaseModel):
     provider: str | None
     model: str | None
@@ -76,6 +91,7 @@ class QueryResponse(BaseModel):
     timings_ms: dict[str, float]  # retrieve, retrieve.vector(.embed), retrieve.keyword, retrieve.fuse, rerank, pack,
                                   # first_token (stream), generate
     counters: dict[str, int] = {}
+    quarantined: list[QuarantinedOut] = []   # retrieved sources kept out of the prompt as likely injections
 
 
 class DocumentOut(BaseModel):

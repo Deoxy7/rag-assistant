@@ -19,8 +19,9 @@ from dataclasses import dataclass, field
 import psycopg
 
 from app.config import get_settings
-from app.generate.citations import MARKER, CitationReport, check_citations, strip_invalid_markers
-from app.generate.prompt import INSTRUCTIONS, REFUSAL_TOKEN, PackedContext, build_user_message, pack_context
+from app.generate.citations import MARKER, CitationReport, check_citations, normalize_markers, strip_invalid_markers
+from app.generate.guard import StreamingOutputFilter, enforce_output_policy, injection_signals
+from app.generate.prompt import REFUSAL_TOKEN, PackedContext, build_user_message, instructions, pack_context
 from app.retrieve.types import Filters, Hit
 from app.telemetry.cost import Price, cost
 from app.telemetry.trace import Trace, activate, stage
@@ -51,7 +52,7 @@ class Answer:
 
     @property
     def prompt(self) -> tuple[str, str]:
-        return INSTRUCTIONS, build_user_message(self.question, self.context)
+        return instructions(self.context.template), build_user_message(self.question, self.context)
 
 
 TOKEN_ANYWHERE = re.compile(rf"(?<![A-Za-z0-9_]){REFUSAL_TOKEN}(?![A-Za-z0-9_])", re.I)
@@ -68,7 +69,7 @@ def is_refusal(text: str) -> bool:
     """
     if not TOKEN_ANYWHERE.search(text):
         return False
-    return not MARKER.search(TOKEN_ANYWHERE.sub("", text))
+    return not MARKER.search(normalize_markers(TOKEN_ANYWHERE.sub("", text)))
 
 
 def generator_price() -> Price:
@@ -91,7 +92,13 @@ def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_r
                     truncated=getattr(llm_result, "truncated", False), list_usd=c.list_usd, billed_usd=c.billed_usd)
     if is_refusal(raw):
         return Answer(question, REFUSAL_MESSAGE, True, "model", context, None, raw, timings_ms=timings, **meta)
-    shown = TOKEN_ANYWHERE.sub("", raw).strip()          # a stray token next to a cited answer
+    shown = normalize_markers(TOKEN_ANYWHERE.sub("", raw).strip())   # stray token removed; 【1】 → [1]
+    if get_settings().output_policy:
+        check = enforce_output_policy(shown)              # no links or images (Phase 14)
+        shown = check.text
+        for name, n in (("output_images_removed", check.images_removed), ("output_links_removed", check.links_removed)):
+            if n:
+                meta["counters"][name] = n
     report = check_citations(shown, context.sources)
     return Answer(question, strip_invalid_markers(shown, context.sources), False, None, context, report, raw,
                   timings_ms=timings, **meta)
@@ -99,17 +106,39 @@ def finish(question: str, context: PackedContext, raw: str, timings: dict, llm_r
 
 def retrieve_and_pack(conn, question: str, retriever, k: int, filters: Filters | None, budget: int,
                       timings: dict, trace: Trace | None = None) -> PackedContext:
-    """Retrieve and pack, with every stage timed into `trace` (retrieve.vector, retrieve.keyword,
-    retrieve.fuse, rerank, pack, …): the retrievers time themselves via the active trace."""
+    """Retrieve, screen for injected instructions, and pack, with every stage timed into `trace`
+    (retrieve.vector, retrieve.keyword, retrieve.fuse, rerank, pack, …): the retrievers time
+    themselves via the active trace."""
+    s = get_settings()
     trace = trace or Trace()
     with activate(trace):
         t0 = time.perf_counter()
         hits: list[Hit] = retriever.search(conn, question, k=k, filters=filters)
         timings["retrieve"] = (time.perf_counter() - t0) * 1000
         with stage("pack"):
-            context = pack_context(hits, budget, get_settings().context_order)
+            hits, quarantined = screen(hits, s.injection_filter)
+            context = pack_context(hits, budget, s.context_order, s.prompt_template, quarantined)
+    if quarantined:
+        trace.count("sources_quarantined", len(quarantined))
+    if context.defused:
+        trace.count("source_text_defused", context.defused)
     timings.update(trace.timings_ms)
     return context
+
+
+def screen(hits: list[Hit], mode: str) -> tuple[list[Hit], tuple]:
+    """Split hits into (kept, quarantined) by guard.injection_signals.
+
+    "drop" keeps flagged sources out of the prompt; "flag" keeps them in but reports
+    them; "off" skips the check. Measured false positives: 0 of 69,176 chunks.
+    """
+    if mode == "off":
+        return hits, ()
+    flagged = [(h, tuple(sig)) for h in hits if (sig := injection_signals(h.text))]
+    if mode == "flag" or not flagged:
+        return hits, tuple(flagged)
+    bad = {id(h) for h, _ in flagged}
+    return [h for h in hits if id(h) not in bad], tuple(flagged)
 
 
 def answer_question(conn: psycopg.Connection, question: str, retriever, llm, filters: Filters | None = None,
@@ -123,7 +152,7 @@ def answer_question(conn: psycopg.Connection, question: str, retriever, llm, fil
         return Answer(question, REFUSAL_MESSAGE, True, "no_context", context, None, None, timings_ms=timings,
                       counters=tr.counters)
     t0 = time.perf_counter()
-    result = llm.generate(INSTRUCTIONS, build_user_message(question, context))
+    result = llm.generate(instructions(context.template), build_user_message(question, context))
     timings["generate"] = (time.perf_counter() - t0) * 1000
     return finish(question, context, result.text, timings, result, tr.counters)
 
@@ -148,11 +177,18 @@ def stream_answer(conn: psycopg.Connection, question: str, retriever, llm, filte
         return
     t0 = time.perf_counter()
     first, parts = None, []
-    for delta in llm.stream(INSTRUCTIONS, build_user_message(question, context)):
+    # Deltas pass through the output policy too: a markdown image rendered mid-stream would
+    # already have fetched its URL before the cleaned final answer arrived.
+    guard = StreamingOutputFilter() if s.output_policy else None
+    for delta in llm.stream(instructions(context.template), build_user_message(question, context)):
         if first is None:
             first = time.perf_counter()
             timings["first_token"] = (first - t0) * 1000
         parts.append(delta)
-        yield "delta", delta
+        out = guard.feed(delta) if guard else delta
+        if out:
+            yield "delta", out
+    if guard and (rest := guard.flush()):
+        yield "delta", rest
     timings["generate"] = (time.perf_counter() - t0) * 1000
     yield "answer", finish(question, context, "".join(parts), timings, llm.last_result, tr.counters)

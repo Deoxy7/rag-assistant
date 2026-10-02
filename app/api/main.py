@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.sse import EventSourceResponse, format_sse_event
 
 from app.api.schemas import (CitationOut, DocumentOut, ErrorOut, Health, QueryRequest, QueryResponse, SourceOut,
-                             Stats, Usage)
+                             QuarantinedOut, Stats, Usage)
 from app.config import get_settings
 from app.embed.embedder import get_embedder, model_key
 from app.generate.answer import Answer, answer_question, stream_answer
@@ -229,7 +229,13 @@ def response_out(rid: str, a: Answer) -> QueryResponse:
         uncited_sentences=list(a.report.uncited_sentences) if a.report else [],
         usage=Usage(provider=a.provider, model=a.model, input_tokens=a.input_tokens, output_tokens=a.output_tokens,
                     cached=a.cached, truncated=a.truncated, list_usd=a.list_usd, billed_usd=a.billed_usd),
-        timings_ms={k: round(v, 1) for k, v in a.timings_ms.items()}, counters=a.counters)
+        timings_ms={k: round(v, 1) for k, v in a.timings_ms.items()}, counters=a.counters,
+        quarantined=quarantined_out(a.context))
+
+
+def quarantined_out(ctx: PackedContext) -> list[QuarantinedOut]:
+    return [QuarantinedOut(chunk_id=h.chunk_id, doc_key=h.doc_key, page_number=h.page_number, signals=list(sig))
+            for h, sig in ctx.quarantined]
 
 
 # --- endpoints ------------------------------------------------------------------------------

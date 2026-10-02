@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+from psycopg import sql
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -100,8 +101,8 @@ def main() -> int:
                 with forced_conn.transaction():
                     forced_conn.execute("SET LOCAL enable_sort = off")
                     forced_conn.execute("SET LOCAL hnsw.ef_search = 40")
-                    forced_conn.execute("SET LOCAL hnsw.iterative_scan = " +
-                                        ("relaxed_order" if mode == "iterative" else "off"))
+                    forced_conn.execute(sql.SQL("SET LOCAL hnsw.iterative_scan = {}").format(
+                        sql.Literal("relaxed_order" if mode == "iterative" else "off")))
                     rows = forced_conn.execute(r.query_sql(f, exact=False), {"q": vector_literal(v), "k": K,
                                                "companies": ["Corning"], "years": [2021]}).fetchall()
                 got.append([row[0] for row in rows])
@@ -127,8 +128,11 @@ def main() -> int:
                                     "WHERE c.relname LIKE 'embeddings_hnsw_set1_%'").fetchone()[0] / 1e6
             else:
                 t = time.perf_counter()
-                conn.execute(f"CREATE INDEX bench_quant ON embeddings USING hnsw ({expr}) "
-                             f"WHERE chunk_set_id = {chunk_set} AND model = '{model}'")
+                # DDL can't take bind parameters: the index expression is one of our own constants
+                # (sql.SQL), the values are quoted by psycopg (sql.Literal), never by hand.
+                conn.execute(sql.SQL("CREATE INDEX bench_quant ON embeddings USING hnsw ({}) "
+                                     "WHERE chunk_set_id = {} AND model = {}").format(
+                    sql.SQL(expr), sql.Literal(chunk_set), sql.Literal(model)))
                 conn.commit()
                 build = time.perf_counter() - t
                 size = conn.execute("SELECT pg_relation_size('bench_quant')").fetchone()[0] / 1e6
@@ -142,9 +146,10 @@ def main() -> int:
                     # earlier searches on this connection — the T-025 leak).
                     conn.execute("SET LOCAL hnsw.ef_search = 40")
                     conn.execute("SET LOCAL hnsw.iterative_scan = off")
-                    rows = conn.execute(f"""SELECT chunk_id, embedding::vector(384) <=> %(q)s::vector(384) AS d FROM embeddings
-                                            WHERE chunk_set_id = {chunk_set} AND model = '{model}'
-                                            ORDER BY {order} LIMIT {limit}""", {"q": lit}).fetchall()
+                    rows = conn.execute(sql.SQL("""SELECT chunk_id, embedding::vector(384) <=> %(q)s::vector(384) AS d
+                                                   FROM embeddings WHERE chunk_set_id = %(s)s AND model = %(m)s
+                                                   ORDER BY {} LIMIT %(k)s""").format(sql.SQL(order)),
+                                        {"q": lit, "s": chunk_set, "m": model, "k": limit}).fetchall()
                 # Binary: the coarse 1-bit search proposes 40 candidates; re-rank them by exact distance.
                 rows = sorted(rows, key=lambda r: r[1])[:K]
                 ms.append((time.perf_counter() - t) * 1000)

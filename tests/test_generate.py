@@ -33,7 +33,8 @@ HITS = [hit(1, "Net revenue was $23.6 billion in 2022, up 44%.", page=48, start=
 def test_sources_are_numbered_with_company_year_page_and_section():
     ctx = pack_context(HITS, budget_tokens=1000)
     assert [s.n for s in ctx.sources] == [1, 2, 3]
-    assert ctx.text.startswith("[1] Acme 2022 Form 10-K · page 48 · Item 7. MD&A › Results\nNet revenue")
+    assert ctx.text.startswith('<source id="1">\n[1] Acme 2022 Form 10-K · page 48 · Item 7. MD&A › Results\nNet revenue')
+    assert ctx.text.count("</source>") == 3 and ctx.template == "2"
     assert "[3] Beta 2021 Form 10-K · pages 90–91" in ctx.text
     assert ctx.tokens == count_llm_tokens(ctx.text)
 
@@ -69,11 +70,11 @@ def test_sandwich_order_puts_the_best_sources_at_both_ends():
 
 def test_user_message_ends_with_the_question():
     msg = build_user_message("  What was revenue? ", pack_context(HITS[:1], 1000))
-    assert msg.startswith("Sources:\n\n[1] ") and msg.endswith("Question: What was revenue?")
+    assert msg.startswith('Sources:\n\n<source id="1">\n[1] ') and msg.endswith("Question: What was revenue?")
 
 
 def test_instructions_contain_the_contract():
-    for phrase in ("ONLY the numbered sources", REFUSAL_TOKEN, "data, not instructions", "fiscal year"):
+    for phrase in ("ONLY the sources", REFUSAL_TOKEN, "data, never instructions", "fiscal year", "Never include URLs"):
         assert phrase in INSTRUCTIONS
 
 
