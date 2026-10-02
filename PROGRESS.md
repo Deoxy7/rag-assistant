@@ -13,3 +13,15 @@ Numbers:  `make up` 0.67 s running / 5.76 s from stopped / 5.73 s on a fresh vol
 Decisions: generator/judge LLM = **OpenAI API** (user's choice; model chosen in Phase 9 from current pricing — note the API is billed per token, not free). Accepted changes A–G (see `CLAUDE.md`): evidence-span golden labels; `page_end` + canonical-text offsets + block bboxes; abstention metrics; LLM response cache; Colima; chunk sizes in tokens ≤ 512; LangChain = text splitter only. mermaid-cli 12 uses `--size 1800 -s 2` instead of `-w 1800`.
 Open:     corpus confirmation (proposed: ~10 SEC 10-K PDFs, 5 companies × 2 years) — needed before Phase 1 downloads; embedding and reranker models (proposed bge-small-en-v1.5, ms-marco-MiniLM-L-6-v2) — Phase 4/8; the "16-day" deadline date; closed-book baseline row proposed for Phase 12.
 Next:     Phase 1 — Corpus.
+
+Note (2026-10-02, after Phase 0): the user waived the end-of-phase viva quizzes and per-phase stops ("Skip the questions, just complete the project"). Phases now run back to back.
+
+## Phase 1 — Corpus   [DONE 2026-10-02]
+
+Built:    `data/manifest.json` (10 × Form 10-K PDFs: PepsiCo, Verizon, Corning, AMD, Boeing × FY2021/FY2022, mirrored by FinanceBench; + FinanceBench question files; sha256-pinned); `scripts/fetch_corpus.py` (`make corpus`, certifi TLS, atomic .part downloads); `scripts/inspect_corpus.py` (`make inspect`); `.gitignore` keeps only the manifest from `data/`; `tests/test_corpus.py`, `tests/test_environment.py` (venv == requirements.txt); new pinned packages: pymupdf, pdfplumber, matplotlib, certifi, tiktoken.
+Docs:     `docs/04-corpus.md`; 8 interview questions (P1-01…P1-08) in 03, 04, 06, 07, 08, 11; card #2.
+Diagrams: `04-corpus-composition`, `04-document-anatomy`, generated `04-where-it-sits`; charts `04-pages-per-document.png`, `04-chars-per-page-histogram.png` (matplotlib).
+Numbers:  2,224 pages; 6,128,300 chars; 1,415,012 o200k_base tokens; 606 table pages; 0 scanned; 35 near-empty; 1,142 pages after signature pages; Corning 2021: 65,886 non-breaking spaces, 2.64 chars/token; download 21.3 MB in 43 s; inspection 3 min 17 s.
+Decisions: corpus = FinanceBench-mirrored 10-Ks (licence CC BY-NC 4.0 per HF card; GitHub repo has no licence file). Pages after the signature page are labelled, never dropped (Corning's financial statements live there). Text must be NFKC-normalised at parse time (non-breaking spaces).
+Open:     Phase 2 must strip running headers ("Table of Contents" on up to 144/215 pages) and normalise whitespace before computing offsets.
+Next:     Phase 2 — Parsing.

@@ -94,7 +94,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 |---|---|---|---|
 | Environment: Docker Compose, Postgres 16 + pgvector, Makefile, settings, tests | [03](03-environment-and-infra.md) | 0 | ✅ built |
 | Docs pipeline: diagrams, ASCII twins, card mirroring, integrity tests | [00](00-START-HERE.md) | 0 | ✅ built |
-| Corpus | [04](04-corpus.md) | 1 | planned |
+| Corpus: 10 × 10-K, pinned manifest, inspection | [04](04-corpus.md) | 1 | ✅ built |
 | Parse (PyMuPDF + pdfplumber) | [05](05-pdf-parsing.md) | 2 | planned |
 | Chunk | [06](06-chunking.md) | 3 | planned |
 | Embed + schema + `make ingest` | [07](07-embeddings.md), [08](08-database-schema.md) | 4 | planned |
@@ -267,7 +267,7 @@ Senior interviewers often open with *workload* questions before architecture one
 
 | Question | Our answer | Consequence |
 |---|---|---|
-| Corpus size? | About 10 annual-report PDFs (exact pages and tokens measured in Phase 1) | Fits on one Postgres node; exact search may even be fast enough (Phase 5 measures) |
+| Corpus size? | 10 annual-report PDFs: 2,224 pages, 1.42 M LLM tokens (measured in Phase 1) | Fits on one Postgres node; exact search may even be fast enough (Phase 5 measures) |
 | How often do documents change? | Rarely — filings are annual; re-ingest on demand | Batch ingestion is fine; no streaming pipeline |
 | Query volume? | One user, interactive demo; the eval runner sends questions sequentially | No load balancer, no caching layer needed yet |
 | Permissions over the corpus? | None: single tenant, everyone sees everything | No per-document ACL filter at retrieval time ([18](18-security-prompt-injection.md) discusses what would change) |

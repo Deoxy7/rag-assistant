@@ -63,6 +63,10 @@ make up
 ```
 
 ```bash
+make corpus
+```
+
+```bash
 make test
 ```
 
@@ -72,6 +76,8 @@ make test
 |---|---|
 | `make help` | lists every target |
 | `make psql` | opens a SQL shell inside the database |
+| `make corpus` | downloads the 10-K PDFs listed in `data/manifest.json` and verifies their hashes |
+| `make inspect` | reports page counts, text, tables, Items and tokens per PDF; renders the corpus charts |
 | `make diagrams` | renders every diagram to SVG + PNG |
 | `make docs` | renders diagrams, mirrors Decision Cards, checks every link, image and ASCII twin |
 | `make down` | stops the database (data kept) |
@@ -86,7 +92,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [01](01-what-is-rag.md) | What is RAG | 0 | ✅ written |
 | [02](02-architecture-overview.md) | Architecture overview | 0, refreshed every phase | ✅ written |
 | [03](03-environment-and-infra.md) | Environment and infrastructure | 0 | ✅ written |
-| [04](04-corpus.md) | Corpus | 1 | not yet written |
+| [04](04-corpus.md) | Corpus | 1 | ✅ written |
 | [05](05-pdf-parsing.md) | PDF parsing | 2 | not yet written |
 | [06](06-chunking.md) | Chunking | 3 | not yet written |
 | [07](07-embeddings.md) | Embeddings | 4 | not yet written |

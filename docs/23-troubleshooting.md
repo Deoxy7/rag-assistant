@@ -105,3 +105,26 @@ AssertionError: 09-tradeoff-cards.md links to a missing file: ../PROGRESS.md
 - **Cause:** `rewrite_links` in `scripts/collect_cards.py` prefixed `../` to relative links when copying a card from `docs/` into `docs/interview/`, but skipped targets that *already* started with `../` — so `../PROGRESS.md` (repo root, seen from `docs/`) stayed `../PROGRESS.md`, which from `docs/interview/` points at a non-existent `docs/PROGRESS.md`.
 - **Fix:** every relative target gets the extra `../`; only absolute URLs, `mailto:`, `#anchors` and `/`-rooted paths are left alone. Covered by `test_rewrite_links_prefixes_relative_targets_only_outside_code`.
 - **Same run, second issue:** the 100-column check scanned *all* `<details>` content, so prose answers in "Check yourself" blocks failed it. The rule is about ASCII diagrams, so the test now checks only the `text` code blocks inside `<details>`.
+
+## Phase 1
+
+### T-011 · `CERTIFICATE_VERIFY_FAILED` downloading the corpus — hit
+
+```text
+urllib.error.URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)>
+```
+
+- **Cause:** the python.org build of Python 3.11 on macOS has no CA bundle: `ssl.get_default_verify_paths().openssl_cafile` is `/Library/Frameworks/Python.framework/Versions/3.11/etc/openssl/cert.pem`, which does not exist.
+- **Fix:** `scripts/fetch_corpus.py` builds its SSL context from `certifi.where()` (certifi pinned in `requirements.txt`). Not chosen: running Python's "Install Certificates" script (changes the system install) or disabling verification (never).
+
+### T-012 · Signature page detected on page 2 — hit
+
+- **Symptom:** the first inspection run reported Boeing's signatures on p.2 and Verizon's on p.3, so almost all of Boeing looked like exhibits.
+- **Cause:** the regex matched a line reading just "Signatures" — which is also an entry in the table of contents.
+- **Fix:** match the legal sentence on the real page ("Pursuant to the requirements of Section 13…"). A first fix requiring "Section 13 or 15(d)" failed on Boeing, which omits "or 15(d)", so only the common prefix is matched. Synthetic test: `test_signature_page_uses_the_legal_statement_not_the_word`.
+
+### T-013 · "After the signatures" is not "exhibits" — hit (analysis error caught before it mattered)
+
+- **Symptom:** Corning 2021 showed 65 of 125 pages "after signatures" — implausible for exhibits alone.
+- **Cause:** Corning places its financial statements after the signature page (income statement p.65, signatures p.60).
+- **Fix:** the inspection reports `pages_after_signatures` and whether the income statement comes before or after; no page is ever dropped by position. Test: `test_corning_puts_financial_statements_after_the_signatures`.

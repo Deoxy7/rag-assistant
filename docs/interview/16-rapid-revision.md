@@ -24,7 +24,11 @@
 | Database ready from stopped | 5.76 | s | `/usr/bin/time -p make up` |
 | Colima VM size | 2 CPU · 2 | GB RAM | `colima start --cpu 2 --memory 2` |
 | Bytes per 384-dim float vector | 1,536 | bytes | 384 × 4 (arithmetic) |
-| Corpus size, retrieval metrics, latencies | not yet measured | | Phases 1, 11, 13 |
+| Corpus | 10 × 10-K · 5 companies · FY2021+2022 | — | `data/manifest.json` |
+| Corpus pages / table pages / scanned | 2,224 / 606 / 0 | pages | `make inspect` |
+| Corpus size in LLM tokens | 1,415,012 | `o200k_base` tokens | `make inspect` |
+| FinanceBench questions on our filings | 28 of 150 | questions | FinanceBench open-source set |
+| Retrieval metrics, latencies | not yet measured | | Phases 11, 13 |
 
 ## Flashcards (Phase 0)
 
@@ -43,6 +47,9 @@
 | Why autocommit in the test fixture? | One expected SQL error would otherwise abort the shared transaction for every later test. |
 | What's the workload contract? | Size, change rate, QPS, permissions, citations, what to do when unsure, which latency matters. |
 | p50 vs mean? | p50 is the median request; the mean is dragged by the tail and hides it. |
+| What's odd about PepsiCo's PDFs? | ~400 of ~500 pages are exhibits after the signature page. |
+| What's odd about Corning's? | Financial statements come *after* the signatures; 2021 is full of non-breaking spaces (2.64 chars/token). |
+| Why two years per company? | Hard negatives: near-identical text, different facts — tests wrong-year retrieval. |
 
 ## Top questions so far
 

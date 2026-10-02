@@ -11,7 +11,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | # | Decision | Phase | Written in |
 |---|---|---|---|
 | 1 | RAG vs fine-tuning vs long-context stuffing vs plain prompting | 0 | ✅ [01-what-is-rag](../01-what-is-rag.md) |
-| 2 | A structured corpus (10-K / protocols / policies) vs a toy corpus | 1 | not yet written |
+| 2 | A structured corpus (10-K / protocols / policies) vs a toy corpus | 1 | ✅ [04-corpus](../04-corpus.md) |
 | 3 | Abstention policy: answer with weak evidence vs refuse | 9 | not yet written |
 | 4 | PyMuPDF vs pdfplumber vs unstructured.io vs OCR vs LLM-based parsing | 2 | not yet written |
 | 5 | Store page_number + char_start + char_end vs text only | 2 | not yet written |
@@ -94,6 +94,44 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q: Why not use a managed "file search" product from the LLM provider? → A: It hides chunking, retrieval and ranking — exactly the parts this project exists to measure and tune. For a team without retrieval expertise shipping fast, a managed product is a legitimate choice.
 
 **The trap.** Saying "RAG means a vector database" or "RAG stops hallucinations". RAG is a *pattern* — retrieve, then generate. The retriever can be keyword search, SQL, or web search, and RAG reduces hallucination rather than eliminating it. Candidates who equate RAG with a vector DB can't explain why this project also uses keyword search.
+
+### Card 2 — from [04-corpus](../04-corpus.md)
+
+#### Decision: Ten real 10-K filings (5 companies × 2 consecutive years) as the corpus  (rejected: a toy corpus of clean articles, Wikipedia, a single long document, Indian regulatory circulars)
+
+**One-line defence.** 10-Ks have exactly the structure that breaks naive RAG — 600+ table pages, a fixed legal outline, exhibits that dwarf the report, and near-identical text year to year — and FinanceBench gives externally written questions on them, so the evaluation isn't only my own.
+
+**What problem is this even solving?** Every retrieval and evaluation result is only as meaningful as the data it was measured on. On a toy corpus every technique looks good, so an ablation table would show nothing. The corpus is the test bench; delete the decision and there is nothing to measure.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ 10 SEC 10-Ks, 2 years × 5 companies | Public annual reports as PDFs, mirrored by FinanceBench | Real tables, legal section structure, exhibits, year-to-year near-duplicates; 28 external questions with evidence pages; public records | Mostly single-column (multi-column parsing barely exercised); finance vocabulary; PepsiCo's exhibits make the corpus lopsided (1,052 of 2,224 pages) | Evaluating retrieval on structured, numeric, versioned documents |
+| Toy corpus (blogs, clean articles) | A few dozen short HTML pages | Fast; easy to write questions | Hides every interesting failure; no tables; results don't transfer | Demonstrating the plumbing only |
+| Wikipedia subset | Encyclopedic articles | Huge, clean, many public QA datasets | LLMs have memorised Wikipedia — a closed-book model scores well, so retrieval's value is hard to see | Open-domain QA research |
+| One very long document | e.g. one 500-page manual | Simple | One structure; metadata filters and wrong-document errors can't occur | Single-manual assistants |
+| Indian regulatory circulars (RBI/SEBI) | Numbered clauses with amendments | Excellent versioning story; local relevance | Harder to write correct questions; no external question set; more scanned PDFs | A compliance-assistant product |
+
+**What would actually change if we swapped it.** A different corpus changes `data/manifest.json`, the inspection numbers, every test in `tests/test_corpus.py`, and the whole golden set (Phase 11). The pipeline code shouldn't change — if it did, that would mean it was overfitted to 10-Ks. A toy corpus would make the Phase 12 ablation flat (every configuration near-perfect), which is the real cost: no findings.
+
+**The decision rule.** Pick the corpus that matches the *hardest realistic* version of the target workload, and has an external source of questions if one exists. Choose a toy corpus only to test plumbing; never to report quality.
+
+**Where our choice breaks.** Ten documents is small: anything said about scale is reasoning, not measurement. The corpus is unbalanced — PepsiCo is 47% of pages, mostly exhibits — so corpus-wide averages are dominated by one company. Migration path: add more companies, and report metrics per document, not only pooled.
+
+**The number.** 2,224 pages, 6,128,300 characters, 1,415,012 `o200k_base` tokens, 606 table pages, 0 scanned pages; 28 FinanceBench questions on these filings. (`make inspect`.)
+
+**Interview script (3 sentences).** "I used ten real 10-K filings — five companies, two consecutive years — because they have what breaks naive RAG: hundreds of table pages, a fixed legal structure, exhibits bigger than the report itself, and near-duplicate text across years. An inspection script measured all of that before I wrote any retrieval code — for example, one filing uses non-breaking spaces between every word, which inflates its token count by about 64%. FinanceBench also has 28 externally written questions on these exact filings, so not all of my evaluation is self-written."
+
+**Follow-ups they will ask:**
+- Q: Why two years of the same company? → A: To create the hardest realistic confusion: the 2021 and 2022 10-Ks share most of their wording, so retrieval can easily return the right passage from the wrong year. That's a failure mode real financial users would hit, and metadata filtering (Phase 5) has to solve it.
+- Q: Isn't ten documents too small? → A: For scale claims, yes, and I don't make them. For retrieval quality it's 1.4 million tokens and — after chunking — thousands of chunks to search, with hard near-duplicates. The honest limit is statistical: the question set, not the corpus, is the small part.
+- Q: Do you keep the exhibits? → A: They're kept and labelled: users do ask about exhibit content (e.g. note terms), and deleting them by position would also delete Corning's financial statements, which sit after the signatures. Phase 2 tags pages after the signature page instead of dropping them.
+- Q: How do you know there are no scanned pages? → A: Every page was checked: a page is scanned-suspect only if it has under 200 extractable characters *and* images cover at least half of it. Zero pages matched; the 35 near-empty pages are covers, separators and signature continuations with little or no imagery.
+- Q (the hard one): FinanceBench's licence is non-commercial. Is that a problem? → A (honest): For a student portfolio project, no — CC BY-NC 4.0 allows non-commercial use with attribution, which the manifest and docs give. A commercial product couldn't reuse their questions without permission; the filings themselves are public SEC records. The GitHub repo itself has no licence file — the licence comes from the Hugging Face dataset card — which I'd clarify with the authors before any commercial use.
+- Q: Why PDFs and not EDGAR's HTML? → A: The plan is a PDF pipeline because most real enterprise documents arrive as PDFs, where layout, page numbers and offsets are the hard part. HTML filings would be easier to parse — and less instructive.
+
+**The trap.** Picking the corpus last, or calling a clean toy corpus "realistic". Interviewers ask "what was hard about your data?" — an answer without specifics (like the exhibit share or the non-breaking spaces) suggests the data was never looked at.
 
 ### Card 15 — from [03-environment-and-infra](../03-environment-and-infra.md)
 

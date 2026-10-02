@@ -53,3 +53,29 @@
 **Trap.** "Docker makes everything reproducible." Our app doesn't even run in Docker; reproducibility comes from pinning every layer, Docker being one of them.
 
 **Bridge.** "The same idea is why the eval runner will write timestamped, never-overwritten results — reproducible numbers, not just reproducible installs."
+
+---
+
+### Q: How would you detect scanned pages in a PDF programmatically? What's the cost?
+**ID:** P1-08 · **Round:** viva · backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "A scanned page is a picture of text: the PDF has an image and little or no extractable text. So for each page I count extractable characters and measure what fraction of the page images cover; a page is scanned-suspect only if it has fewer than 200 characters *and* images cover at least half of it. Both conditions are needed — low text alone also matches blank separator pages. On this corpus: 0 of 2,224 pages."
+
+**2-minute answer.** Mechanism: PyMuPDF's `page.get_text()` returns text drawn with real font instructions; `page.get_image_info()` returns each image's bounding box. Coverage = sum of image areas ÷ page area (capped at 1). Cost: one pass over every page, linear in pages and in the text on each — the whole 2,224-page corpus took about 1–3 seconds per document for the PyMuPDF part (pdfplumber table detection dominated the 3-minute run). Validation: a synthetic test page that is only an image must be flagged, and a normal text page must not.
+
+**If they push — level 2.** *"What would you do with scanned pages if there were some?"* OCR (optical character recognition), e.g. Tesseract, with its confidence scores stored so low-confidence text can be down-weighted; and offsets would then refer to OCR text. Card #4 discusses it.
+
+**If they push — level 3.** *"What about a page with an image of a table plus a caption?"* Text count might exceed 200 while the table content is invisible to extraction. My heuristic would miss it; a stricter check would compare text area with image area. Zero such pages showed up, but I didn't verify that by eye on all 2,224.
+
+**If they push — level 4.** *"Overlapping images could push coverage above 100%."* Yes — I sum areas and cap at 1.0, so overlaps can overstate coverage; computing the union area would be exact. For a binary ≥50% decision the cap was enough here.
+
+**Whiteboard it.**
+```text
+ per page:  chars = len(text)          coverage = Σ image areas / page area
+ scanned?   chars < 200  AND  coverage ≥ 0.5
+ cost:      O(pages)   result: 0 / 2,224
+```
+
+**Trap.** "Check whether the page has an image." Most 10-K pages with images are logos on text pages.
+
+**Bridge.** "Zero scanned pages is why the parser choice in Phase 2 doesn't need OCR."

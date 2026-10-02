@@ -1,6 +1,6 @@
 # 02 — Question map
 
-**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **14 / 150+** questions.
+**Status:** started in Phase 0 (2026-10-02); every phase adds its questions and the viva's weak spots. Progress: **22 / 150+** questions.
 
 Every question in `docs/interview/` appears here (a test in `tests/test_docs_integrity.py` fails if one is missing). **Confidence** is yours to fill: 1 = can't answer, 3 = can answer level 1–2, 5 = survives level 4. Re-rate after each drill.
 
@@ -22,6 +22,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P0-12 | Container healthy but every login fails — walk me through it | [08](08-debugging-scenarios.md) | debugging | backend, viva | 3 | | |
 | P0-13 | Container vs VM; why Docker on a Mac needs a VM | [11](11-cs-core-touchpoints.md) | OS | viva, backend | 2 | | |
 | P0-14 | How do you make a Python project reproducible? | [11](11-cs-core-touchpoints.md) | build/ops | backend, viva | 2 | | |
+| P1-01 | What makes a good evaluation corpus? Why not a clean toy set? | [07](07-evaluation.md) | corpus/eval | ML, deep-dive | 3 | | |
+| P1-02 | Why two years of the same company? | [04](04-retrieval.md) | retrieval | deep-dive, ML | 3 | | |
+| P1-03 | Same text, 64% more tokens — how? | [03](03-fundamentals.md) | tokenisation | ML, viva | 3 | | |
+| P1-04 | How do you version a dataset you can't commit? | [06](06-system-design.md) | data ops | backend, design | 3 | | |
+| P1-05 | Signature page detected on p.2 — find the bug | [08](08-debugging-scenarios.md) | debugging | deep-dive, backend | 2 | | |
+| P1-06 | CERTIFICATE_VERIFY_FAILED on macOS — debug it | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P1-07 | What is FinanceBench and why use it? | [07](07-evaluation.md) | eval | ML | 3 | | |
+| P1-08 | Detect scanned pages programmatically; cost? | [11](11-cs-core-touchpoints.md) | algorithms | viva, backend | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 
@@ -41,4 +49,4 @@ Each viva's misses go here so they resurface. Format: phase · question asked ·
 
 | Phase | Viva question | What was missing | Re-read | Re-tested |
 |---|---|---|---|---|
-| 0 | (filled after the Phase 0 viva) | | | |
+| — | Vivas waived by the user on 2026-10-02 ("skip the questions"); self-rate the Confidence column instead | | | |

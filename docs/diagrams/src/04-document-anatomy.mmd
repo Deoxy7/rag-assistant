@@ -1,0 +1,29 @@
+%% Owner: docs/04-corpus.md — the fixed structure every Form 10-K follows, and where our files deviate.
+flowchart TD
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    tenk["Form 10-K"]:::io
+    cover["Cover page + table of contents"]:::ingest
+    p1["Part I"]:::ingest
+    i1["Item 1 Business · Item 1A Risk Factors<br/>Items 1B-4"]:::ingest
+    p2["Part II"]:::ingest
+    i7["Item 7 MD&A<br/>Management's Discussion and Analysis"]:::ingest
+    i7a["Item 7A Market risk"]:::ingest
+    i8["Item 8 Financial statements + notes<br/>most of the tables"]:::ingest
+    p34["Parts III-IV<br/>Items 10-16: governance, exhibit index"]:::ingest
+    sig["Signature page<br/>'Pursuant to the requirements of Section 13…'"]:::ingest
+    after["After the signatures<br/>exhibits: contracts, plans, certifications<br/>Corning: also the financial statements"]:::ingest
+    legend["Legend<br/>blue = what ingestion must parse"]:::legend
+
+    tenk -->|starts with| cover
+    cover -->|then| p1
+    p1 -->|contains| i1
+    p1 -->|then| p2
+    p2 -->|contains| i7
+    p2 -->|contains| i7a
+    p2 -->|contains| i8
+    p2 -->|then| p34
+    p34 -->|then| sig
+    sig -->|followed by| after

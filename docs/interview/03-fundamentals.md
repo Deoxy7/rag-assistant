@@ -79,3 +79,29 @@
 **Trap.** "RAG solves hallucination." Interviewers set this to see whether you know the residual failure modes.
 
 **Bridge.** "That two-stage failure tree is exactly how the eval harness is organised — retrieval metrics first, then faithfulness."
+
+---
+
+### Q: One of your documents costs 64% more tokens than expected for the same amount of text. How can that happen?
+**ID:** P1-03 · **Round:** ML screen · viva  **Difficulty:** 3/5
+
+**30-second answer.** "Tokens aren't characters or words — they're whatever pieces the tokenizer learned. Corning's 2021 PDF separates almost every word with a non-breaking space, U+00A0, instead of a normal space. Visually identical, but the tokenizer encodes it less efficiently: 2.64 characters per token against 4.34 for Corning 2022. So the same kind of text costs 164k tokens instead of the ~100k you'd expect."
+
+**2-minute answer.** Explain BPE-style tokenizers: they merge frequent character sequences into tokens learned from training text, where " the" (space + word) is one very common token. Replace the normal space with U+00A0 and those merges no longer apply. The measured numbers: 65,886 non-breaking spaces; 433,032 characters → 163,836 tokens. Consequences: higher cost and smaller effective context; broken exact-string matching (a quote copied with normal spaces won't `find()` in the text); possibly different embeddings. Fix: Unicode-normalise extracted text (NFKC maps U+00A0 to a space) at parse time, once, before any offsets are computed.
+
+**If they push — level 2.** *"Why normalise before computing offsets?"* Offsets index into one canonical text. If normalisation happened later, it could change lengths (some NFKC mappings expand one character into several) and every stored offset would point at the wrong place.
+
+**If they push — level 3.** *"Did Postgres full-text search care?"* I checked: `to_tsvector('english', E'Table of Contents')` gives the same lexemes as with normal spaces, so keyword search wasn't affected. The LLM tokenizer and exact matching were.
+
+**If they push — level 4.** *"Could normalisation ever be wrong?"* Yes — NFKC also folds things like "ﬁ" ligatures and full-width digits, which is usually what you want for search, but it changes characters, so a citation shown to the user should come from the normalised text consistently. I'd test it on a sample of pages; I haven't seen a harmful case yet.
+
+**Whiteboard it.**
+```text
+ "Table of Contents"        → 4.34 chars/token (normal spaces)
+ "Table\xa0of\xa0Contents"  → 2.64 chars/token (Corning 2021)
+ fix at parse time: unicodedata.normalize("NFKC", text)  → then offsets
+```
+
+**Trap.** "A token is about four characters." It's a property of the tokenizer *and the text*; this corpus shows a 1.7× swing.
+
+**Bridge.** "That's why chunk sizes are measured in the embedding model's own tokens, not characters."

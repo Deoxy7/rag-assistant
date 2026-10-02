@@ -1,0 +1,24 @@
+%% Owner: docs/04-corpus.md — what is in the corpus, with real counts from `make inspect`.
+flowchart TB
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef evalc fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    corpus[("Corpus: 10 Form 10-K PDFs<br/>2,224 pages · 6.13 M characters<br/>1.42 M LLM tokens")]:::store
+
+    pep["PepsiCo · Consumer Staples<br/>FY2021: 549 pages · FY2022: 503<br/>~400 exhibit pages each"]:::io
+    vz["Verizon · Communication Services<br/>FY2021: 120 · FY2022: 124<br/>only PDFs with an outline"]:::io
+    glw["Corning · Information Technology<br/>FY2021: 125 · FY2022: 159<br/>financials after signatures"]:::io
+    amd["AMD · Information Technology<br/>FY2021: 118 · FY2022: 121"]:::io
+    ba["Boeing · Industrials<br/>FY2021: 215 · FY2022: 190"]:::io
+
+    fb["FinanceBench open-source set<br/>150 questions, 28 on these 10 filings"]:::evalc
+    legend["Legend<br/>grey = storage · white = documents · orange = eval"]:::legend
+
+    corpus -->|2 filings| pep
+    corpus -->|2 filings| vz
+    corpus -->|2 filings| glw
+    corpus -->|2 filings| amd
+    corpus -->|2 filings| ba
+    fb -.->|external check, Phase 11| corpus

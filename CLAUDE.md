@@ -12,7 +12,7 @@ A document-grounded RAG assistant with a self-built eval harness, built phase by
 - **Docs in the same phase as code.** A phase is done only when its doc exists, its diagrams render to SVG+PNG, and they are embedded. Never batch docs to the end.
 - **No stubs, no TODOs, no `pass  # later`** in code. If it can't be finished this phase, it doesn't belong in it. (Doc *scaffolds* marked "Status: not yet written" are allowed.)
 - **Every phase ends runnable and tested** — `make test` green — plus commits `feat(phase-N): …` and `docs(phase-N): …`.
-- **Stop at every phase boundary.** Print: what was built, docs written, diagrams rendered, what's next, decisions needed. Wait for "continue".
+- ~~Stop at every phase boundary~~ — **waived by the user on 2026-10-02** ("Skip the questions, just complete the project"): build phases back to back without waiting for "continue", and skip the viva quiz (step 3–4 of the ritual). Everything else in the ritual still applies. Stop only for things only the user can do (e.g. `OPENAI_API_KEY` in `.env`).
 - **Never invent numbers.** Every metric in docs comes from a command actually run, with the command and raw output. Unmeasured → "not yet measured — measured in Phase N". Placeholders in pitch drafts use ⟨angle brackets⟩ naming the phase.
 - **Offsets are a hard schema requirement from Phase 2:** every chunk carries `page_number`, `char_start`, `char_end` (agreed: plus `page_end`; offsets index one canonical extracted text per document).
 - **Pin every version** with `==` in `requirements.txt` (direct + transitive); record versions in the docs. Images pinned by tag + digest.

@@ -5,3 +5,6 @@ name	source	sha256	svg_bytes	png_bytes
 02-system-architecture	docs/diagrams/src/02-system-architecture.mmd	108f7856ed827330fa7a0f1b7882ecadce62507930d324b2f26b8a81e7df95c0	48709	257450
 03-local-dev-topology	docs/diagrams/src/03-local-dev-topology.mmd	49d3c30f844d6a00b5323edf77456c13367fa3eb002ba83bcd138afb53aa9c41	30775	204537
 03-where-it-sits	docs/diagrams/build/03-where-it-sits.mmd	63dba7169900755ada4a296b54a57fbf35815eacbeff28c1f624cc6354d83079	48781	265495
+04-corpus-composition	docs/diagrams/src/04-corpus-composition.mmd	441650213f87dc14ddc763182d4fd2af3928bd0dc8497b57a8c04f55828bfeac	24398	216285
+04-document-anatomy	docs/diagrams/src/04-document-anatomy.mmd	a866937ecbecb252f74bacb18832d25bf477c00e9dbbfc5871f54ab8748f0b14	28923	275712
+04-where-it-sits	docs/diagrams/build/04-where-it-sits.mmd	a66ae903ad4efc5a11edcb134afebc622ca3ff1538654ad4e7188c085f5308f1	48781	265170

@@ -67,3 +67,64 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** "The database is broken, recreate it." Deleting the volume works but destroys data; the diagnosis takes two minutes and the fix can be one `ALTER ROLE`.
 
 **Bridge.** "The general lesson — init-time configuration is applied once — shows up again with the init SQL scripts."
+
+---
+
+### Q: Your section detector says the signature page of a 215-page filing is page 2. Walk me through finding the bug.
+**ID:** P1-05 · **Round:** project deep-dive · backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "Page 2 of a 10-K is the table of contents, which lists 'Signatures' as an entry — so a detector matching the word on its own line fires there first. The fix was to anchor on something only the real page has: the fixed legal sentence 'Pursuant to the requirements of Section 13…'. That moved Boeing from page 2 to page 145, which I confirmed by printing the page."
+
+**2-minute answer — the tree.**
+1. **Is the output plausible?** A signature page on p.2 of 215 isn't — sanity-check outputs against what you know about the document.
+2. **Print what matched.** The match was on the TOC page, inside a list of section names.
+3. **Find a more specific anchor.** The signature page always carries a legal sentence; the TOC never does.
+4. **Check every document, not one.** The first "fixed" pattern still failed for Boeing, which writes "Section 13" without "or 15(d)" — so the pattern requires only the common prefix.
+5. **Lock it in.** A synthetic test PDF has "Signatures" in its TOC and the statement on page 7; the test asserts 7.
+
+**If they push — level 2.** *"Why did this matter?"* "Pages after the signatures" was the first idea for identifying exhibits. A wrong signature page would have labelled almost the whole Boeing filing as exhibits.
+
+**If they push — level 3.** *"And was 'after the signatures = exhibits' right once fixed?"* No — Corning puts its financial statements after the signatures. So the label became "after signatures", never "exhibit", and nothing is dropped by position.
+
+**If they push — level 4.** *"How do you make heuristics like this robust in general?"* Anchor on content a section must contain, not on its title; verify across every document; keep a test for each failure you've seen. Beyond that, layout-aware models exist, but I'd want evidence they beat a tested heuristic on this corpus.
+
+**Whiteboard it.**
+```text
+ /^signatures$/        → p.2  (TOC entry)      ✗
+ "pursuant to … section 13 or 15(d)" → Boeing: none  ✗
+ "pursuant to … section 13"          → p.145   ✓  + synthetic test
+```
+
+**Trap.** Testing a heuristic on one document. Both bugs only showed up across all ten.
+
+**Bridge.** "The same 'verify on every document' rule is why the inspection runs before any parsing code."
+
+---
+
+### Q: A download fails with CERTIFICATE_VERIFY_FAILED on macOS but works in your browser. Debug it.
+**ID:** P1-06 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "The browser uses the operating system's certificate store; Python's `ssl` module uses OpenSSL's CA file. The python.org build of Python on macOS ships without one — `ssl.get_default_verify_paths()` pointed at `/Library/Frameworks/…/etc/openssl/cert.pem`, which didn't exist. So Python couldn't verify any server. I fixed it inside the project by building the SSL context from `certifi`'s CA bundle."
+
+**2-minute answer — the tree.**
+1. **Is it the server or the client?** Browser and curl succeed → the server's certificate is fine; the client can't verify it.
+2. **Which CA file is Python using?** `python -c "import ssl; print(ssl.get_default_verify_paths())"` → a path that doesn't exist.
+3. **Options:** run the installer's "Install Certificates" script (changes the system Python), set `SSL_CERT_FILE` (fragile across shells), or pass `ssl.create_default_context(cafile=certifi.where())` (project-local, pinned).
+4. **Never** disable verification (`verify=False`) — that removes protection against a man-in-the-middle.
+
+**If they push — level 2.** *"Why did `tiktoken` work without the fix?"* It downloads through `requests`, which uses `certifi` automatically. Only the standard-library `urllib` call needed the explicit context.
+
+**If they push — level 3.** *"What does certificate verification actually check?"* That the server's certificate chain leads to a trusted root CA, that it hasn't expired, and that the hostname matches. Without a CA bundle the first check can't pass.
+
+**If they push — level 4.** *"Corporate proxy that intercepts TLS?"* Then you add the company's root CA to the bundle you trust; you still don't disable verification.
+
+**Whiteboard it.**
+```text
+ browser → OS keychain ✓      python urllib → OpenSSL cafile (missing) ✗
+ fix: ssl.create_default_context(cafile=certifi.where())   (pinned in requirements)
+ never: verify=False
+```
+
+**Trap.** Disabling verification "just for the download".
+
+**Bridge.** "Pinning `certifi` in requirements.txt keeps even the CA bundle reproducible."

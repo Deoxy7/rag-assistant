@@ -103,3 +103,29 @@
 **Trap.** "LangChain is bad." Dismissing frameworks reads as inexperience; give the cost/benefit for this project.
 
 **Bridge.** "Owning the retrieval SQL is what let me measure exact vs approximate search directly — that's Phase 5."
+
+---
+
+### Q: How do you version and reproduce a dataset you can't commit to git?
+**ID:** P1-04 · **Round:** backend screen · system design  **Difficulty:** 3/5
+
+**30-second answer.** "Commit a manifest instead of the data: every file's source URL, size and sha256. A script downloads whatever is missing and verifies every hash on every test run, so a fresh clone either gets byte-identical files or fails loudly. The PDFs themselves stay out of git — they're 21 MB and not mine to redistribute."
+
+**2-minute answer.** Walk the mechanics: `.gitignore` has `data/*` and `!data/manifest.json`; `make corpus` downloads to a `.part` file and renames on completion so an interrupted download can't look complete; `tests/test_corpus.py` re-hashes every file. Changing the corpus is then a reviewed diff to the manifest, and every number in the docs can name the corpus version it came from. It's the dataset equivalent of pinning `requirements.txt`.
+
+**If they push — level 2.** *"What if the upstream URL disappears?"* The hashes still tell you whether a replacement copy is identical. For anything long-lived I'd mirror the files to storage I control (an object-storage bucket) and point the manifest there.
+
+**If they push — level 3.** *"Why not DVC or Git LFS?"* They do this with more features — remote storage, caching, lineage. For twelve files a 60-line script is enough; at hundreds of files or many dataset versions I'd adopt DVC.
+
+**If they push — level 4.** *"How do derived artefacts — parsed text, embeddings — stay in sync?"* Record the source hash in every derived artefact and rebuild when it changes; Phase 4 stores each document's sha256 in the `documents` table so re-ingest can skip unchanged files and detect changed ones.
+
+**Whiteboard it.**
+```text
+ git:  data/manifest.json  {path, url, bytes, sha256} × 12
+ make corpus → download *.part → rename → verify sha256 (every test run)
+ derived rows carry source sha256 → rebuild on change
+```
+
+**Trap.** "Just commit the PDFs." Licence, repo bloat, and no stronger guarantee than hashes give.
+
+**Bridge.** "Carrying the source hash into the database is also how incremental re-ingestion works."
