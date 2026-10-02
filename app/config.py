@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     # USD per 1M tokens for llm_model (pricing page, 2026-10-02); used for cost estimates.
     llm_price_input_per_m: float = 0.10
     llm_price_output_per_m: float = 0.50
+    # Eval judge (Phase 11): a stronger model than the generator, so the judge isn't grading
+    # its own output. Pricing page 2026-10-02: $2.00 / $10.00 per 1M tokens.
+    llm_judge_model: str = "gpt-6.1-sol"
 
 
 @lru_cache(maxsize=1)

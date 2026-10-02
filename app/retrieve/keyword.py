@@ -52,17 +52,26 @@ class KeywordRetriever:
         if self.rank_function not in RANK_FUNCTIONS:
             raise ValueError(f"rank_function must be one of {RANK_FUNCTIONS}")
 
-    def tsquery_sql(self, phrases: list[str]) -> sql.Composed:
-        """SQL expression for the tsquery: (phrase₁ && phrase₂ …) && (word₁ | word₂ | …)."""
+    def tsquery_sql(self, phrases: list[str]) -> tuple[sql.Composed, sql.Composed]:
+        """(match query, rank query).
+
+        No phrases: both are the OR of the words. With phrases (quoted text,
+        grouped numbers): a chunk must contain every phrase, and nothing else;
+        the other words only *rank* the matches. An earlier version also required
+        at least one other word to match (phrases && (w₁ | w₂ …)), so "What does
+        the figure $404,381 represent in Boeing's FY2022 10-K?" matched nothing:
+        the backlog table contains 404,381 but none of figure/represent/boeing/fy2022.
+        """
         # plainto_tsquery normalises the words (stems, drops stop words) and
         # joins them with &; turning & into | on its text form gives OR.
         words = sql.SQL("replace(plainto_tsquery('english', %(rest)s)::text, '&', '|')::tsquery")
         parts = [sql.SQL("phraseto_tsquery('english', {})").format(sql.Placeholder(f"p{i}"))
                  for i in range(len(phrases))]
         if not parts:
-            return words
-        required = sql.SQL(" && ").join(parts)
-        return sql.SQL("CASE WHEN numnode({w}) = 0 THEN {r} ELSE ({r}) && {w} END").format(w=words, r=required)
+            return words, words
+        required = sql.SQL("({})").format(sql.SQL(" && ").join(parts))
+        rank = sql.SQL("CASE WHEN numnode({w}) = 0 THEN {r} ELSE {r} || {w} END").format(w=words, r=required)
+        return required, rank
 
     def bm25_sql(self, q: sql.Composable, where: list) -> sql.Composed:
         """BM25 over the GIN-matched candidates, computed in SQL.
@@ -108,7 +117,7 @@ class KeywordRetriever:
                         "years": list(filters.fiscal_years or [])}
         params.update({f"p{i}": p for i, p in enumerate(phrases)})
         params["phrase_text"] = " ".join(phrases)
-        q = self.tsquery_sql(phrases)
+        q, rank_q = self.tsquery_sql(phrases)
         # A question made only of stop words ("what is it?") has no lexemes: no results.
         if conn.execute(sql.SQL("SELECT numnode({q})").format(q=q), params).fetchone()[0] == 0:
             return []
@@ -123,12 +132,12 @@ class KeywordRetriever:
             rows = conn.execute(sql.SQL("""
                 SELECT c.id, d.doc_key, d.company, d.fiscal_year, c.page_number, c.page_end,
                        c.char_start, c.char_end, c.section, c.text,
-                       {rank}(c.tsv, q.query, {norm}) AS score
-                FROM (SELECT {q} AS query) q, chunks c
+                       {rank}(c.tsv, q.rank_query, {norm}) AS score
+                FROM (SELECT {q} AS query, {rq} AS rank_query) q, chunks c
                 JOIN documents d ON d.id = c.document_id
                 WHERE {where}
                 ORDER BY score DESC, c.id
                 LIMIT %(k)s""").format(rank=sql.Identifier(self.rank_function), norm=sql.Literal(self.normalization),
-                                        q=q, where=sql.SQL(" AND ").join(where)), params).fetchall()
+                                        q=q, rq=rank_q, where=sql.SQL(" AND ").join(where)), params).fetchall()
         return [Hit(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], tuple(r[8]), r[9],
                     score=float(r[10]), rank=i + 1) for i, r in enumerate(rows)]

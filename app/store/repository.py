@@ -238,3 +238,15 @@ def find_chunk_set(conn: psycopg.Connection, strategy: str, size: int, overlap: 
     row = conn.execute("SELECT id FROM chunk_sets WHERE strategy = %s AND chunk_size = %s "
                        "AND chunk_overlap = %s AND tokenizer = %s", (strategy, size, overlap, tokenizer)).fetchone()
     return row[0] if row else None
+
+
+# --- evaluation reads ----------------------------------------------------------------
+
+def chunks_overlapping(conn: psycopg.Connection, chunk_set_id: int, doc_key: str,
+                       char_start: int, char_end: int) -> list[tuple[int, str, int, int]]:
+    """(chunk_id, doc_key, char_start, char_end) of every chunk in the set overlapping [char_start, char_end)."""
+    return conn.execute("""SELECT c.id, d.doc_key, c.char_start, c.char_end FROM chunks c
+                           JOIN documents d ON d.id = c.document_id
+                           WHERE c.chunk_set_id = %s AND d.doc_key = %s
+                             AND c.char_start < %s AND c.char_end > %s
+                           ORDER BY c.id""", (chunk_set_id, doc_key, char_end, char_start)).fetchall()

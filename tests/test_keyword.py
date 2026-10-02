@@ -100,3 +100,10 @@ def test_every_rank_function_returns_ranked_hits(db, chunk_set, rank_function):
 def test_stemming_quirk_corning_becomes_corn(db):
     # Documented false positive: the English stemmer maps "Corning" to the lexeme "corn".
     assert db.execute("SELECT to_tsvector('english', 'Corning')::text").fetchone()[0] == "'corn':1"
+
+
+def test_a_required_figure_matches_even_when_no_other_question_word_does(db, chunk_set):
+    # Regression (T-042): phrases && (any other word) made this return nothing,
+    # because the table chunk contains 16,434 but none of figure/represent/annual/report.
+    hits = KeywordRetriever(chunk_set).search(db, "What does the figure 16,434 represent in the annual report?", k=5)
+    assert [h.text for h in hits] == ["Net revenue | $ 16,434 | $ 9,763 | $ 6,731"]

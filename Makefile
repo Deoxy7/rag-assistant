@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api eval test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -76,6 +76,9 @@ serve: install up ## Run the API on http://127.0.0.1:8000 (docs at /docs); LLM_P
 
 bench-api: install ## Latency through HTTP against a running `make serve` (sequential, streaming, concurrent)
 	$(PY) scripts/bench_api.py
+
+eval: install up ## Golden set → eval/results/<time>_<NAME>.{json,csv}: make eval NAME=baseline [ARGS="--no-rerank --mode vector --generate --judge"]
+	$(PY) -m eval.run --name $(or $(NAME),run) $(ARGS)
 
 ask: install up ## Answer one question: make ask Q="What was AMD's net revenue in 2022?" [ARGS="--show-prompt --provider fake"]
 	$(PY) scripts/ask.py "$(Q)" $(ARGS)
