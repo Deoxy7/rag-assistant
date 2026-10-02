@@ -94,7 +94,7 @@ Decisions: rerank on, MiniLM, N=10 (never meaningfully worse than larger N; half
 Open:     wrong-company/year hard negatives dominate FB misses → auto company/year filter from the question as a Phase 12 ablation; contextual chunk headers as another; background-run CPU slowdown (T-033) cause unconfirmed.
 Next:     Phase 9 — generation + citations (OpenAI; key from .env or fake client).
 
-## Phase 9 — Generation + citations   [DONE 2026-10-02, real-model numbers pending API key]
+## Phase 9 — Generation + citations   [DONE 2026-10-02, real-model numbers pending OpenAI credits]
 
 Built:    `app/generate/` — `prompt.py` (6-rule INSTRUCTIONS, REFUSAL_TOKEN, PROMPT_VERSION, o200k token counting, `pack_context` whole chunks under a budget, rank/sandwich order, numbered headers with company/year/PDF page/section), `citations.py` (marker parsing incl. marker-after-period, Citation with chunk id/doc/pages/char span, invalid-marker removal, uncited-claim flags), `llm.py` (OpenAIClient on the Responses API with streaming, store=False, temperature only if set; FakeLLM extractive + refusal; CachedLLM over Postgres; get_llm with MissingAPIKey, no silent fallback), `answer.py` (answer_question / stream_answer, refusal on no context or token); migration `0003_llm_cache.sql`; `repo.llm_cache_get/put`, `repo.chunk_regions`; settings llm_provider, openai_api_key (SecretStr), llm_model gpt-6-luna, prices, budget 3000, answer_top_k 10, context_order; `scripts/ask.py` (`make ask`), `scripts/bench_answer.py` (`make bench-answer`), `scripts/render_citation_example.py`; openai==3.23.0 + jiter pinned; `tests/test_generate.py` (30, incl. SDK against httpx.MockTransport).
 Docs:     `docs/13-prompting-and-citations.md` (full real prompt printed); cards #27, #28, #29; 8 interview questions (P9-01…P9-08); T-035…T-037.
@@ -103,4 +103,14 @@ Numbers:  (fake model = pipeline only) context tokens p50 2,144 / max 2,596 at k
 Decisions: gpt-6-luna from the pricing page (not yet exercised against the API); text + [n] markers over JSON (streams); temperature not sent by default; whole-chunk packing; PDF page numbers (not printed folios).
 Open:     OPENAI_API_KEY needed for every real-model number; header tokens ≈ 18% of context; repeated tables (652 tokens) → de-dup ablation; exhibit-list noise; refusal score threshold waits for Phase 11.
 Next:     Phase 10 — FastAPI /query with SSE, /documents, /health.
+
+## Phase 10 — API + streaming   [DONE 2026-10-02, real-model latency pending OpenAI credits]
+
+Built:    `app/api/schemas.py` (QueryRequest with limits, QueryResponse, CitationOut, SourceOut, Usage, DocumentOut, Health, ErrorOut); `app/api/main.py` (lifespan warm-up + chunk-set resolution; request-id middleware; error envelope + classify incl. quota vs rate limit; GET /health, GET /documents, POST /query, POST /query/stream with JSON-encoded SSE frames, RefusalGate, DB connection released before the LLM, in-band error events); CachedLLM accepts a connection factory; model locks in Embedder/Reranker; `repo.list_documents/known_companies/find_chunk_set`; `make serve`, `scripts/bench_api.py` (`make bench-api`); `.claude/launch.json` (api-fake-llm); fastapi==0.142.2, uvicorn==0.54.0 (+ starlette, opentelemetry-api) pinned; `tests/test_api.py` (23, 1 slow end to end).
+Docs:     `docs/14-api-and-streaming.md` (real curl output); cards #30, #31, #32 (#34 lives in doc 02, linked); 8 interview questions (P10-01…P10-08); T-038…T-041.
+Diagrams: `14-sse-sequence`, generated `14-where-it-sits`.
+Numbers:  (fake LLM) POST /query p50 143.0 / p95 182.9 ms, server retrieval p50 112.9 ms; first `sources` event p50 100.3 ms, first `delta` 111.9 ms; 1 vs 4 clients 6.8 vs 13.7 req/s; DB connect p50 6.35 ms.
+Decisions: two endpoints (JSON + SSE); pre-stream validation; sync endpoints in the thread pool; per-request connections (no pool yet); plain Python orchestration (card #34).
+Open:     OpenAI account has no credits (T-038) → real TTFT/latency/quality still not measured; no SSE keepalive pings; client disconnect doesn't cancel generation.
+Next:     Phase 11 — eval harness.
 

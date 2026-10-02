@@ -290,3 +290,30 @@
 **Trap.** "The prompt prevents hallucination."
 
 **Bridge.** "That's why every answer comes with citations a reader can open on the page."
+
+---
+
+## Phase 10 questions
+
+### Q: What does the refusal gate do, and why is it needed only for streaming?
+**ID:** P10-07 · **Round:** ML screen · backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "The model refuses by writing exactly INSUFFICIENT_CONTEXT, but tokens arrive in pieces like 'INSUFF', 'ICIENT_'. If I streamed them, the user would watch a raw control token being typed. The gate holds text while it could still become the token and releases it as soon as it diverges. For a normal answer that's the first piece: 'IN' is held, then 'INTEREST rose' goes out. The JSON endpoint doesn't need it because it sees the whole text before replying."
+
+**2-minute answer.** It's a tiny state machine: held text is checked as a prefix of the token (ignoring case, whitespace and backticks), with a full match allowing a trailing full stop. The cost is a delay of at most one token group for answers starting with the same letters as the token. Tested with four cases, including a near-miss.
+
+**If they push — level 2.** *"Why not use JSON output with a refused flag?"* Text streams more naturally to the UI, as discussed in card #29. The gate is the small price.
+
+**If they push — level 3.** *"What if the model writes 'Sorry, INSUFFICIENT_CONTEXT'?"* It isn't recognised as a refusal, so the text streams and the final answer isn't marked refused. The eval's abstention metrics catch format drift.
+
+**If they push — level 4.** *"Generalise it?"* Any streaming output with control tokens (tool calls, stop markers) needs a hold-back buffer as long as the longest token prefix.
+
+**Whiteboard it.**
+```text
+ "INSUFF" → hold   "ICIENT_" → hold   "CONTEXT" → hold → answer{refused}
+ "IN"     → hold   "TEREST rose" → diverged → release "INTEREST rose"
+```
+
+**Trap.** Streaming control tokens to users.
+
+**Bridge.** "Phase 11 measures how often the real model uses the token correctly."

@@ -102,6 +102,12 @@
 | Context size? | k=10 → 2,144 tokens p50, max 2,596; budget 3,000 never binds. |
 | Cache key? | sha256 of prompt version, provider, model, instructions, input, params. |
 | No key? | Loud error; fake model is opt-in and labelled; never a fallback. |
+| Endpoints? | GET /health, GET /documents, POST /query (JSON), POST /query/stream (SSE). |
+| SSE events? | sources (≈100 ms) → delta… → answer, or error (after the 200). |
+| Why `def` endpoints? | Blocking stack; FastAPI runs them in a thread pool; model locks for MPS. |
+| Concurrency measured? | 6.8 → 13.7 req/s with 4 clients (model passes serialise). |
+| 429 gotcha? | Rate limit vs empty balance (insufficient_quota): different fixes, different codes. |
+| Why JSON-encode deltas? | A raw newline would end the SSE frame (tested forged-event attack). |
 
 ## Top questions so far
 

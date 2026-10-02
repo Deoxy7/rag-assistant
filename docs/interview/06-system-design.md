@@ -346,3 +346,61 @@
 **Trap.** Falling back to the fake automatically, so a demo looks like it works.
 
 **Bridge.** "Phase 10's API streams through the same interface."
+
+---
+
+## Phase 10 questions
+
+### Q: Design the API for a streaming RAG answer. What are the endpoints and events?
+**ID:** P10-01 · **Round:** system design · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "Four endpoints: GET /health, GET /documents, POST /query returning one JSON object, and POST /query/stream returning Server-Sent Events. The stream sends `sources` first (about 100 ms, before the LLM has produced anything), then `delta` events with text, then a final `answer` with checked citations, usage and timings, or an `error` event. Validation, LLM configuration and filter checks all happen before the 200, so they're normal JSON errors."
+
+**2-minute answer.** Explain each contract decision. Typed request model: 1–2,000 chars, k 1–20, plausible years, filter lists ≤ 10. Companies checked against the database. One error envelope with stable codes. A request id on every response. JSON-encoded SSE payloads so newlines can't break frames. A refusal gate so the raw refusal token never streams. The DB connection is released before the LLM call.
+
+**If they push — level 2.** *"Why two endpoints instead of one with a flag?"* Different response media types (JSON vs event-stream) and different error semantics. Separate routes keep both contracts explicit in OpenAPI.
+
+**If they push — level 3.** *"How would a browser consume a POST stream?"* `EventSource` only does GET, so use `fetch` with a streaming body reader and parse the frames. Streamlit does it server-side with httpx.
+
+**If they push — level 4.** *"Versioning?"* Prefix routes (/v1) or a version field. Add fields freely, never remove or re-type one within a version. The request id ties client reports to logs.
+
+**Whiteboard it.**
+```text
+ POST /query/stream {question, companies?, fiscal_years?, k?}
+   pre-checks → 422 / 503 JSON
+   200 text/event-stream
+     event: sources  [{n, chunk_id, doc_key, page, section, score, text}]
+     event: delta    "…"   (×n, JSON strings)
+     event: answer   {answer, refused, citations[], usage, timings_ms}
+     event: error    {error, message, status}   (only after the 200)
+```
+
+**Trap.** Validating inside the stream, after the 200.
+
+**Bridge.** "The UI in Phase 15 is just a client of this contract."
+
+---
+
+### Q: Your service handles 2× the throughput with 4 clients, not 4×. Explain, and scale it.
+**ID:** P10-02 · **Round:** system design  **Difficulty:** 4/5
+
+**30-second answer.** "Measured: 6.8 req/s sequential, 13.7 req/s with 4 clients, latency p50 143 → 281 ms. Each request does Postgres work, which overlaps across threads, and model forward passes (embed the question, rerank 10 pairs), which are serialised by a lock because MPS isn't thread-safe. The GPU passes are the shared bottleneck. To scale: a separate model service with dynamic batching, concurrent vector and keyword searches, a connection pool, and horizontal API replicas."
+
+**2-minute answer.** Do the arithmetic: with ~110 ms of retrieval of which ~80 ms is reranking, the serialised part bounds throughput near 1/0.08 ≈ 12 req/s for the model half, which matches the measured 13.7. Then the real-LLM view: generation adds seconds, but that's I/O wait in a thread, so the bottleneck shifts to thread-pool size (AnyIO default 40) for concurrent streams. That's when to move streaming to async.
+
+**If they push — level 2.** *"Why not more uvicorn workers?"* Each process loads both models (224 MB of weights) and they'd contend for one GPU. It helps on CPU-only boxes with RAM to spare.
+
+**If they push — level 3.** *"Cache?"* The exact-match LLM cache already makes repeats free. A retrieval cache keyed by (question, filters) would skip the model passes for repeated questions.
+
+**If they push — level 4.** *"SLOs?"* Time to first event p95 < 300 ms, full answer p95 < N s (set once real-model latency is measured), error rate by code. Alert on llm_quota_exhausted immediately, since it's not transient.
+
+**Whiteboard it.**
+```text
+ per request: [DB ‖ DB] + [embed → rerank]🔒 + LLM wait (thread)
+ 1 client 6.8 req/s · 4 clients 13.7 req/s (model lock ≈ 80 ms → ~12 req/s cap)
+ scale: model service (batching) · pool · async streams · replicas
+```
+
+**Trap.** Scaling the web framework when the GPU lock is the limit.
+
+**Bridge.** "Phase 13's per-stage timings make this breakdown visible per request."

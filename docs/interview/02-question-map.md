@@ -94,6 +94,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P9-06 | "Uncited" although [1] follows — debug | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
 | P9-07 | SSE and how the SDK streams | [11](11-cs-core-touchpoints.md) | networking | backend, viva | 2 | | |
 | P9-08 | "What's your answer quality?" (not yet measured) | [14](14-honest-answers.md) | honesty | deep-dive | 2 | | |
+| P10-01 | Design the streaming RAG API: endpoints and events | [06](06-system-design.md) | API | design, backend | 3 | | |
+| P10-02 | 2× throughput with 4 clients — explain and scale | [06](06-system-design.md) | scale | design | 4 | | |
+| P10-03 | "Rate limited" forever with a valid key — debug | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P10-04 | Blank line in the answer breaks the stream | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P10-05 | Event loop vs thread pool; why `def` | [11](11-cs-core-touchpoints.md) | concurrency | viva, backend | 3 | | |
+| P10-06 | Close the DB connection before the LLM call — why | [05](05-database-and-sql.md) | DB | backend | 2 | | |
+| P10-07 | The refusal gate | [03](03-fundamentals.md) | generation | ML, backend | 2 | | |
+| P10-08 | Testing an API without its paid dependency | [07](07-evaluation.md) | testing | backend, deep-dive | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

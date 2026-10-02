@@ -39,9 +39,9 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 27 | Context packing order and token budget (lost-in-the-middle) | 9 | ✅ [13-prompting-and-citations](../13-prompting-and-citations.md) |
 | 28 | Citation granularity: document vs chunk vs sentence vs character span | 9 | ✅ [13-prompting-and-citations](../13-prompting-and-citations.md) |
 | 29 | Prompt design for grounding; temperature; structured output | 9 | ✅ [13-prompting-and-citations](../13-prompting-and-citations.md) |
-| 30 | FastAPI vs Flask vs Django vs Express | 10 | not yet written |
-| 31 | SSE vs WebSockets vs polling vs plain JSON | 10 | not yet written |
-| 32 | Async vs sync; where CPU-bound work goes | 10 | not yet written |
+| 30 | FastAPI vs Flask vs Django vs Express | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
+| 31 | SSE vs WebSockets vs polling vs plain JSON | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
+| 32 | Async vs sync; where CPU-bound work goes | 10 | ✅ [14-api-and-streaming](../14-api-and-streaming.md) |
 | 33 | Caching: exact-match vs semantic vs embedding cache; invalidation | 13 | not yet written |
 | 34 | LangChain vs plain Python vs LlamaIndex | 0 | ✅ [02-architecture-overview](../02-architecture-overview.md) |
 | 35 | Self-built eval harness vs RAGAS vs TruLens vs DeepEval | 11 | not yet written |
@@ -1067,6 +1067,111 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): How do you know the model follows the rules? → A: Today I don't: no key yet, so it's untested against the real model. The checks (invalid markers, uncited claims, refusal detection) are built and tested, and Phase 11 measures compliance.
 
 **The trap.** Claiming the prompt "guarantees" grounding.
+
+### Card 30 — from [14-api-and-streaming](../14-api-and-streaming.md)
+
+#### Decision: FastAPI  (rejected: Flask, Django, Express)
+
+**One-line defence.** Typed request/response models give validation, error messages and OpenAPI docs from one definition. It has native SSE (`fastapi.sse`) and a thread pool for blocking code, all in the same language as the ML stack.
+
+**What problem is this even solving?** Exposing the Python pipeline over HTTP with a checked contract, streaming support and good errors, with minimal glue.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ FastAPI | ASGI; pydantic models per endpoint; sync endpoints in a thread pool | Validation + OpenAPI from types; SSE; async-capable | Easy to misuse `async def` with blocking code; lifespan/middleware subtleties (T-039) | Python ML services, typed APIs |
+| Flask | WSGI; decorators; extensions for everything | Simple, mature | No built-in validation or OpenAPI; streaming ties up a WSGI worker per client | Small sync apps, existing Flask shops |
+| Django (+ DRF) | Full framework: ORM, admin, auth | Batteries included | ORM and admin unused here (plain SQL by design); heavier | Apps with users, admin, CRUD |
+| Express (Node) | JS HTTP framework | Huge ecosystem; streaming natural | A second language; the pipeline would sit behind another HTTP hop | JS front-end teams; BFF layers |
+
+**What would actually change if we swapped it.** Flask: hand-written validation, a separate OpenAPI tool, gunicorn workers with threads for streaming. Django: an app scaffold around the same `answer_question`. Express: the Python pipeline becomes its own service, plus a second contract.
+
+**The decision rule.** Stay in the language of your core logic. Pick the framework whose request model is your validation. Use a full framework only when you need what it bundles.
+
+**Where our choice breaks.** CPU-heavy work inside the API process: the model locks cap throughput at roughly one forward pass at a time. Scaling means a separate model service (card #32), whatever the framework.
+
+**The number.** 4 endpoints; 23 API tests; 8 malformed or unknown-filter requests rejected with stable codes (tested); OpenAPI includes the `text/event-stream` response.
+
+**Interview script (3 sentences).** "FastAPI, because the pydantic request model is the input validation, the error messages and the OpenAPI docs in one place, and it has native SSE. The pipeline is blocking (psycopg, torch, the OpenAI SDK), so endpoints are plain `def` and run in FastAPI's thread pool, with a lock around model passes. Flask would have meant hand-rolling validation and docs; Django brings an ORM and admin I don't use."
+
+**Follow-ups they will ask:**
+- Q: Why not `async def` everywhere? → A: The code inside blocks. In `async def` it would run on the event loop and stall every other request. Async only pays off if the whole call chain is async.
+- Q: How are errors kept consistent? → A: One envelope, `{request_id, error, message}`, with stable codes, from typed handlers. Validation errors are reshaped to the same envelope.
+- Q: How do you document the stream? → A: The route declares a `text/event-stream` 200 response, and doc 14 lists the event types. OpenAPI can't fully describe an event sequence, so the doc and tests do.
+- Q (the hard one): Is FastAPI a performance choice here? → A: No. At 143 ms per request with 113 ms in retrieval, the framework is noise. It's a correctness and contract choice.
+
+**The trap.** "FastAPI is fast, so the API is fast."
+
+### Card 31 — from [14-api-and-streaming](../14-api-and-streaming.md)
+
+#### Decision: Server-Sent Events for streaming  (rejected: WebSockets, polling; kept alongside: plain JSON)
+
+**One-line defence.** The answer flows one way, server to client. SSE is just a long HTTP response with `text/event-stream`, so it works through proxies and curl, browsers reconnect it natively, and it shows sources at ~100 ms. Plain JSON stays for scripts and the eval harness.
+
+**What problem is this even solving?** Making a multi-second generation feel responsive, and showing progress (sources first, then text).
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ SSE (`POST /query/stream`) | One HTTP response; `event:`/`data:` frames | Simple; HTTP semantics, headers, auth; curl-able; first event ~100 ms | One-way; status fixed after the first byte (errors in-band); browser `EventSource` is GET-only (use fetch streaming for POST) | Token streaming |
+| ✅ JSON (`POST /query`) | Wait, return one object | Simplest client; easy to cache and test | Blank screen until done | Scripts, evals, batch |
+| WebSockets | Upgraded, bidirectional, persistent socket | Two-way, low overhead per message | Custom protocol; proxies and load balancers need config; no HTTP status per message | Chat with interruptions, collaborative editing |
+| Polling | Start a job; GET its progress repeatedly | Works anywhere | Latency = poll interval; wasted requests; job storage | Long jobs (minutes), unreliable clients |
+
+**What would actually change if we swapped it.** WebSockets: a connection handler, a message protocol (start/cancel/delta/answer), and reconnection logic in the UI. Polling: a job table and a progress endpoint.
+
+**The decision rule.** One-way server push of a single response: SSE. Two-way conversational control (cancel mid-stream, typing indicators): WebSockets. Minutes-long work: a job plus polling.
+
+**Where our choice breaks.** Cancellation: the client can only disconnect. Generation then continues server-side until the next write fails (Starlette detects the disconnect), so tokens may be billed for an abandoned answer. Measure that once the account has credits.
+
+**The number.** First `sources` event p50 100.3 ms, first `delta` 111.9 ms (fake model); JSON `/query` p50 143.0 ms. Real-model time to first token: *not yet measured*.
+
+**Interview script (3 sentences).** "The answer only flows server to client, so I used SSE, a plain streamed HTTP response, rather than WebSockets. The sources event arrives at about 100 ms, before the model has produced anything. Everything that can fail is checked before the 200 goes out, and failures after it arrive as an `error` event, because the status line can't change mid-stream."
+
+**Follow-ups they will ask:**
+- Q: How do you send an error once streaming started? → A: In-band: an `error` event with a code and the HTTP-equivalent status. That's why validation, configuration and filter checks run first.
+- Q: What can break SSE in production? → A: Buffering proxies (hence `X-Accel-Buffering: no`), idle timeouts on long gaps (send `: ping` comments), and HTTP/1.1 per-domain connection limits in browsers (HTTP/2 fixes that).
+- Q: Why JSON-encode every delta? → A: A raw newline in model text would end the frame. With JSON it's `\n` inside a string. A test streams a forged `event: answer` line and the framing holds.
+- Q (the hard one): What's backpressure here? → A: If the client reads slowly, the server's writes block. In a sync generator that holds a thread-pool thread. Many slow clients exhaust the pool. The fix is limits and timeouts per stream, or async end to end.
+
+**The trap.** Choosing WebSockets for one-way streaming, or forgetting that errors after the first byte can't use status codes.
+
+### Card 32 — from [14-api-and-streaming](../14-api-and-streaming.md)
+
+#### Decision: sync endpoints in FastAPI's thread pool, one lock per model; model inference in-process  (rejected for now: async end to end, a separate model server)
+
+**One-line defence.** All the work is blocking (psycopg, torch, the OpenAI SDK), so plain `def` endpoints in the thread pool keep the event loop free with no async rewrite. A lock per model keeps MPS safe. Measured: 4 clients get 2× throughput, so the database half parallelises and the model half queues.
+
+**What problem is this even solving?** Where CPU- and GPU-bound work (embedding the question, reranking) runs, so one request doesn't freeze the others.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Sync `def` + thread pool + model locks | FastAPI runs each request in a worker thread | No rewrite; simple; safe on MPS | Throughput capped by the serialised model passes (13.7 req/s at 4 clients here) | One machine, modest traffic |
+| `async def` + async drivers | psycopg async, AsyncOpenAI, models via `run_in_executor` | Thousands of idle streams cheaply | Models still need a thread or process; an all-async chain or it's worse | Many concurrent slow streams |
+| Separate model server | Embed and rerank behind their own service with dynamic batching | GPU used efficiently; scales independently | A network hop (~ms); another deployment | Real traffic, a shared GPU |
+| Multiple worker processes | `uvicorn --workers N` | True parallelism | Each process loads both models again (bge-small 133 MB + MiniLM 91 MB of weights); GPU contention | CPU-only, more RAM than traffic |
+
+**What would actually change if we swapped it.** Async: `psycopg.AsyncConnection`, `AsyncOpenAI`, async generators for SSE, executors around torch. Model server: `Embedder`/`Reranker` become HTTP clients with the same interface, so retrieval code is unchanged.
+
+**The decision rule.** Match the concurrency model to the code you actually have: blocking calls go in threads. Go async when idle connections dominate. Split out models when GPU efficiency or independent scaling matters.
+
+**Where our choice breaks.** Long streams with real LLM latency: each open stream holds a pool thread (default 40 in AnyIO). At about 40 concurrent streams the pool is exhausted and new requests queue. That's the point to move streaming to async.
+
+**The number.** Sequential 6.8 req/s, 4 concurrent 13.7 req/s (p50 143 → 281 ms); DB connect 6.4 ms p50 per request, released before the LLM streams.
+
+**Interview script (3 sentences).** "The pipeline is blocking end to end, so endpoints are sync and FastAPI runs them in its thread pool. The event loop never blocks, and the models get a lock because MPS isn't thread-safe. With 4 clients throughput doubled, not quadrupled, because the model passes serialise. That's the measured signal for when to split inference into its own batched service."
+
+**Follow-ups they will ask:**
+- Q: What happens if you write `async def` with these calls inside? → A: They run on the event loop thread, so every other request, including health checks, stalls for the duration.
+- Q: Why release the DB connection before streaming? → A: A stream lasts seconds. Holding a connection would cap concurrent streams at Postgres's connection limit, and the cache writes use their own short connections.
+- Q: Why no connection pool? → A: Connect costs 6.4 ms p50 locally, about 4% of the request. A pool (psycopg_pool) is the next step under load or with a remote database.
+- Q (the hard one): Where does the GPU work go at scale? → A: A model server with dynamic batching. Cross-encoder throughput rises with batch size, so batching across requests uses the GPU far better than per-request locks.
+
+**The trap.** "async makes it faster."
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

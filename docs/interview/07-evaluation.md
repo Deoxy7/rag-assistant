@@ -224,3 +224,31 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Reporting "100% of answers cited" as quality.
 
 **Bridge.** "The eval harness measures all four, separately."
+
+---
+
+## Phase 10 questions
+
+### Q: How do you test an API whose main dependency (a paid LLM) isn't available?
+**ID:** P10-08 · **Round:** backend screen · project deep-dive  **Difficulty:** 2/5
+
+**30-second answer.** "FastAPI dependency overrides. The tests replace the LLM with a scripted fake and the retriever with a fixed list, and run the app without its startup, so no models and no network. That covers contracts, eight bad-request cases, the 503 for a missing key, SSE framing, the refusal gate, an LLM timeout mid-stream (an in-band error event) and the quota error mapping. One slow test runs the real startup against the ingested database with the offline fake LLM, end to end."
+
+**2-minute answer.** Explain the layering: unit tests of the gate and error classifier; contract tests through TestClient; one integration test with real retrieval. The SDK itself is tested against a mocked HTTP transport (Phase 9). What's left untested is real-model behaviour, which the eval harness measures, not unit tests.
+
+**If they push — level 2.** *"How do you parse SSE in tests?"* Split the body on blank lines, read the `event:` and `data:` fields, and JSON-decode the data, like a client would.
+
+**If they push — level 3.** *"Flaky risks?"* Global state: settings and `get_llm`'s cache are reset in each test that changes them.
+
+**If they push — level 4.** *"Contract tests for consumers?"* The OpenAPI schema is tested for the four paths and the event-stream response, so a breaking change shows up as a failing test.
+
+**Whiteboard it.**
+```text
+ unit:        RefusalGate · classify(429 quota vs rate)
+ contract:    TestClient + overrides (fake retriever, scripted LLM) — 21 tests
+ integration: real lifespan + DB + fake LLM — 1 slow test
+```
+
+**Trap.** Only testing with the live API, which makes tests cost money and fail when the account does.
+
+**Bridge.** "The account really did run out of credits; the tests didn't care."

@@ -264,3 +264,30 @@
 **Trap.** Keying on the question alone. The same question with different sources must miss.
 
 **Bridge.** "Phase 13's cost tracking reads the same token counts."
+
+---
+
+## Phase 10 questions
+
+### Q: Why does your streaming endpoint close its database connection before calling the LLM?
+**ID:** P10-06 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "Retrieval needs the database for about 110 ms; the LLM stream can take seconds. Holding the connection for the whole stream would make the number of concurrent streams equal to the number of open connections, and Postgres caps those (100 by default), each costing server memory. So the endpoint closes it right after the `sources` event, and the response cache opens its own short connections for its read and write."
+
+**2-minute answer.** The general rule: hold scarce resources only for the part of the request that needs them. Measured connect cost is 6.4 ms p50, so short-lived connections are cheap locally. A pool (psycopg_pool) is the upgrade when connect cost or connection churn matters, for example with a remote database or TLS.
+
+**If they push — level 2.** *"Transactions?"* Retrieval is read-only, so closing without commit simply ends the implicit transaction. Cache writes commit on clean exit of their own `with` block.
+
+**If they push — level 3.** *"What about PgBouncer?"* Transaction-mode pooling multiplexes many client connections onto few server connections. Session-level features like SET LOCAL still work within one transaction, which is how our searches set `hnsw.ef_search`.
+
+**If they push — level 4.** *"Leak risk?"* The generator's `finally` closes the connection if the client disconnects mid-stream, and the pre-stream filter check closes it on error.
+
+**Whiteboard it.**
+```text
+ conn ──retrieve 110 ms──▶ close │ LLM stream (seconds) …        │
+                                 │ cache get ⇄ (own conn, ms)   cache put ⇄ (own conn)
+```
+
+**Trap.** One connection per request for the request's whole lifetime, with streaming.
+
+**Bridge.** "Phase 13 logs per-stage timings, which shows where connections are actually held."

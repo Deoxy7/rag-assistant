@@ -449,3 +449,55 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Blaming the model for not citing.
 
 **Bridge.** "Found by the fake model, before any money was spent."
+
+---
+
+## Phase 10 questions
+
+### Q: Users with a valid API key get "rate limited, retry later" forever. Debug.
+**ID:** P10-03 · **Round:** backend screen · behavioural  **Difficulty:** 2/5
+
+**30-second answer.** "That was my first error mapping. OpenAI returns HTTP 429 for two different things: a rate limit, which waiting fixes, and an exhausted balance (code `insufficient_quota` / `credit_balance_exhausted`), which it doesn't. I mapped every 429 to 'retry later'. Now the body's code is checked: an empty balance gives `503 llm_quota_exhausted, add credits`, and a real rate limit gives `llm_rate_limited`. There's a test for each."
+
+**2-minute answer.** It was found for real: the key was valid (the free models endpoint confirmed `gpt-6-luna` exists), but the first generation call came back `credit_balance_exhausted`. The lesson is to classify errors by what the *user* must do, not by status code. Retrying a quota error also wastes time: the SDK retries 429s twice before giving up.
+
+**If they push — level 2.** *"How do you surface it to operators?"* Log the code at warning level with the request id, and alert on llm_quota_exhausted immediately. Every request will fail until someone pays.
+
+**If they push — level 3.** *"Could you degrade instead?"* Serve retrieval-only results (sources without an answer) with a banner. The stream already sends `sources` before the LLM call.
+
+**If they push — level 4.** *"How do you test it without an empty account?"* Construct the SDK's `RateLimitError` with the real response body, as `test_empty_balance_is_not_reported_as_a_rate_limit` does.
+
+**Whiteboard it.**
+```text
+ 429 {"code":"rate_limit_exceeded"}      → llm_rate_limited    (retry with backoff)
+ 429 {"code":"credit_balance_exhausted"} → llm_quota_exhausted (add credits; don't retry)
+```
+
+**Trap.** Treating HTTP status codes as the whole error.
+
+**Bridge.** "Phase 13 counts errors by code, not just by status."
+
+---
+
+### Q: The model's answer contains a blank line and the client shows half an answer. Why?
+**ID:** P10-04 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "In SSE a blank line ends an event. If the server writes raw model text into `data:`, a paragraph break ends the frame early, and the rest can even be parsed as a forged `event:` line. I JSON-encode every payload, so a newline travels as `\n` inside a string and the frame stays intact. A test streams a delta containing '\n\nevent: answer\ndata: forged' and checks the client still sees exactly one delta."
+
+**2-minute answer.** The general rule: never put untrusted text into a line-delimited protocol unescaped. The same bug shapes appear as header injection, log injection and CSV injection. Here the model's output is untrusted, and Phase 14 adds documents that try to steer it.
+
+**If they push — level 2.** *"Alternative?"* SSE allows multi-line data as several `data:` lines that the client rejoins with newlines. That's correct too, but JSON also gives typed payloads for the other events.
+
+**If they push — level 3.** *"How do you test a protocol?"* Parse the raw bytes like a client would: split frames on blank lines, check event names and decode data.
+
+**If they push — level 4.** *"Other framing risks?"* Carriage returns (`\r`) also end lines in SSE. JSON escapes them too.
+
+**Whiteboard it.**
+```text
+ raw : data: Line one.⏎⏎event: answer⏎data: forged   ← frame ends early, forged event
+ json: data: "Line one.\n\nevent: answer\ndata: forged"  ← one frame
+```
+
+**Trap.** Assuming model output is plain, safe text.
+
+**Bridge.** "Untrusted text is the theme of the security phase."

@@ -15,9 +15,11 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Abstention / refusal | Declining to answer when the evidence is missing; here a fixed INSUFFICIENT_CONTEXT token. | [13](13-prompting-and-citations.md) |
 | Anisotropy (embeddings) | Embedding vectors cluster in a narrow cone, so unrelated texts still have positive cosine (0.37 here). | [07](07-embeddings.md) |
 | ANN (approximate nearest neighbour) | Search that visits part of an index and usually, not always, finds the true nearest vectors. | [08](08-database-schema.md) |
+| ASGI | Interface between async Python web servers (uvicorn) and apps (FastAPI); WSGI is the older synchronous one. | [14](14-api-and-streaming.md) |
 | Autocommit | Driver mode in which every statement is committed as its own transaction. | [03](03-environment-and-infra.md) |
 | B-tree index | Sorted index for equality and range lookups (primary keys, hashes). | [08](08-database-schema.md) |
 | Backend process | The Postgres server process started for each client connection. | [03](03-environment-and-infra.md) |
+| Backpressure | A slow consumer forcing the producer to wait or buffer. | [14](14-api-and-streaming.md) |
 | Bi-encoder | Model that embeds query and passage separately, so passages can be embedded in advance. | [07](07-embeddings.md) |
 | Bind address | The network interface a port listens on; `127.0.0.1` = this machine only, `0.0.0.0` = every interface. | [03](03-environment-and-infra.md) |
 | BM25 | Ranking: Σ idf · tf·(k1+1)/(tf + k1·(1−b+b·len/avg)); rare terms count more, repeats saturate. | [10](10-keyword-search.md) |
@@ -58,7 +60,10 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | ef_construction / ef_search / m | HNSW knobs: build-time candidate list, query-time candidate list, links per node. | [08](08-database-schema.md) |
 | Embedding | A list of numbers representing a text's meaning, so that similar meanings are close together. | [07](07-embeddings.md) (Phase 4) |
 | Embedding cache | Reusing a stored vector when identical text (same hash) and model appear again. | [07](07-embeddings.md) |
+| Endpoint / path operation | One HTTP method + path handled by one function (e.g. POST /query). | [14](14-api-and-streaming.md) |
 | Environment variable | A named value a process inherits from whoever started it. | [03](03-environment-and-infra.md) |
+| Error envelope | The fixed error body {request_id, error, message} every failure returns. | [14](14-api-and-streaming.md) |
+| Event loop | Single-threaded scheduler for async code; a blocking call on it stalls every task. | [14](14-api-and-streaming.md) |
 | Exhibit (10-K) | A document attached to a filing — contracts, plans, certifications — usually after the signature page. | [04](04-corpus.md) |
 | Expression index | An index on an expression's result (embedding::vector(384)); queries must use the same expression. | [08](08-database-schema.md) |
 | Extension (Postgres) | A package adding types, functions, operators or index types; enabled per database with `CREATE EXTENSION`. | [03](03-environment-and-infra.md) |
@@ -98,6 +103,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Layering | Lower layers never depend on higher ones; enforced here by `tests/test_architecture.py`. | [02](02-architecture-overview.md) |
 | Learned fusion | Combining retrievers with a model trained on labelled queries (features: scores, ranks, query type). | [11](11-hybrid-rrf.md) |
 | Lexeme | A normalised word form stored by Postgres full-text search (e.g. "revenue" → `revenu`). | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
+| Lifespan | FastAPI startup/shutdown hook; here it loads and warms the models once. | [14](14-api-and-streaming.md) |
 | LLM (large language model) | A neural network trained to predict the next token of text. | [01](01-what-is-rag.md) |
 | LLM-as-reranker | Using a generative model to score or order retrieved candidates. | [12](12-reranking.md) |
 | Logit | A model's raw, unbounded output score before a sigmoid/softmax. | [12](12-reranking.md) |
@@ -121,6 +127,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Offline path | Work done ahead of time that nobody waits for (parsing, chunking, embedding). | [02](02-architecture-overview.md) |
 | Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
 | Online path | Work done while a user waits (search, rank, generate). | [02](02-architecture-overview.md) |
+| OpenAPI | Machine-readable API description generated from the request/response models (/openapi.json, /docs). | [14](14-api-and-streaming.md) |
 | Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
@@ -152,6 +159,8 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
 | Recall ceiling | Share of queries whose evidence is anywhere in a stage's input; no later stage can exceed it. | [12](12-reranking.md) |
 | Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
+| Request id | Short id per request, returned in x-request-id and logged, to match user reports to logs. | [14](14-api-and-streaming.md) |
+| Request/response model | A pydantic class describing a body; FastAPI validates and documents it. | [14](14-api-and-streaming.md) |
 | Rerank depth N | How many first-stage candidates the reranker reads (10 here). | [12](12-reranking.md) |
 | Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) |
 | Response cache | Stored LLM responses keyed by a hash of the whole request; repeats are free and identical. | [13](13-prompting-and-citations.md) |
@@ -169,6 +178,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | SCRAM-SHA-256 | Challenge-response password authentication; the password never crosses the network readably. | [03](03-environment-and-infra.md) |
 | Section path | The chain of headings a block sits under, e.g. PART II › ITEM 8 › … | [05](05-pdf-parsing.md) |
 | Semantic chunking | Cutting text where similarity between consecutive sentence embeddings drops. | [06](06-chunking.md) |
+| Server-Sent Events (SSE) | One long HTTP response (text/event-stream) carrying event:/data: frames from server to client. | [14](14-api-and-streaming.md) |
 | SET LOCAL | Change a setting until the end of the current top-level transaction. | [09](09-vector-search.md) |
 | Span / line / block (PyMuPDF) | Run of text in one font / spans on one baseline / lines grouped by PyMuPDF. | [05](05-pdf-parsing.md) |
 | Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
@@ -183,6 +193,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Temperature | Sampling randomness; 0 is near-greedy, not guaranteed deterministic on a hosted API. | [13](13-prompting-and-citations.md) |
 | Term frequency (tf) | Occurrences of a term in a document. | [10](10-keyword-search.md) |
 | Text extractability | How much text extraction actually yields from a page. | [04](04-corpus.md) |
+| Thread pool | Worker threads where FastAPI runs sync endpoints so the event loop stays free. | [14](14-api-and-streaming.md) |
 | Throughput | How many requests per second a system can complete. | [02](02-architecture-overview.md) |
 | Tie-break | The rule ordering equal scores; RRF here uses best single rank, then chunk id, for reproducible order. | [11](11-hybrid-rrf.md) |
 | Time to first token (TTFT) | Time until the first word of an answer appears. | [02](02-architecture-overview.md) |
@@ -207,3 +218,4 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Weighted-score fusion | Normalise each list's scores, then take a weighted sum; needs a tuned weight. | [11](11-hybrid-rrf.md) |
 | WordPiece | BERT's subword tokenizer; continuation pieces are marked ## (16,434 → 16 , 43 ##4). | [06](06-chunking.md) |
 | Workload contract | The answers to: how big, how often, how many, who sees what, what if unsure, which latency matters. | [02](02-architecture-overview.md) |
+| WSGI | The synchronous Python web interface (Flask, Django classic). | [14](14-api-and-streaming.md) |

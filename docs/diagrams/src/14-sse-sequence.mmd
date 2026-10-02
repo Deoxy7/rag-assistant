@@ -1,0 +1,34 @@
+%% Owner: docs/14-api-and-streaming.md — one POST /query/stream, measured timings with the fake LLM.
+sequenceDiagram
+    autonumber
+    box rgb(255,255,255) User / IO
+        participant C as Client (curl / Streamlit)
+    end
+    box rgb(243,232,255) API + generation
+        participant A as FastAPI /query/stream
+        participant L as LLM (OpenAI Responses API)
+    end
+    box rgb(220,252,231) Retrieval
+        participant R as Retriever (hybrid + rerank)
+    end
+    box rgb(229,231,235) Storage
+        participant P as Postgres
+    end
+    C->>A: POST /query/stream {question, companies?, fiscal_years?, k?}
+    Note over A: checks: body valid (422) ·<br/>LLM configured (503) · companies known (422)<br/>→ JSON errors, before any event
+    A->>R: search(question, k=10, filters)
+    R->>P: HNSW + GIN queries
+    P-->>R: 2 × 50 ranked rows
+    R-->>A: 10 hits after RRF + cross-encoder (~110 ms)
+    Note over A: DB connection released here
+    A-->>C: 200 text/event-stream · event: sources (≈100 ms)
+    A->>L: responses.stream(instructions, sources + question)
+    loop each token group
+        L-->>A: response.output_text.delta
+        Note over A: refusal gate: hold text that<br/>could still be INSUFFICIENT_CONTEXT
+        A-->>C: event: delta "Net revenue for 2022 …"
+    end
+    L-->>A: response.completed (usage)
+    A->>P: cache put (own short connection)
+    A-->>C: event: answer {citations, usage, timings}
+    Note over C,A: failure after the 200 → event: error {code, status}

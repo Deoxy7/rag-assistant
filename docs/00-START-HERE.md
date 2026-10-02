@@ -107,7 +107,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [11](11-hybrid-rrf.md) | Hybrid search + RRF | 7 | ✅ written |
 | [12](12-reranking.md) | Reranking | 8 | ✅ written |
 | [13](13-prompting-and-citations.md) | Prompting and citations | 9 | ✅ written (real-model numbers pending key) |
-| [14](14-api-and-streaming.md) | API and streaming | 10 | not yet written |
+| [14](14-api-and-streaming.md) | API and streaming | 10 | ✅ written (real-model latency pending OpenAI credits) |
 | [15](15-eval-harness.md) | Evaluation harness | 11 | not yet written |
 | [16](16-experiments-and-ablations.md) | Experiments and ablations | 12 | not yet written |
 | [17](17-cost-and-observability.md) | Cost and observability | 13 | not yet written |

@@ -320,3 +320,31 @@
 **Trap.** Thinking SSE needs WebSockets, or a special protocol.
 
 **Bridge.** "Phase 10 re-streams these deltas to the browser as our own SSE."
+
+---
+
+## Phase 10 questions
+
+### Q: Event loop vs thread pool: why are your endpoints `def` and not `async def`?
+**ID:** P10-05 · **Round:** viva · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "An event loop runs async tasks on one thread and switches tasks only when one awaits. A blocking call (psycopg's sync driver, torch on the GPU, the sync OpenAI SDK) inside `async def` never awaits, so it holds the loop and every other request waits, health checks included. FastAPI runs plain `def` endpoints and sync generators in a thread pool instead, so blocking work happens in worker threads and the loop stays free."
+
+**2-minute answer.** Then the cost of threads: each in-flight request holds one (AnyIO's default limit is 40), and the GIL is released during I/O and inside torch and numpy kernels, so threads do overlap. The models aren't thread-safe on MPS, hence a lock per model. Async end to end would scale idle streaming connections better, but only if every call in the chain is async.
+
+**If they push — level 2.** *"Does the GIL make threads useless?"* No. It's released during socket I/O and inside C extensions like torch and numpy, which is where this code spends its time.
+
+**If they push — level 3.** *"Where's the SSE generator running?"* Starlette iterates a sync iterator via `iterate_in_threadpool`, one `next()` per thread-pool call.
+
+**If they push — level 4.** *"How would you prove the loop isn't blocked?"* Hit /health in a loop during a long /query and check its latency stays low, or use asyncio debug mode, which warns about slow callbacks.
+
+**Whiteboard it.**
+```text
+ async def + blocking call:  loop ■■■■■■■■ (everyone waits)
+ def (thread pool):          loop ─┬─ thread1 ■■■■
+                                   └─ thread2 ■■■■   loop free for /health
+```
+
+**Trap.** "async is always faster."
+
+**Bridge.** "That's why model inference is the thing to split out at scale."

@@ -302,3 +302,35 @@ RuntimeError: Received a content event for output index 0 before receiving its o
 
 - **Symptom:** `make ask` → `error: LLM_PROVIDER=openai but OPENAI_API_KEY is empty…`
 - **Fix:** add the key to `.env` (never commit it), or `ARGS="--provider fake"` for the labelled offline fake. Real-model numbers in docs 13 and up say *not yet measured* until then.
+
+## Phase 10
+
+### T-038 · Valid API key, but every generation fails with 429 — hit
+
+```text
+openai.RateLimitError: Error code: 429 - {'error': {'message': 'You have no credits remaining. Add credits to continue
+using the API at https://platform.openai.com/settings/organization/billing/.', 'type': 'insufficient_quota',
+'param': None, 'code': 'credit_balance_exhausted'}}
+```
+
+- **Context:** an `OPENAI_API_KEY` appeared in `.env` during Phase 10. The free models endpoint accepted it and listed `gpt-6-luna`.
+- **Cause:** the account had no credits. OpenAI uses HTTP 429 for both rate limits and an empty balance.
+- **Bug it exposed:** the API mapped every 429 to `llm_rate_limited` ("retry later"), which never helps an empty balance.
+- **Fix:** `quota_exhausted()` checks the body's code/type, so an empty balance gives `503 llm_quota_exhausted` ("add credits"). `scripts/ask.py` prints the error code instead of a traceback. Test: `test_empty_balance_is_not_reported_as_a_rate_limit`.
+- **Still needed:** credits on the OpenAI account (only the account owner can add them). Real-model numbers stay *not yet measured* until then.
+
+### T-039 · `TypeError: 'EventSourceResponse' object is not iterable` — hit
+
+- **Cause:** the route was declared with `response_class=EventSourceResponse`. FastAPI then treats the endpoint as a `yield` generator and iterates its return value, but it returned a ready `EventSourceResponse`.
+- **Fix:** declare `response_class=StreamingResponse` (with `text/event-stream` documented under `responses`) and return the response. That keeps pre-stream checks as normal JSON errors.
+
+### T-040 · Expected 503 also logged as "Exception in ASGI application" — hit
+
+- **Symptom:** in tests, the missing-key request raised although the handler had produced the right 503 body.
+- **Cause:** handlers registered for the base `Exception` run in Starlette's outermost `ServerErrorMiddleware`, which re-raises after responding (so servers log a crash).
+- **Fix:** register handlers for the expected types (`MissingAPIKey`, `openai.APIError`, `psycopg.OperationalError`). The catch-all stays only for genuinely unexpected errors.
+
+### T-041 · `/health` showed `gpt-6-luna` while the fake model answered — hit
+
+- **Cause:** health reported the configured `llm_model` setting, not the active client.
+- **Fix:** report `get_llm().model` when the client is ready.
