@@ -57,6 +57,17 @@ class Settings(BaseSettings):
     rrf_k: int = 60                      # RRF constant (Cormack et al., 2009)
     retrieval_depth: int = 50            # results taken from each retriever before fusing
 
+    # --- Reranking (Phase 8) ---
+    rerank_enabled: bool = True
+    # First-stage candidates the cross-encoder re-sorts. Measured (make bench-rerank):
+    # N=10 was never meaningfully worse than 20/50/100 and is half the latency of 20.
+    rerank_n: int = 10
+    rerank_model: str = "cross-encoder/ms-marco-MiniLM-L6-v2"
+    rerank_model_revision: str = "233902d25c440f23af6f7d6e94d2946bac0bee0a"
+    rerank_device: str = "auto"
+    rerank_batch_size: int = 32
+    rerank_max_length: int = 512         # (question + chunk) tokens; longer pairs are truncated
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
