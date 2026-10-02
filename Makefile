@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api bench-latency ui eval test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid bench-rerank bench-answer ask serve bench-api bench-latency ui demo eval test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -82,6 +82,9 @@ bench-latency: install ## Real per-stage latency through a running `make serve` 
 
 ui: install ## Streamlit UI on http://127.0.0.1:8501 (needs `make serve` in another terminal; RAG_API_URL to override)
 	PYTHONPATH=. $(VENV)/bin/streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501 --browser.gatherUsageStats false
+
+demo: install ## Five-minute terminal demo: four questions through a running `make serve` (docs/20)
+	$(PY) scripts/demo.py
 
 eval: install up ## Golden set → eval/results/<time>_<NAME>.{json,csv}: make eval NAME=baseline [ARGS="--no-rerank --mode vector --generate --judge"]
 	$(PY) -m eval.run --name $(or $(NAME),run) $(ARGS)

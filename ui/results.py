@@ -46,11 +46,15 @@ def list_runs(results: Path = RESULTS, include_batches: bool = False) -> list[Ru
 
 
 def default_index(runs: list[Run]) -> int:
-    """The newest full eval with retrieval (not the injection suite, not the closed-book baseline)."""
-    for i, r in enumerate(runs):
-        if r.kind == "eval" and not load(r).get("config", {}).get("closed_book"):
-            return i
-    return 0
+    """The newest eval with retrieval *and* judged answers; else the newest with retrieval.
+
+    Not the injection suite, not the closed-book baseline, and not a retrieval-only run
+    (e.g. the fresh-clone check) when a run with answer quality exists.
+    """
+    with_retrieval = [i for i, r in enumerate(runs)
+                      if r.kind == "eval" and not load(r).get("config", {}).get("closed_book")]
+    judged = [i for i in with_retrieval if (load(runs[i]).get("summary") or {}).get("judge")]
+    return (judged or with_retrieval or [0])[0]
 
 
 def load(run: Run) -> dict:
