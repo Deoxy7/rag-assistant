@@ -1,0 +1,7 @@
+name	source	sha256	svg_bytes	png_bytes
+01-rag-vs-plain-prompting	docs/diagrams/src/01-rag-vs-plain-prompting.mmd	a505c6f385cfeadfa9b22fcd298679a77f02f8426bac41c301d7066641d87d51	27784	190461
+01-where-it-sits	docs/diagrams/build/01-where-it-sits.mmd	3c4edc3289de6318cb624d6f577d6d6f16f7202b7af97c6378d243c6d9dd3d2e	48865	265276
+02-request-lifecycle	docs/diagrams/src/02-request-lifecycle.mmd	6c9793ac4bb0db27042b47ef9ccdbfff328f21ad21ec071eaef38f10115bfecf	37189	295156
+02-system-architecture	docs/diagrams/src/02-system-architecture.mmd	108f7856ed827330fa7a0f1b7882ecadce62507930d324b2f26b8a81e7df95c0	48709	257450
+03-local-dev-topology	docs/diagrams/src/03-local-dev-topology.mmd	49d3c30f844d6a00b5323edf77456c13367fa3eb002ba83bcd138afb53aa9c41	30775	204537
+03-where-it-sits	docs/diagrams/build/03-where-it-sits.mmd	63dba7169900755ada4a296b54a57fbf35815eacbeff28c1f624cc6354d83079	48781	265495

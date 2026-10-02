@@ -1,0 +1,38 @@
+%% Owner: docs/02-architecture-overview.md — one question, from keypress to cited answer.
+sequenceDiagram
+    autonumber
+    box rgb(255,255,255) User / IO
+        actor U as User
+        participant UI as Streamlit UI
+        participant API as FastAPI
+    end
+    box rgb(220,252,231) Retrieval
+        participant R as Retriever
+        participant RR as Reranker
+    end
+    box rgb(229,231,235) Storage
+        participant DB as Postgres
+    end
+    box rgb(243,232,255) Generation
+        participant LLM as LLM (OpenAI API)
+    end
+
+    Note over U,LLM: Legend: white = user / IO · green = retrieval · grey = storage · purple = generation
+    U->>UI: types a question
+    UI->>API: POST /query {question}
+    API->>R: retrieve(question)
+    R->>R: embed question → query vector
+    R->>DB: vector search + keyword search (SQL)
+    DB-->>R: two ranked lists of chunk ids
+    R->>R: RRF (Reciprocal Rank Fusion) → one list
+    R->>RR: fused top-N chunks
+    RR-->>API: top-k chunks, best first
+    alt evidence is strong enough
+        API->>LLM: prompt = rules + top-k chunks + question
+        LLM-->>API: answer tokens (streamed)
+        API-->>UI: SSE (Server-Sent Events): token, token, …
+        API-->>UI: SSE: citations (chunk id, page, char span)
+    else evidence too weak
+        API-->>UI: refusal: "not found in the documents"
+    end
+    UI-->>U: answer with clickable citations

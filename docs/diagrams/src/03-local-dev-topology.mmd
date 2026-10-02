@@ -1,0 +1,32 @@
+%% Owner: docs/03-environment-and-infra.md — what runs where on a developer laptop.
+flowchart LR
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    subgraph mac["Your Mac: macOS, Apple Silicon (host)"]
+        make["make<br/>Makefile"]:::io
+        env[".env<br/>POSTGRES_* settings"]:::io
+        app[".venv: Python 3.11<br/>app + pytest"]:::io
+        dcli["docker CLI<br/>+ compose plugin"]:::io
+        mmdc["mmdc + Graphviz<br/>diagram renderers"]:::io
+    end
+
+    subgraph vm["Colima VM: Linux, 2 CPU, 2 GB RAM"]
+        engine["Docker engine"]:::io
+        db[("container db<br/>Postgres 16.15 + pgvector 0.8.7")]:::store
+        vol[("volume pgdata<br/>database files")]:::store
+        init["initdb/001-extensions.sql<br/>CREATE EXTENSION vector"]:::store
+    end
+    legend["Legend<br/>grey = storage<br/>white = tools / user / IO"]:::legend
+
+    make -->|make up| dcli
+    make -->|make test| app
+    make -->|make diagrams| mmdc
+    env -->|vars for the container| dcli
+    env -->|vars for connecting| app
+    dcli -->|unix socket| engine
+    engine -->|starts| db
+    init -->|runs once, empty volume only| db
+    db <-->|reads / writes| vol
+    app -->|TCP 127.0.0.1:5432, forwarded into the VM| db

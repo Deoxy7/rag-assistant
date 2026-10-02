@@ -1,0 +1,33 @@
+%% Owner: docs/01-what-is-rag.md — the one idea: answer from evidence, not from memory.
+flowchart LR
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    subgraph rag["B. RAG: Retrieval-Augmented Generation"]
+        q2["Question"]:::io
+        idx[("Index of your documents")]:::store
+        ret["Retrieve<br/>search the index"]:::retrieve
+        ctx["Top-k chunks<br/>the evidence"]:::retrieve
+        m2["LLM<br/>question + evidence"]:::generate
+        a2["Answer + citations<br/>or: not in the documents"]:::io
+    end
+
+    subgraph plain["A. Plain prompting"]
+        q1["Question"]:::io
+        m1["LLM<br/>memory only"]:::generate
+        a1["Answer<br/>no sources, may be stale or invented"]:::io
+    end
+    legend["Legend<br/>grey = storage · green = retrieval<br/>purple = generation · white = user / IO"]:::legend
+
+    q1 -->|prompt| m1
+    m1 -->|tokens| a1
+
+    q2 -->|search query| ret
+    idx -.->|candidate chunks| ret
+    ret -->|best k chunks| ctx
+    ctx -->|pasted into the prompt| m2
+    q2 -->|question| m2
+    m2 -->|grounded tokens| a2

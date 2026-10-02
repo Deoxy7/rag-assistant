@@ -1,0 +1,55 @@
+%% Owner: docs/02-architecture-overview.md — the whole target system in one picture.
+%% This file is also the source for every "where it sits" diagram (scripts/where_it_sits.py),
+%% so node ids here are referenced from docs/diagrams/where-it-sits.tsv. Rename with care.
+flowchart TB
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef evalc fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    subgraph offline["Offline: ingestion"]
+        pdf["PDF files<br/>data/"]:::io
+        parse["Parse<br/>PyMuPDF + pdfplumber"]:::ingest
+        chunk["Chunk"]:::ingest
+        embed["Embed<br/>sentence-transformers"]:::ingest
+    end
+
+    pg[("Postgres 16<br/>pgvector + full-text search")]:::store
+
+    subgraph online["Online: answering one question"]
+        user["User"]:::io
+        ui["Streamlit UI"]:::io
+        api["FastAPI<br/>POST /query"]:::io
+        vec["Vector search<br/>similar meaning"]:::retrieve
+        fts["Keyword search<br/>exact words"]:::retrieve
+        rrf["RRF fusion<br/>Reciprocal Rank Fusion"]:::retrieve
+        rerank["Rerank<br/>cross-encoder"]:::retrieve
+        prompt["Prompt + citations"]:::generate
+        llm["LLM<br/>OpenAI API"]:::generate
+    end
+
+    evalh["Eval harness<br/>golden questions"]:::evalc
+    legend["Legend<br/>blue = ingestion · grey = storage<br/>green = retrieval · purple = generation<br/>orange = eval · white = user / IO"]:::legend
+
+    pdf -->|raw bytes| parse
+    parse -->|text blocks + page + offsets| chunk
+    chunk -->|chunks| embed
+    embed -->|chunks + vectors| pg
+
+    user -->|question| ui
+    ui -->|HTTP request| api
+    api -->|query| vec
+    api -->|query| fts
+    pg -.->|nearest vectors| vec
+    pg -.->|matching words| fts
+    vec -->|ranked chunk ids| rrf
+    fts -->|ranked chunk ids| rrf
+    rrf -->|fused top-N| rerank
+    rerank -->|top-k chunks| prompt
+    prompt -->|prompt text| llm
+    llm -->|answer tokens| api
+    api -->|SSE: tokens + citations| ui
+    evalh -->|golden questions| api

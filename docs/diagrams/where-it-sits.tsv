@@ -1,0 +1,5 @@
+# Which part of docs/diagrams/src/02-system-architecture.mmd each doc highlights.
+# Format: doc number <TAB> comma-separated node ids. One line per doc; add a line
+# in the phase that writes the doc. Unknown ids fail `make diagrams` on purpose.
+01	vec,fts,prompt,llm
+03	pg
