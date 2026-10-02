@@ -171,3 +171,12 @@ Numbers:  gpt-oss-20b, 7 attacks × 4 questions: successes template 1 6/28 · te
 Open:     rerun `python -m eval.injection` on qwen/qwen3.8-27b and the template-2 regression eval (`python -m eval.run --name gen-v3-template2 --generate --judge`) once Groq's qwen daily quota (T-063) frees; ingestion provenance / trust labels; RLS when there are tenants.
 Next:     Phase 15 — Streamlit UI.
 
+## Phase 15 — Streamlit UI   [DONE 2026-10-03]
+
+Built:    `ui/app.py` (sidebar document selector, Ask view with streamed answer, citation expanders with chunk text, span and highlighted PDF page, uncited / quarantined warnings, client-side timings and cost; Eval results view; Live stats view), `ui/client.py` (HTTP + SSE parser + client clock), `ui/results.py`; API `GET /chunks/{id}/page.png` (`app/api/pages.py`, sha256-checked PDF, dpi 50–200) + `repo.chunk_location`; `make ui`; streamlit 1.65.0 + 14 transitive pins; tests: `tests/test_ui.py` (7, incl. AppTest headless run and HTTP-only import rule), 2 page-endpoint tests, a pip-style requirements comment test.
+Docs:     `docs/19-frontend.md` (card #42); 5 screenshots; 8 interview questions (P15-01…P15-08); T-065…T-070.
+Diagrams: `19-ui-components`, `19-user-flow`, generated `19-where-it-sits`.
+Numbers:  live (gpt-oss-20b, 3 questions, client clock): sources 514–1,300 ms, first token 940–2,178 ms, done 1,019–2,446 ms; cached rerun 602 / 620 / 635 ms; eval view reproduces hit@5 0.769, correctness 0.721.
+Open:     UI not load-tested; screenshots use gpt-oss-20b (qwen quota, T-063); no user feedback button.
+Next:     Phase 16 — packaging, fresh-clone verification, final README.
+

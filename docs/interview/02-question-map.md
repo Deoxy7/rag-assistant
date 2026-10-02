@@ -139,6 +139,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P14-06 | Refusal attack "succeeded" with the poison removed | [08](08-debugging-scenarios.md) | eval | ML | 2 | | |
 | P14-07 | Direct vs indirect prompt injection | [03](03-fundamentals.md) | security | viva, ML | 2 | | |
 | P14-08 | Evaluating injection defences | [07](07-evaluation.md) | eval, security | ML, deep-dive | 3 | | |
+| P15-01 | Streamlit vs React for the UI | [06](06-system-design.md) | frontend | design, deep-dive | 2 | | |
+| P15-02 | Showing where a citation came from | [06](06-system-design.md) | citations | design, ML | 3 | | |
+| P15-03 | Streamlit's execution model and its bugs | [03](03-fundamentals.md) | frontend | viva | 2 | | |
+| P15-04 | Dollar amounts render as LaTeX | [08](08-debugging-scenarios.md) | debugging | frontend | 1 | | |
+| P15-05 | pip rejects a pin the test accepts | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P15-06 | Helping a user check a wrong answer | [04](04-retrieval.md) | citations | deep-dive | 2 | | |
+| P15-07 | Eval results from files, not an API | [07](07-evaluation.md) | eval | design | 2 | | |
+| P15-08 | What UI time-to-first-token measures | [11](11-cs-core-touchpoints.md) | latency | ML, backend | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

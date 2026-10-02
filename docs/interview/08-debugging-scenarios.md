@@ -662,3 +662,56 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Reporting attack rates without a control.
 
 **Bridge.** "Same discipline as the closed-book baseline in Phase 12."
+
+---
+
+## Phase 15 questions
+
+---
+
+### Q: The UI shows dollar amounts in italics with the $ signs missing. Debug.
+**ID:** P15-04 · **Round:** frontend · behavioural  **Difficulty:** 1/5
+
+**30-second answer.** "Streamlit markdown treats $…$ as inline LaTeX, so 'list price $0.0003, billed $0.0000' became math. The fix is to escape $ in everything rendered as markdown: answer text and captions. I combined it with escaping HTML and '![' so the UI never renders an image even if one slipped past the API's output policy."
+
+**2-minute answer.** Method: reproduce with a string containing two dollar amounts; check the renderer's markdown dialect; fix at one function (safe_markdown) and test it in the headless app test, which asserts the escaped '\\$23.6' appears.
+
+**If they push — level 2.** *"Why not st.text?"* It loses bold and line breaks the model uses; escaping keeps formatting.
+
+**If they push — level 3.** *"Other markdown hazards?"* Underscores in identifiers, and pipes forming tables. Escape what you don't intend.
+
+**If they push — level 4.** *"Where else could it hide?"* Metric labels and widget labels also parse markdown.
+
+**Whiteboard it.**
+```text
+ "$0.0003, billed $0.0000" → LaTeX span → fix: text.replace("$", "\\$")
+```
+
+**Trap.** Fixing it by removing the dollar signs.
+
+**Bridge.** "Rendering is an output boundary, like the API's output policy."
+
+---
+
+### Q: pip says a pinned requirement is invalid, but your environment test passes. Why?
+**ID:** P15-05 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "The line was 'jsonschema-specifications==2025.9.1# Phase 15'. pip treats # as a comment only after whitespace, so it read '2025.9.1#' as the version. My test split each line on any '#', which is more lenient than pip, so it passed. I added a test that checks lines the way pip parses them."
+
+**2-minute answer.** Lesson: a test that re-implements a parser more leniently than the real one proves nothing about the real one. Either call the real parser (packaging.requirements) or replicate its exact rule. Root cause was my own formatting code padding names to 26 characters.
+
+**If they push — level 2.** *"Why not catch it in CI?"* It was caught: make install failed on the next run. The new test catches it before install.
+
+**If they push — level 3.** *"Use pip-tools?"* pip-compile generates the file and would avoid hand formatting; I kept a hand-annotated file for the phase comments.
+
+**If they push — level 4.** *"Hash pinning?"* --require-hashes would also pin artefacts, not just versions; a next step.
+
+**Whiteboard it.**
+```text
+ pip:  'pkg==1.0# note' → invalid ('1.0#' is not a version)
+ test: line.split('#')[0] → 'pkg==1.0' ✓  (too lenient)
+```
+
+**Trap.** Trusting a test that's more forgiving than production.
+
+**Bridge.** "Same lesson as the eval: measure with the real thing."

@@ -1,0 +1,35 @@
+%% Owner: docs/19-frontend.md — what the Streamlit script renders, and where each part gets its data.
+flowchart TB
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef eval fill:#ffedd5,stroke:#c2410c,color:#431407
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    app["ui/app.py<br/>(rerun top to bottom on every click)"]:::io
+    side["Sidebar: document selector<br/>companies · years · k"]:::retrieve
+    view{"View radio"}:::io
+    ask["Ask<br/>form → streamed answer"]:::generate
+    cites["Citations<br/>expander per [n]: chunk text + PDF page"]:::generate
+    evals["Eval results<br/>run picker · headline metrics · per-question table"]:::eval
+    ops["Live stats<br/>/stats p50 / p95 per stage"]:::io
+    client["ui/client.py<br/>HTTP + SSE parser"]:::io
+    results["ui/results.py<br/>reads eval/results/*.json"]:::eval
+    api["FastAPI<br/>/documents · /query/stream · /chunks/{id}/page.png · /stats"]:::generate
+    files[("eval/results/<br/>written once, never edited")]:::store
+    legend["Legend: purple = generation · green = retrieval · orange = eval · white = UI / IO · grey = files"]:::legend
+
+    app --> side
+    app --> view
+    view -->|"Ask"| ask
+    ask --> cites
+    view -->|"Eval results"| evals
+    view -->|"Live stats"| ops
+    side -->|"GET /documents (cached 5 min)"| client
+    ask -->|"POST /query/stream"| client
+    cites -->|"GET page.png (cached)"| client
+    ops -->|"GET /stats"| client
+    client -->|"HTTP only"| api
+    evals --> results
+    results -->|"read JSON"| files

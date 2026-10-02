@@ -41,7 +41,7 @@ Python 3.11 (`python3.11`; plain `python3` on this machine is 3.14) · FastAPI +
 
 ## Repo map
 
-`app/` (config, store; ingest/embed/retrieve/generate/api/telemetry arrive in their phases — no empty packages) · `tests/` · `scripts/` (render_diagrams.sh, where_it_sits.py, collect_cards.py) · `docker/initdb/` · `docs/` + `docs/diagrams/{src,out,build}` + `docs/interview/` · `eval/` (Phase 11; results never overwritten) · `data/` (git-ignored corpus).
+`app/` (config, telemetry, store, embed, ingest, retrieve, generate, api) · `ui/` (Streamlit; HTTP-only, test-enforced) · `tests/` · `scripts/` (render_diagrams.sh, where_it_sits.py, collect_cards.py) · `docker/initdb/` · `docs/` + `docs/diagrams/{src,out,build}` + `docs/interview/` · `eval/` (Phase 11; results never overwritten) · `data/` (git-ignored corpus).
 
 Layering is enforced by `tests/test_architecture.py`: config ← telemetry ← store/embed ← ingest/retrieve ← generate ← api. Change the table deliberately, never to silence the test.
 

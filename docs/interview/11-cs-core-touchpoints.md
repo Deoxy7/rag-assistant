@@ -432,3 +432,32 @@
 **Trap.** "GPU is always faster."
 
 **Bridge.** "Measuring each stage is what surfaced it at all."
+
+---
+
+## Phase 15 questions
+
+---
+
+### Q: What does 'time to first token' in your UI actually measure?
+**ID:** P15-08 · **Round:** ML screen · backend  **Difficulty:** 2/5
+
+**30-second answer.** "The client clock in ui/client.py: from sending POST /query/stream on the Streamlit server to the first delta event. It includes retrieval, the LLM's time to first token, the refusal gate holding back the first characters, and the stream filter holding text to a word boundary. It excludes the browser's render. Live, on gpt-oss-20b: 940 ms; sources arrived at 514 ms."
+
+**2-minute answer.** Contrast with the server-side stages from doc 17 (first_token 402 ms on qwen, unthrottled). Two clocks answer two questions: where time goes (server stages) and what users feel (client clock). For a refusal, the UI shows no first token, because the gate never releases a refusal's characters.
+
+**If they push — level 2.** *"Why is the first question slower?"* 2,178 ms vs 940: idle-GPU query embedding plus the cold first request (doc 17).
+
+**If they push — level 3.** *"How would you measure the browser part?"* The Performance API in the browser, or a Playwright test timing DOM changes.
+
+**If they push — level 4.** *"p95?"* Three samples aren't a distribution; /stats gives server-side p95 from request_log.
+
+**Whiteboard it.**
+```text
+ t0=send → sources 514 ms → first delta 940 ms → answer 1,019 ms  (client clock)
+ server: retrieve ~320 · first_token 402 · generate 862 (doc 17, qwen)
+```
+
+**Trap.** Quoting a server metric as user-perceived latency.
+
+**Bridge.** "Same split as list vs billed cost: say which number you mean."

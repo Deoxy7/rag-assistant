@@ -428,3 +428,32 @@
 **Trap.** Treating injection as a user-input validation problem only.
 
 **Bridge.** "Hence the trust boundary is the corpus, not just the API."
+
+---
+
+## Phase 15 questions
+
+---
+
+### Q: Explain Streamlit's execution model and the bugs it causes.
+**ID:** P15-03 · **Round:** viva  **Difficulty:** 2/5
+
+**30-second answer.** "A Streamlit app is a script that reruns top to bottom on every interaction; there are no event handlers. Anything that must survive a click goes in st.session_state; shared, slow reads go in st.cache_data. In my UI: the answer vanished on toggle without session state, an expander closed on its own toggle until bound to state, and st.tabs ran every tab's code on each rerun."
+
+**2-minute answer.** Walk the AMD example: submit → rerun with submitted=True, stream, store the answer; toggle → rerun with submitted=False, so the stream block is skipped and the answer is drawn from session state. The mental model is closer to a React render function than to a callback UI, just on the server.
+
+**If they push — level 2.** *"Session state vs cache?"* Session state is per user; the cache is shared and keyed by arguments. Mixing them up leaks one user's data to another or refetches shared data per user.
+
+**If they push — level 3.** *"Modules not reloading?"* Streamlit re-executes the script, not modules already in sys.modules (T-069).
+
+**If they push — level 4.** *"Long-running work?"* It blocks that session's rerun; for heavy jobs you'd hand off to a worker.
+
+**Whiteboard it.**
+```text
+ click → rerun script(top→bottom) with new widget values
+   survives: st.session_state (per user) · st.cache_data (shared)
+```
+
+**Trap.** Treating widgets like callback handlers.
+
+**Bridge.** "That's also why the UI's state is explicit and tested with AppTest."

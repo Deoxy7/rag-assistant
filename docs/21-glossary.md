@@ -17,6 +17,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Anisotropy (embeddings) | Embedding vectors cluster in a narrow cone, so unrelated texts still have positive cosine (0.37 here). | [07](07-embeddings.md) |
 | ANN (approximate nearest neighbour) | Search that visits part of an index and usually, not always, finds the true nearest vectors. | [08](08-database-schema.md) |
 | Answer relevance | Whether an answer addresses the question (LLM-judged, 1–5 → 0–1). | [15](15-eval-harness.md) |
+| AppTest | Streamlit's headless test runner: runs the script, sets widgets, inspects what was rendered. | [19](19-frontend.md) |
 | ASGI | Interface between async Python web servers (uvicorn) and apps (FastAPI); WSGI is the older synchronous one. | [14](14-api-and-streaming.md) |
 | AUROC | Probability a random positive scores above a random negative; 0.5 = chance. | [15](15-eval-harness.md) |
 | Autocommit | Driver mode in which every statement is committed as its own transaction. | [03](03-environment-and-infra.md) |
@@ -39,6 +40,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Citation | A pointer from a claim in an answer back to its source — here chunk id + page + character span. | [01](01-what-is-rag.md) |
 | Citation laundering | A false claim cited to a trusted source's number, e.g. via a forged source header. | [18](18-security-prompt-injection.md) |
 | Citation marker | The [n] the model writes after a claim, naming a numbered source. | [13](13-prompting-and-citations.md) |
+| Citation preview | The PDF page a citation points to, rendered with the cited chunk's blocks highlighted. | [19](19-frontend.md) |
 | Citation span | The stored (document, char_start, char_end) a marker maps to; never written by the model. | [13](13-prompting-and-citations.md) |
 | Closed-book | Answering from the model's own training knowledge, without retrieved sources. | [13](13-prompting-and-citations.md) |
 | Closed-book / open-book | Answering from memory alone vs answering with the documents available. | [01](01-what-is-rag.md) |
@@ -177,6 +179,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | PDF outline (bookmarks) | An optional table of contents stored inside a PDF; only Verizon's files have one here. | [04](04-corpus.md) |
 | PDF page vs printed folio | The page's position in the PDF (what we cite) vs the number printed on it; they can differ (43 vs 40). | [13](13-prompting-and-citations.md) |
 | PDF point | 1/72 inch; a US Letter page is 612 × 792 points. | [05](05-pdf-parsing.md) |
+| Perceived latency | Time until the user sees something change (first token), as opposed to total time. | [19](19-frontend.md) |
 | Percentile (p50 / p95 / p99) | The latency that 50% / 95% / 99% of requests beat; p50 is the median. | [02](02-architecture-overview.md) |
 | pgvector | Postgres extension adding a `vector` type, distance operators and HNSW / IVFFlat indexes. | [03](03-environment-and-infra.md) |
 | Phrase query | Terms that must be adjacent and in order: 'net' <-> 'revenu'. | [10](10-keyword-search.md) |
@@ -226,16 +229,19 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Section path | The chain of headings a block sits under, e.g. PART II › ITEM 8 › … | [05](05-pdf-parsing.md) |
 | Semantic chunking | Cutting text where similarity between consecutive sentence embeddings drops. | [06](06-chunking.md) |
 | Server-Sent Events (SSE) | One long HTTP response (text/event-stream) carrying event:/data: frames from server to client. | [14](14-api-and-streaming.md) |
+| Session state | Per-browser-session storage that survives Streamlit reruns (st.session_state). | [19](19-frontend.md) |
 | SET LOCAL | Change a setting until the end of the current top-level transaction. | [09](09-vector-search.md) |
 | Sign test | Paired test on wins vs losses between two systems over the same questions. | [15](15-eval-harness.md) |
 | Span / line / block (PyMuPDF) | Run of text in one font / spans on one baseline / lines grouped by PyMuPDF. | [05](05-pdf-parsing.md) |
 | Spearman rank correlation | Correlation of rankings rather than values; −1 means opposite orders. | [16](16-experiments-and-ablations.md) |
 | Special tokens ([CLS], [SEP]) | Tokens a BERT-style model adds around every input; they count against its 512-token limit. | [06](06-chunking.md) |
 | SSE (Server-Sent Events) | A one-way HTTP stream of events from server to client, used to stream answer tokens. | [14](14-api-and-streaming.md) (Phase 10) |
+| st.cache_data / st.cache_resource | Streamlit caches shared by all sessions: data copied per call / one shared object (e.g. a client). | [19](19-frontend.md) |
 | Stamp file | An empty file whose timestamp tells Make when a step last ran. | [03](03-environment-and-infra.md) |
 | Stemming | Rule-based cutting of words to a stem; can err ('Corning' → 'corn'). | [10](10-keyword-search.md) |
 | Stop word | A very common word ("the", "were") dropped by full-text search. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Strategy pattern | Interchangeable implementations behind one interface (the three chunkers). | [06](06-chunking.md) |
+| Streamlit rerun model | Streamlit runs the whole script top to bottom on every interaction; there are no event handlers. | [19](19-frontend.md) |
 | Structured logging | One machine-readable object (JSON) per log line, filterable by field. | [17](17-cost-and-observability.md) |
 | Structured output | An API mode that constrains the model's response to a JSON schema. | [13](13-prompting-and-citations.md) |
 | Tag (image) | A movable, human-readable name for an image version. | [03](03-environment-and-infra.md) |

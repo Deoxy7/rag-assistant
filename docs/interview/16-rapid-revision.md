@@ -140,6 +140,9 @@
 | Prompt Guard 2 vs pattern list? | 1 / 7 attacks caught vs 5 / 7; both 0 / 300 FP. |
 | NUL byte? | Was 500 (Postgres rejects 0x00) → 422 naming U+0000. |
 | SQL safety proof? | AST scan of every .py + hostile-string test; found 3 f-string SQLs in bench_vector.py. |
+| UI perceived latency? | live gpt-oss-20b: sources 514 ms · first token 940 ms · done 1,019 ms (client clock). |
+| Citation preview? | GET /chunks/{id}/page.png: blocks overlapping the span drawn on the page; sha256-checked PDF. |
+| UI boundary? | HTTP only (test-enforced); Streamlit radio views; AppTest headless test. |
 
 ## Top questions so far
 

@@ -51,7 +51,7 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 39 | Docker Compose vs managed Postgres vs bare metal | 0 | ✅ [03-environment-and-infra](../03-environment-and-infra.md) |
 | 40 | Multi-tenancy / document ACLs: row-level security vs filter vs separate indexes | 14 | ✅ [18-security-prompt-injection](../18-security-prompt-injection.md) |
 | 41 | Prompt-injection defences; where trust boundaries sit | 14 | ✅ [18-security-prompt-injection](../18-security-prompt-injection.md) |
-| 42 | Streamlit vs React/TypeScript for the demo | 15 | not yet written |
+| 42 | Streamlit vs React/TypeScript for the demo | 15 | ✅ [19-frontend](../19-frontend.md) |
 
 ## Mandatory cards
 
@@ -1596,6 +1596,49 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Your full stack still let a false figure through. Isn't that a failure? → A: It is, and I report it as one. No input filter can know 41,800 is false. What changed is that the citation points to the untrusted upload rather than to AMD's filing, so the reader can see it. The real fix is upstream: control what gets ingested, and label trust in the UI.
 
 **The trap.** Claiming a prompt instruction "prevents" prompt injection. It lowers the rate, and on this suite not to zero.
+
+### Card 42 — from [19-frontend](../19-frontend.md)
+
+#### Decision: Streamlit, in Python, calling the API over HTTP  (rejected: React + TypeScript SPA; Gradio; server-rendered HTML with htmx; Jupyter widgets)
+
+**One-line defence.** The UI's job is to demonstrate retrieval, citations and evals to an interviewer, not to be a product. Streamlit got all three views built and tested in one phase, in the language the rest of the system uses, with a headless test runner.
+
+**What problem is this even solving?** A human-usable way to ask questions, watch the answer stream, check every citation against its PDF page, and browse eval results, without writing a frontend build chain.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Streamlit | A Python script re-run per interaction; widgets pushed over a websocket | One language; dataframes, images, metrics built in; `AppTest` for headless tests | Rerun model (4 of the 5 UI bugs here came from it); limited layout control; a server process per app; not built for many concurrent users | Demos, internal tools, data apps |
+| React + TypeScript SPA | Browser app consuming the SSE stream directly | Full control; true per-token rendering; scales as static files | Build chain, second language, state management, its own tests; days not hours | A product with real users |
+| Gradio | Python components with a chat widget | Very fast chat demos | Less suited to the eval-browser and page-preview views | ML model demos |
+| htmx + server templates | FastAPI renders HTML; htmx swaps fragments; SSE extension | One server, no JS build | More hand-written UI code than Streamlit | Simple CRUD plus streaming |
+| Jupyter | Notebook cells | Zero setup for the author | Not a demo for someone else | Exploration only |
+
+**What would actually change if we swapped it.**
+- **React:** replace `ui/` with a TypeScript app; reuse the API unchanged (the HTTP-only rule makes that possible). Port the SSE parser to the browser's `EventSource`. One snag: `EventSource` only sends GET, so it would need either a fetch-based reader or a GET variant of `/query/stream`.
+- **Cost:** roughly a few days of work (my estimate).
+- **Gains:** true per-token rendering in the browser, and no Streamlit server process.
+
+**The decision rule.** Use the tool in your backend language while the UI is a window onto the system. Switch to a real frontend stack when the UI becomes the product: many users, custom interaction, design requirements.
+
+**Where our choice breaks.**
+- **Every user is a Python session on the Streamlit server**, and each rerun re-executes the script. Fine for a demo, wrong for 100 concurrent users.
+- **Streaming is server-relayed.** Tokens go API → Streamlit server → websocket → browser, adding a hop; the API itself stays SSE.
+- **Migration path:** the API contract doesn't change; build the SPA against it.
+
+**The number.** Client-side, measured by the UI on three live questions (gpt-oss-20b): sources 514–1,300 ms, first token 940–2,178 ms, total 1,019–2,446 ms. The slowest is the first question after idle (cold GPU, doc 17). 7 UI tests, including a headless run of the app, in about 6–9 s.
+
+**Interview script (3 sentences).** "The UI is a Streamlit script that talks to the API only over HTTP, which a test enforces, so it gets exactly the validation, injection guards and logging any client would. It streams the answer, and each citation opens the real PDF page with the cited blocks highlighted, from bounding boxes stored at parse time. I chose Streamlit because the UI is a demo of the system, not the product. The API contract is what would let a React app replace it without backend changes."
+
+**Follow-ups they will ask:**
+- Q: How does streaming work through Streamlit? → A: The Streamlit server reads the API's SSE stream and rewrites an `st.empty()` placeholder per delta; Streamlit pushes each update to the browser over its websocket. It's a relay, not browser-side SSE.
+- Q: Why not import the pipeline directly; wouldn't it be faster? → A: It would skip a network hop, but also validation, the injection guards and the request log. The UI would test a different system than the API serves.
+- Q: How do you test a Streamlit app? → A: `streamlit.testing.v1.AppTest` runs the script headless. I inject a fake client, set the text input, click the button and assert on the rendered markdown, errors, expanders and metrics.
+- Q: What broke? → A: Five things: `$` rendered as LaTeX; the expander closed on its own toggle; hidden-tab grids at zero width; a stale imported module after editing; and a UI started before the API showed an error until reload. Four of them come from the rerun model.
+- Q (the hard one): Would this survive 100 concurrent users? → A: Not well. Each session is a Python thread rerunning the script, and each stream holds a connection to the API through the Streamlit server. I haven't load-tested it. For real users I'd serve a static SPA that talks to the API directly.
+
+**The trap.** Presenting a Streamlit demo as the production frontend.
 
 ## Extra cards (decisions beyond the mandatory 42)
 

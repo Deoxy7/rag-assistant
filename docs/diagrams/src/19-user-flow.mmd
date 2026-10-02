@@ -1,0 +1,22 @@
+%% Owner: docs/19-frontend.md — one question from click to highlighted page, with what flows at each step.
+sequenceDiagram
+    autonumber
+    actor U as User (browser)
+    participant S as Streamlit server (ui/app.py)
+    participant A as FastAPI
+    participant L as LLM (Groq)
+    U->>S: click Ask (question, companies, years, k)
+    S->>A: POST /query/stream (JSON)
+    A-->>S: event: sources (top-k chunks)
+    Note over S: t_sources (client clock)
+    A->>L: instructions + fenced sources
+    L-->>A: tokens
+    A-->>S: event: delta … (after refusal gate + output policy)
+    Note over S: t_first_delta
+    S-->>U: re-render answer text (websocket)
+    A-->>S: event: answer (citations, usage, quarantined)
+    S-->>U: answer + citation expanders + timings
+    U->>S: toggle "Show the PDF page" on [1]
+    S->>A: GET /chunks/{id}/page.png
+    A-->>S: PNG (page with chunk's blocks highlighted)
+    S-->>U: image

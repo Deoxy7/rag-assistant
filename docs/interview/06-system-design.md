@@ -648,3 +648,57 @@
 **Trap.** Claiming an injection filter handles lies.
 
 **Bridge.** "Which is also why citations map to stored offsets, never model text."
+
+---
+
+## Phase 15 questions
+
+---
+
+### Q: Why Streamlit and not React for the UI?
+**ID:** P15-01 · **Round:** system design · project deep-dive  **Difficulty:** 2/5
+
+**30-second answer.** "Because the UI is a window onto the system for a demo, not the product. Streamlit gave me the streaming answer, citation previews, an eval-results browser and live stats in one phase, in Python, with a headless test runner. The UI talks to the API only over HTTP, enforced by a test, so a React app could replace it without any backend change."
+
+**2-minute answer.** Be honest about the costs: the rerun model caused four of my five UI bugs, every user is a Python session on the Streamlit server, and tokens are relayed API → Streamlit server → websocket instead of going straight to the browser. For real users I'd ship a static SPA against the same API. One catch: EventSource only does GET, so it needs a fetch-based stream reader.
+
+**If they push — level 2.** *"How many users would it handle?"* Not load-tested. Each session reruns the script in a thread on one server; I'd expect tens, not hundreds.
+
+**If they push — level 3.** *"What would you keep?"* The API contract and the client-side timing (sources / first token / done), which is what users feel.
+
+**If they push — level 4.** *"Accessibility, mobile?"* Streamlit handles basic layout; serious requirements are another reason for a real frontend.
+
+**Whiteboard it.**
+```text
+ browser ◀─ws─ Streamlit server ◀─SSE─ FastAPI ◀─ LLM
+ test: ui/ never imports app/ → React could replace ui/ unchanged
+```
+
+**Trap.** "Streamlit is production-ready for this."
+
+**Bridge.** "Card #42 has the full trade-off."
+
+---
+
+### Q: How do you show a user exactly where a citation came from?
+**ID:** P15-02 · **Round:** system design · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "Each citation maps to a stored chunk with a character span into the document's canonical text. At parse time every text block kept its PDF bounding box, so the API endpoint /chunks/{id}/page.png finds the blocks overlapping the chunk's span and draws them on the rendered page. It also checks that the PDF's sha256 matches the ingested file, so boxes are never drawn on a different document."
+
+**2-minute answer.** The model only writes [n]. The mapping to chunk, page and span is ours (doc 13), so the highlight can't be hallucinated. Limits: block-level, not sentence-level, highlighting; one page per request (a multi-page chunk has a page selector); rendering cost grows with dpi², so dpi is capped at 200 and responses are cached.
+
+**If they push — level 2.** *"Why server-side rendering?"* No PDF.js or PDF serving in the browser; the API controls exactly which file and page.
+
+**If they push — level 3.** *"Sentence-level highlights?"* Use PyMuPDF's search_for on the quoted span within the block's rectangle.
+
+**If they push — level 4.** *"Scanned PDFs?"* No text layer, so no blocks: you'd need OCR word boxes (out of scope).
+
+**Whiteboard it.**
+```text
+ [1] → chunk 5736 (AMD_2022_10K, p. 43, chars 185,634–186,892)
+   → blocks overlapping span → bboxes → page PNG with rectangles (sha256 checked)
+```
+
+**Trap.** Showing the chunk text and calling it a citation preview.
+
+**Bridge.** "This is where Phase 2's offsets pay off."

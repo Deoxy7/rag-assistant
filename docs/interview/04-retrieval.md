@@ -521,3 +521,32 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Citing one configuration's improvement as proof.
 
 **Bridge.** "Paired comparisons across many configurations are what make it convincing."
+
+---
+
+## Phase 15 questions
+
+---
+
+### Q: A user says an answer is wrong. How does your UI help them check it?
+**ID:** P15-06 · **Round:** project deep-dive  **Difficulty:** 2/5
+
+**30-second answer.** "Every sentence carries [n] markers; each expands to the exact chunk text, its character span, and the PDF page with the cited paragraph highlighted. Uncited claim sentences are listed as warnings, quarantined sources are shown with their signals, and 'All retrieved sources' shows what the model saw, including sources it didn't cite. So the user can see whether the error was retrieval, the model, or the document."
+
+**2-minute answer.** Tie it to failure analysis: if the right passage isn't among retrieved sources it's a retrieval miss (like G004); if it's there but the answer contradicts it, it's generation; if the cited page says the wrong thing, it's the document. The request id in the footer joins the user's report to the request_log row.
+
+**If they push — level 2.** *"Can users flag answers?"* Not built; a feedback button writing to request_log by request id would be next.
+
+**If they push — level 3.** *"What if the citation is valid but irrelevant?"* The highlight makes that visible; faithfulness against cited sources measures it offline (0.923).
+
+**If they push — level 4.** *"Privacy of reports?"* The request log stores a hash, not the question, so a report needs the user to share the question.
+
+**Whiteboard it.**
+```text
+ answer [1] → chunk text + span + highlighted page   · uncited sentences listed
+ retrieved-but-not-cited table · quarantined list · request id
+```
+
+**Trap.** "The model is usually right."
+
+**Bridge.** "That's the citation design from doc 13, made visible."

@@ -470,3 +470,32 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Claiming 'robust to prompt injection' from one suite.
 
 **Bridge.** "The ablation discipline from Phase 12, applied to security."
+
+---
+
+## Phase 15 questions
+
+---
+
+### Q: Why does your UI read eval results from files instead of an API?
+**ID:** P15-07 · **Round:** system design  **Difficulty:** 2/5
+
+**30-second answer.** "Eval results are artefacts of offline runs, written once with a timestamped name and never edited, not part of the serving system. Reading them from eval/results/ keeps the API's surface to what users need at query time. The viewer hides the 54 ablation cells and partial batches by default, and opens on the newest full RAG run: hit@5 0.769, correctness 0.721."
+
+**2-minute answer.** If others needed to see results remotely, I'd publish them as static artefacts (a CI job rendering the JSON to HTML) rather than serve them from the query API. That keeps the serving path small and its attack surface smaller.
+
+**If they push — level 2.** *"Isn't that inconsistent with HTTP-only?"* The rule is about the live system; results files are documents, like the docs.
+
+**If they push — level 3.** *"How do you compare two runs?"* Today, by switching; the ablation table is the comparison. A diff view is a small addition.
+
+**If they push — level 4.** *"Staleness?"* Files carry git commit and golden-file sha256 in their meta, so a viewer can show what produced them.
+
+**Whiteboard it.**
+```text
+ eval/results/YYYYMMDDTHHMMSSZ_name.json (write-once) → ui/results.py → table
+ default: newest eval with retrieval (gen-v2-rag): 0.769 · 0.760 · 0.721 · 0.923
+```
+
+**Trap.** Building an admin API for read-only files.
+
+**Bridge.** "Results are evidence; evidence shouldn't be mutable."

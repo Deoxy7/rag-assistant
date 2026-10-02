@@ -112,7 +112,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [16](16-experiments-and-ablations.md) | Experiments and ablations | 12 | ✅ written |
 | [17](17-cost-and-observability.md) | Cost and observability | 13 | ✅ written |
 | [18](18-security-prompt-injection.md) | Security and prompt injection | 14 | ✅ written |
-| [19](19-frontend.md) | Frontend | 15 | not yet written |
+| [19](19-frontend.md) | Frontend | 15 | ✅ written |
 | [20](20-deployment-and-demo.md) | Deployment and demo | 16 | not yet written |
 | [21](21-glossary.md) | Glossary | every phase | ✅ started |
 | [22](22-interview-prep.md) | Interview prep | 12, 16 | ✅ first version (Phase 12) |

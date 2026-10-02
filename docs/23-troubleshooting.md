@@ -503,3 +503,37 @@ APIStatusError: Error code: 402 - [{'error': {'code': 402, 'message': 'Your prep
 - **Symptom:** `scripts/bench_vector.py:130: f-string interpolates ['chunk_set', 'expr', 'model']` (and lines 103, 145).
 - **Cause:** Phase 5 benchmark code built a partial-index DDL and a query with f-strings and quoted the model name by hand (`'{model}'`). Not exploitable (all values were our constants), but it breaks the rule, and a model name containing `'` would have broken the SQL.
 - **Fix:** `psycopg.sql` composition (`sql.SQL` for our constant expressions, `sql.Literal` for values in DDL, bound parameters in the query). Rerun: recall@10 0.928 / 0.919 / 0.579, unchanged.
+
+## Phase 15
+
+### T-065 · "API not reachable … Connection refused" on first load — hit
+
+- **Cause:** the UI was opened while the API was still loading the embedding and reranker models (its port wasn't accepting yet).
+- **Fix:** none needed beyond a clear message ("Start it with `make serve`") and `st.stop()`. `st.cache_data` doesn't cache exceptions, so a reload recovers.
+
+### T-066 · Citation expander closed itself when its page toggle was switched on — hit
+
+- **Cause:** a widget change reruns the whole script; the expander was redrawn collapsed (its default).
+- **Fix:** `st.expander(..., expanded=bool(st.session_state.get(f"show-{n}")))`.
+
+### T-067 · Data grid in a non-default tab drawn as one narrow column — hit
+
+- **Cause:** `st.tabs` renders all tabs at once; the canvas-based grid in a hidden tab measured zero width. Tabs also execute every tab's code per rerun (a `/stats` call on each interaction).
+- **Fix:** an `st.radio` view selector that runs only the selected view.
+
+### T-068 · Dollar amounts rendered as LaTeX — hit
+
+- **Symptom:** "list price `0.0003, billed` 0.0000" in monospace with the `$` signs gone; answers with two dollar figures become italic math.
+- **Cause:** Streamlit markdown treats `$…$` as inline LaTeX.
+- **Fix:** `safe_markdown` escapes `$` (and `![`, and HTML); captions use `\$`.
+
+### T-069 · `AttributeError: module 'ui.results' has no attribute 'default_index'` after editing — hit
+
+- **Cause:** Streamlit's file watcher re-executes `ui/app.py` but keeps already-imported modules (`ui.results`) cached in `sys.modules`.
+- **Fix:** restart `make ui` after editing modules other than the script.
+
+### T-070 · pip rejected a pinned line: no space before `#` — hit (my bug)
+
+- **Error:** `ERROR: Invalid requirement: 'jsonschema-specifications==2025.9.1# Phase 15 (via streamlit)': Expected comma (within version specifier), semicolon (after version specifier) or end`
+- **Cause:** I padded names to 26 characters with an f-string; this name is longer, so the comment touched the version. `tests/test_environment.py` splits on any `#`, so it didn't notice.
+- **Fix:** the space restored; new test `test_inline_comments_are_separated_by_whitespace` reads the file the way pip does.
