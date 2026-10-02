@@ -134,6 +134,12 @@
 | Cost per answer? | ~$0.0016–0.0026 at list price ($2.60/1k); billed $0 (free tier). |
 | Idle-GPU embedding? | MPS 84–226 ms after idle vs 17 warm; CPU 21–38 ms. |
 | What's logged? | request_id, question sha256 + length, tokens, cost, stage timings; never the text. |
+| Injection suite result? | gpt-oss-20b, 28 trials: template 1 6 · template 2 3 · full 1 (A2, cited to the upload). |
+| Laundering? | Forged "[1] AMD … 10-K" header: cited to real [1] before, to the upload after (1 → 0). |
+| Pattern-list false positives? | 0 / 69,176 chunks (9 chunk sets). |
+| Prompt Guard 2 vs pattern list? | 1 / 7 attacks caught vs 5 / 7; both 0 / 300 FP. |
+| NUL byte? | Was 500 (Postgres rejects 0x00) → 422 naming U+0000. |
+| SQL safety proof? | AST scan of every .py + hostile-string test; found 3 f-string SQLs in bench_vector.py. |
 
 ## Top questions so far
 

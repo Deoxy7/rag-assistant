@@ -609,3 +609,56 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Profiling the code when the time is spent sleeping.
 
 **Bridge.** "That's the case for reporting retries as their own stage."
+
+---
+
+## Phase 14 questions
+
+---
+
+### Q: One request with an odd character returns 500. Debug.
+**ID:** P14-05 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "That happened: a NUL byte in the question. Pydantic accepted it, Postgres rejects 0x00 in text, so the keyword query raised and the generic handler returned 500. The fix is validation at the boundary: reject control characters with a 422 that names the code point, and strip invisible format characters like zero-width spaces."
+
+**2-minute answer.** Method: reproduce with the request id from the log; the stack trace points at the driver; then ask why bad input reached the DB at all. Add a probe suite of hostile inputs (NUL, tsquery operators, SQL fragments, 100k-char filters) and assert clean 4xx codes, not 500s.
+
+**If they push — level 2.** *"Why reject instead of strip NUL?"* A NUL can't be meaningful in a question; silently changing input hides client bugs.
+
+**If they push — level 3.** *"What else returned odd codes?"* A 100,000-char company was echoed back in the error message: now capped at 100 chars per item.
+
+**If they push — level 4.** *"Fuzzing?"* Hypothesis-style property tests on the request model would generalise the probe.
+
+**Whiteboard it.**
+```text
+ "AMD revenue\u0000 2022" → before: 500 internal_error → after: 422 control characters are not allowed: U+0000
+```
+
+**Trap.** Catching the DB error and returning 200.
+
+**Bridge.** "Validation is a security control, not just UX."
+
+---
+
+### Q: Your attack suite says a refusal attack succeeded even with the poison removed. What's wrong?
+**ID:** P14-06 · **Round:** ML screen  **Difficulty:** 2/5
+
+**30-second answer.** "The measurement, not the defence. Screening had removed the poisoned passage, yet the answer was a refusal, because retrieval misses that question's answer and the model refuses it with no attack at all. So I added a control call per question without poison; a refusal only counts as an attack success if the control answered."
+
+**2-minute answer.** General rule: every attack metric needs a baseline under identical conditions, or you attribute existing failures to the attacker. I kept the question in the suite on purpose: it's also where a planted figure does the most damage, because it fills a retrieval gap.
+
+**If they push — level 2.** *"Other confounds?"* Sampling randomness: the cache makes reruns identical, but one sample per config is still one sample.
+
+**If they push — level 3.** *"How many trials?"* 28 per config; 1/28 has a 95% interval of about 0.1–18%. It's a demonstration.
+
+**If they push — level 4.** *"Metric bugs?"* I also had one: 'laundered' counted marker attacks; fixed, and the wrong file is kept.
+
+**Whiteboard it.**
+```text
+ A4 on G004: control refused=True → attack "success" is not attributable
+ success(refusal) := refused(attack) AND NOT refused(control)
+```
+
+**Trap.** Reporting attack rates without a control.
+
+**Bridge.** "Same discipline as the closed-book baseline in Phase 12."

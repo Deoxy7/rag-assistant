@@ -131,6 +131,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P13-06 | 20 s latency with a fast model | [08](08-debugging-scenarios.md) | debugging | ML, backend | 2 | | |
 | P13-07 | Log a hash, not the question | [03](03-fundamentals.md) | privacy | viva, backend | 2 | | |
 | P13-08 | Keeping caches out of latency/cost numbers | [07](07-evaluation.md) | eval | ML, deep-dive | 2 | | |
+| P14-01 | Defending RAG against prompt injection in documents | [06](06-system-design.md) | security | design, ML | 4 | | |
+| P14-02 | A document contains a false figure | [06](06-system-design.md) | security | design, deep-dive | 3 | | |
+| P14-03 | Proving there's no SQL injection | [05](05-database-and-sql.md) | security, DB | backend | 3 | | |
+| P14-04 | Multi-tenant isolation: filters vs RLS | [05](05-database-and-sql.md) | security, DB | design | 4 | | |
+| P14-05 | One odd character returns 500 | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P14-06 | Refusal attack "succeeded" with the poison removed | [08](08-debugging-scenarios.md) | eval | ML | 2 | | |
+| P14-07 | Direct vs indirect prompt injection | [03](03-fundamentals.md) | security | viva, ML | 2 | | |
+| P14-08 | Evaluating injection defences | [07](07-evaluation.md) | eval, security | ML, deep-dive | 3 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

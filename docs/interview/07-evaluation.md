@@ -441,3 +441,32 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Celebrating a 26 s "61-question eval".
 
 **Bridge.** "Every number in the docs says how it was measured."
+
+---
+
+## Phase 14 questions
+
+---
+
+### Q: How did you evaluate your prompt-injection defences?
+**ID:** P14-08 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "Seven attacks I wrote: override, forged source header, image exfiltration, forced refusal, fence escape, phishing link, and a paraphrase with no trigger words. For four questions each, the attack is inserted at rank 2 into the real retrieval results and sent to a real model under four configurations, with a no-poison control per question. On gpt-oss-20b: 6 of 28 succeeded on the old system, 3 with the new prompt only, 1 with everything."
+
+**2-minute answer.** Report per layer, because they differ in kind: the screen and output policy are deterministic and unit-tested; the prompt is probabilistic. Name the limits: one model, n=28, self-written attacks, one position. The production generator's rerun waits on its daily quota. And the false-positive side: 0 of 69,176 real chunks flagged.
+
+**If they push — level 2.** *"Why rank 2?"* A poison that repeats the question's words would rank high; not rank 1, so the result isn't just 'the top source wins'.
+
+**If they push — level 3.** *"Adaptive attackers?"* They'd beat a fixed suite; the suite is a regression test, not a proof.
+
+**If they push — level 4.** *"Why a separate model?"* Groq's per-model daily quota for qwen was exhausted; gpt-oss-20b has its own.
+
+**Whiteboard it.**
+```text
+ 7 attacks × 4 questions × {v1, v2, v2+out, full} + control
+ successes: 6 · 3 · 3 · 1   laundered: 1 → 0   FP: 0 / 69,176
+```
+
+**Trap.** Claiming 'robust to prompt injection' from one suite.
+
+**Bridge.** "The ablation discipline from Phase 12, applied to security."

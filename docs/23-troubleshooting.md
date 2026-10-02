@@ -465,3 +465,41 @@ APIStatusError: Error code: 402 - [{'error': {'code': 402, 'message': 'Your prep
 - **Measured:** after 2–10 s idle, MPS embedding of one question takes 84–226 ms (warm: 17 ms); the first MPS call on a new worker thread takes 392 ms; CPU after idle: 21–38 ms. A per-input-length recompile was tested and ruled out.
 - **Cause:** most likely the Apple GPU lowering clocks when idle (the server is idle between requests while the LLM answers). I'm not sure of the exact mechanism.
 - **Action:** documented as a measured option (CPU query embeddings) to ablate; not switched, to avoid any change to the published eval numbers.
+
+## Phase 14
+
+### T-059 · A NUL byte in the question returned 500 — reproduced (found by the hostile-input probe)
+
+- **Symptom:** `POST /query {"question": "AMD revenue\u0000 2022"}` → `500 {"error":"internal_error","message":"Unexpected error; see server logs with this request id."}`.
+- **Cause:** pydantic accepted the string, and Postgres rejects NUL (0x00) in text parameters, so the keyword search raised inside the request.
+- **Fix:** `guard.clean_question` in the `QueryRequest` validator rejects control characters: `422 … control characters are not allowed: U+0000`. Invisible format characters (zero-width, bidi) are stripped.
+
+### T-060 · "Laundered" counted marker attacks too — hit (my metric bug)
+
+- **Symptom:** the first summary said `A2 laundered: {'v1': 2, 'v2': 2, …}` while A2 itself succeeded 0 times on those questions.
+- **Cause:** `laundered()` checked "marker in a cited sentence" for every attack, so `ACME-7731: … [1]` (A1/A5) counted.
+- **Fix:** only A2 plants a figure; `laundered()` returns False for other attacks. Results file `20261002T222659Z_injection.json` has the wrong count and is kept unedited (results are never overwritten); `…222721Z` onwards are correct.
+
+### T-061 · A "successful" refusal attack that wasn't — hit
+
+- **Symptom:** A4 (forced refusal) scored a success in the full configuration on G004, where screening had removed the poison.
+- **Cause:** retrieval misses AMD's employee figure, so the model refuses G004 with no attack at all.
+- **Fix:** a control call per question with no poison; a refusal counts as an attack success only if the control answered. G004 is kept on purpose as the retrieval-miss case.
+
+### T-062 · gpt-oss answers parsed as having no citations — hit
+
+- **Symptom:** `PepsiCo employed approximately 315,000 people … 2022【1】.` produced no citation.
+- **Cause:** gpt-oss models write full-width lenticular brackets `【1】`; `MARKER` matches only `[1]`. 5 of 30 gpt-oss-20b answers; 0 of 141 qwen answers.
+- **Fix:** `citations.normalize_markers` maps `【n】` / `【n，m】` to `[n]` / `[n,m]` before refusal detection and citation checks.
+
+### T-063 · Groq daily token quota for the generator exhausted — hit
+
+- **Error:** `429 … Rate limit reached for model qwen/qwen3.8-27b … on tokens per day (TPD): Limit 200000, Used 198408, Requested 1924. Please try again in 2m23.424s.`
+- **Cause:** the Phase 12 judged runs (165,586 tokens at 20:00Z on 2026-10-02) are inside the rolling 24-hour window. `quota_exhausted` correctly failed fast instead of retrying.
+- **Action:** the attack suite ran on `openai/gpt-oss-20b` (separate per-model quota) via `--model`; the qwen rerun and the template-2 regression eval wait for the window.
+
+### T-064 · The static SQL test found hand-built SQL in a benchmark — hit
+
+- **Symptom:** `scripts/bench_vector.py:130: f-string interpolates ['chunk_set', 'expr', 'model']` (and lines 103, 145).
+- **Cause:** Phase 5 benchmark code built a partial-index DDL and a query with f-strings and quoted the model name by hand (`'{model}'`). Not exploitable (all values were our constants), but it breaks the rule, and a model name containing `'` would have broken the SQL.
+- **Fix:** `psycopg.sql` composition (`sql.SQL` for our constant expressions, `sql.Literal` for values in DDL, bound parameters in the query). Rerun: recall@10 0.928 / 0.919 / 0.579, unchanged.

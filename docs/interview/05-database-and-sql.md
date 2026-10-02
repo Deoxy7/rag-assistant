@@ -318,3 +318,57 @@
 **Trap.** Averaging latencies, or counting missing stages as 0 ms.
 
 **Bridge.** "That query is what GET /stats runs per stage."
+
+---
+
+## Phase 14 questions
+
+---
+
+### Q: How do you know there's no SQL injection anywhere in the codebase?
+**ID:** P14-03 · **Round:** backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "Two tests. Behavioural: hostile strings in the question and filters ('); DROP TABLE, tsquery operators) run against the real database and the chunk count is unchanged. Static: an AST scan of every Python file flags any execute() or sql.SQL() whose SQL text comes from %, +, .format() or an f-string with runtime values. Its first run found three violations in a benchmark script, which I fixed with psycopg's sql.Literal and bound parameters."
+
+**2-minute answer.** Explain binding: Postgres parses the statement before it sees the value, so a value can't become code. Where parameters aren't allowed (DDL, SET), use sql.Literal / sql.Identifier, which quote correctly. The static test exists because review misses things; it has one allow-listed name (a constant WHERE fragment) and a self-test proving it catches the four patterns.
+
+**If they push — level 2.** *"Is the scan complete?"* No: SQL built in a helper and passed by variable isn't traced. It catches the common shapes; code review covers the rest.
+
+**If they push — level 3.** *"ORMs?"* They bind by default but raw-SQL escape hatches exist; the same scan applies to them.
+
+**If they push — level 4.** *"Second-order injection?"* Stored text later used in SQL; same rule — it's still a value, always bound.
+
+**Whiteboard it.**
+```text
+ conn.execute("... WHERE company = ANY(%s)", (companies,))   ✅ bound
+ conn.execute(f"... WHERE company = '{name}'")                ❌ flagged by the AST test
+```
+
+**Trap.** "We escape quotes."
+
+**Bridge.** "Same principle as fencing: keep data and code in separate channels."
+
+---
+
+### Q: Multi-tenant RAG: how do you stop tenant A's question retrieving tenant B's documents?
+**ID:** P14-04 · **Round:** system design  **Difficulty:** 4/5
+
+**30-second answer.** "Today there's one public corpus, so isolation is metadata filters inside both retrieval queries, with a test that tries to pull other companies' text through vector, keyword and hybrid search. For real tenants I'd enforce it in the database with row-level security: tenant_id on documents, chunks and embeddings, a policy, FORCE RLS, and SET LOCAL app.tenant per transaction, so a forgotten WHERE returns nothing."
+
+**2-minute answer.** Cover the second-order leaks: the LLM cache (add tenant to the key for private data), the request log, backups, and deletion. And measure HNSW with the policy: filtered ANN needs iterative scans (doc 09: 10.0 of 10 results vs 3.8 with post-filtering).
+
+**If they push — level 2.** *"Pooling?"* SET LOCAL inside a transaction, never SET on a pooled session.
+
+**If they push — level 3.** *"Separate indexes per tenant?"* Good for a few large tenants; index count explodes with many.
+
+**If they push — level 4.** *"Timing side channels?"* Possible in principle; not measured.
+
+**Whiteboard it.**
+```text
+ CREATE POLICY t ON chunks USING (tenant_id = current_setting('app.tenant')::int);
+ ALTER TABLE chunks FORCE ROW LEVEL SECURITY;  -- BEGIN; SET LOCAL app.tenant = 7; …
+```
+
+**Trap.** Calling an application WHERE clause "isolation".
+
+**Bridge.** "Card #40 has the full trade-off."

@@ -162,3 +162,12 @@ Decisions: exact-match caches only (no semantic cache); in-house tracing + reque
 Open:     request_log has no TTL; CPU-query-embedding ablation; client-side pacing for the 8k TPM limit.
 Next:     Phase 14 — security.
 
+## Phase 14 — Security & prompt injection   [DONE 2026-10-03]
+
+Built:    `app/generate/guard.py` (clean_question, defuse + fence_source, injection_signals pattern list, enforce_output_policy, StreamingOutputFilter); prompt template "2" (fenced sources, trust-boundary instructions; template "1" kept); `answer.screen` quarantine (drop|flag|off); output policy on answers and streamed deltas; `normalize_markers` for 【n】; API: question control-char validation (NUL was a 500), company names ≤ 100 chars, `quarantined` in responses, counters `sources_quarantined`, `source_text_defused`, `output_*_removed`; settings PROMPT_TEMPLATE / INJECTION_FILTER / OUTPUT_POLICY; `eval/injection.py` (7 attacks, controls, `--model`); `scripts/compare_injection_detectors.py`; `scripts/bench_vector.py` SQL rewritten with psycopg.sql; `tests/test_security.py` (30, incl. AST SQL scan and real-DB filter enforcement).
+Docs:     `docs/18-security-prompt-injection.md` (cards #40, #41, x-output-policy); doc 13 note; 8 interview questions (P14-01…P14-08); T-059…T-064.
+Diagrams: `18-threat-model`, `18-injection-defences`, generated `18-where-it-sits`.
+Numbers:  gpt-oss-20b, 7 attacks × 4 questions: successes template 1 6/28 · template 2 3/28 · +output policy 3/28 · full 1/28 (A2 on G004, cited to the upload); laundered 1 → 0; pattern list 0/69,176 false positives; detectors on attacks: patterns 5/7, Prompt Guard 2 (86M) 1/7, both 0/300 FP; bench_vector recall unchanged 0.928/0.919/0.579.
+Open:     rerun `python -m eval.injection` on qwen/qwen3.8-27b and the template-2 regression eval (`python -m eval.run --name gen-v3-template2 --generate --judge`) once Groq's qwen daily quota (T-063) frees; ingestion provenance / trust labels; RLS when there are tenants.
+Next:     Phase 15 — Streamlit UI.
+

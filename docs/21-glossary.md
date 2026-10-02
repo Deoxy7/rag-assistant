@@ -37,6 +37,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Chunk overlap | Repeating the last tokens of one chunk at the start of the next so boundary-cut sentences survive. | [06](06-chunking.md) |
 | Chunking strategy | How boundaries are chosen: fixed windows, recursive (¶/line/sentence), structure-aware, semantic. | [06](06-chunking.md) |
 | Citation | A pointer from a claim in an answer back to its source — here chunk id + page + character span. | [01](01-what-is-rag.md) |
+| Citation laundering | A false claim cited to a trusted source's number, e.g. via a forged source header. | [18](18-security-prompt-injection.md) |
 | Citation marker | The [n] the model writes after a claim, naming a numbered source. | [13](13-prompting-and-citations.md) |
 | Citation span | The stored (document, char_start, char_end) a marker maps to; never written by the model. | [13](13-prompting-and-citations.md) |
 | Closed-book | Answering from the model's own training knowledge, without retrieved sources. | [13](13-prompting-and-citations.md) |
@@ -55,15 +56,18 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Context window | The maximum number of tokens (input + output) a model can handle in one call. | [01](01-what-is-rag.md) |
 | Contextvar | Python variable private to the current thread or async task; used to find the active trace. | [17](17-cost-and-observability.md) |
 | Contrastive training | Training that pulls matching pairs' vectors together and pushes non-matching ones apart. | [07](07-embeddings.md) |
+| Control vs format character | Unicode Cc (NUL, bell; rejected) vs Cf (zero-width, bidi; invisible, stripped). | [18](18-security-prompt-injection.md) |
 | Controlled experiment | Only the studied factors vary; everything else is held fixed. | [16](16-experiments-and-ablations.md) |
 | COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
 | Corpus manifest | A committed list of corpus files with source URL, size and sha256 (`data/manifest.json`). | [04](04-corpus.md) |
 | Cosine similarity | a·b / (‖a‖‖b‖): cosine of the angle between vectors; equals the dot product for unit vectors. | [07](07-embeddings.md) |
 | Cross-encoder | A model that reads the query and a passage *together* to score relevance; accurate but slower. | [12](12-reranking.md) |
 | Custom vs generic plan | Plan built with actual parameter values vs one cached plan built without them (after 5 executions). | [09](09-vector-search.md) |
+| Data poisoning | Planting false content in the corpus or training data so the system repeats it. | [18](18-security-prompt-injection.md) |
 | DCG / nDCG | Discounted cumulative gain Σ(2^g−1)/log2(i+1); nDCG divides by the ideal ordering's DCG. | [15](15-eval-harness.md) |
 | Dehyphenation | Rejoining a word hyphenated across a line break. | [05](05-pdf-parsing.md) |
 | Digest | A sha256 hash of an image's content; unlike a tag it can never point at different bytes. | [03](03-environment-and-infra.md) |
+| Direct prompt injection | A user typing instructions into the question to override the system's rules. | [18](18-security-prompt-injection.md) |
 | Distance operator | pgvector operator comparing two vectors: `<->` L2, `<=>` cosine distance, `<#>` negative inner product. | [03](03-environment-and-infra.md) |
 | Docker Compose | A YAML file declaring containers, ports and volumes, and the command that makes them match it. | [03](03-environment-and-infra.md) |
 | Document frequency (df) | Number of documents (chunks) containing a term. | [10](10-keyword-search.md) |
@@ -84,6 +88,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Factory pattern | One function that turns configuration into the right implementation (`get_chunker`). | [06](06-chunking.md) |
 | Faithfulness | Share of an answer's claims supported by the given sources (LLM-judged). | [15](15-eval-harness.md) |
 | False-refusal rate | Share of answerable questions the system refused. | [15](15-eval-harness.md) |
+| Fence / defuse | Wrapping each source in tags, and escaping any tag- or header-like text inside it. | [18](18-security-prompt-injection.md) |
 | Fine-tuning | Continuing to train an already-trained model on new examples, changing its weights. | [01](01-what-is-rag.md) |
 | finish_reason | Why a model stopped: "stop" (done) or "length" (hit the token cap: answer truncated). | [13](13-prompting-and-citations.md) |
 | Fiscal year | A company's accounting year, which need not match the calendar year. | [04](04-corpus.md) |
@@ -110,6 +115,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | IDF (inverse document frequency) | ln(1 + (N − df + 0.5)/(df + 0.5)): high for rare terms. | [10](10-keyword-search.md) |
 | Image (container) | A read-only, layered template from which containers are started. | [03](03-environment-and-infra.md) |
 | Index (search) | A data structure built ahead of time so that search doesn't scan everything. | [01](01-what-is-rag.md) |
+| Indirect prompt injection | Instructions hidden in content the system retrieves (a document), not typed by the user. | [18](18-security-prompt-injection.md) |
 | Interaction effect | A factor's effect depends on another factor's level. | [16](16-experiments-and-ablations.md) |
 | Interleaving | When two fused lists don't overlap, RRF alternates them (#1, #1, #2, #2…), because equal ranks earn equal scores. | [11](11-hybrid-rrf.md) |
 | Item (10-K) | A numbered section of a 10-K (Item 1A Risk Factors, Item 7 MD&A, Item 8 Financial Statements). | [04](04-corpus.md) |
@@ -148,6 +154,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | NFKC normalisation | Unicode normal form that folds compatibility characters (non-breaking space, ligatures) to plain forms. | [05](05-pdf-parsing.md) |
 | Non-breaking space | U+00A0, a space that looks normal but isn't to many tools; inflates token counts and breaks exact matching. | [04](04-corpus.md) |
 | Non-parametric memory | Knowledge stored outside the model in a searchable index (term from Lewis et al., 2020). | [01](01-what-is-rag.md) |
+| Nonce | A random, single-use value, e.g. an unguessable delimiter. | [18](18-security-prompt-injection.md) |
 | Norm | A vector's length: ‖[3,4]‖ = 5. | [07](07-embeddings.md) |
 | Normalisation (vectors) | Dividing a vector by its norm so its length is 1. | [07](07-embeddings.md) |
 | Observability | Being able to answer new questions about a running system from what it records (logs, traces, metrics). | [17](17-cost-and-observability.md) |
@@ -159,8 +166,10 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | OpenAPI | Machine-readable API description generated from the request/response models (/openapi.json, /docs). | [14](14-api-and-streaming.md) |
 | Operating point | One chosen threshold together with its error rates. | [15](15-eval-harness.md) |
 | Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
+| Output policy | Code rules applied to the model's answer before display (here: no links, images or HTML). | [18](18-security-prompt-injection.md) |
 | p50 / p95 | Median / 95th-percentile latency: half are faster than p50, 1 in 20 slower than p95. | [17](17-cost-and-observability.md) |
 | Paired comparison | Comparing two systems on the same items, counting only where they differ. | [16](16-experiments-and-ablations.md) |
+| Parameter binding | Sending SQL and its values separately so a value can never become SQL code. | [18](18-security-prompt-injection.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
 | Parser version (cache key) | Version string stored with parsed output; bumping it forces a re-parse. | [05](05-pdf-parsing.md) |
@@ -183,6 +192,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Protocol (Python typing) | An interface defined by attributes/methods; any class with them qualifies, no inheritance. | [06](06-chunking.md) |
 | QPS | Queries per second. | [02](02-architecture-overview.md) |
 | Quantisation | Storing vector numbers with fewer bits (float16, 1-bit) to save memory. | [09](09-vector-search.md) |
+| Quarantine (source) | Keeping a retrieved chunk out of the prompt because it looks like an injection; reported to the caller. | [18](18-security-prompt-injection.md) |
 | Query instruction | Prefix bge v1.5 expects on queries: 'Represent this sentence for searching relevant passages: '. | [07](07-embeddings.md) |
 | Query planner | The Postgres component that picks a plan (indexes, join order) by estimated cost. | [09](09-vector-search.md) |
 | Query routing | Sending each query to the retriever suited to its type (e.g. figures → keyword) instead of fusing. | [11](11-hybrid-rrf.md) |
@@ -203,8 +213,10 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Retrieval depth | How many results each retriever returns before fusion (50 here); must exceed the final k. | [11](11-hybrid-rrf.md) |
 | Retrieve-then-rerank funnel | Cheap search over everything, then an expensive model over the top few. | [12](12-reranking.md) |
 | Role (Postgres) | A database user identity you log in as. | [03](03-environment-and-infra.md) |
+| Row-level security (RLS) | A Postgres policy that adds a filter to every query on a table for a role. | [18](18-security-prompt-injection.md) |
 | RRF (Reciprocal Rank Fusion) | Merging ranked lists by summing 1 / (k + rank) for each item across lists. | [11](11-hybrid-rrf.md) |
 | RRF k constant | Added to every rank before inverting; small k favours each list's top hit, large k favours agreement (k = 60 default). | [11](11-hybrid-rrf.md) |
+| Rule of three | With 0 events in n trials, 3/n is an approximate 95% upper bound on the rate. | [18](18-security-prompt-injection.md) |
 | Ruled / unruled table | A table drawn with lines (found by pdfplumber's default strategy) vs one aligned by spacing only. | [05](05-pdf-parsing.md) |
 | Running header / footer | A line repeated at the top or bottom of most pages; noise for search. | [04](04-corpus.md) |
 | Running-header fingerprint | Band text with digits → '#' and leading/trailing page numbers removed, used to detect repeats. | [05](05-pdf-parsing.md) |
@@ -245,6 +257,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Transaction | A group of statements that all happen or none do. | [03](03-environment-and-infra.md) |
 | Transitive dependency | A package required by your packages rather than by your code directly. | [03](03-environment-and-infra.md) |
 | Truncation | Silently dropping input beyond a model's token limit. | [06](06-chunking.md) |
+| Trust boundary | Where data passes from something you control to something you don't, or back. | [18](18-security-prompt-injection.md) |
 | ts_rank / ts_rank_cd | Postgres rankings by term frequency / by cover density (proximity); neither uses IDF. | [10](10-keyword-search.md) |
 | tsquery | Postgres boolean query over lexemes: & AND, | OR, ! NOT, <-> followed by. | [10](10-keyword-search.md) |
 | tsvector | Postgres type holding a document's lexemes with their positions. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |

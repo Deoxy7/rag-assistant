@@ -111,7 +111,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [15](15-eval-harness.md) | Evaluation harness | 11 | ✅ written (full judged run in Phase 12) |
 | [16](16-experiments-and-ablations.md) | Experiments and ablations | 12 | ✅ written |
 | [17](17-cost-and-observability.md) | Cost and observability | 13 | ✅ written |
-| [18](18-security-prompt-injection.md) | Security and prompt injection | 14 | not yet written |
+| [18](18-security-prompt-injection.md) | Security and prompt injection | 14 | ✅ written |
 | [19](19-frontend.md) | Frontend | 15 | not yet written |
 | [20](20-deployment-and-demo.md) | Deployment and demo | 16 | not yet written |
 | [21](21-glossary.md) | Glossary | every phase | ✅ started |

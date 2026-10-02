@@ -2,6 +2,8 @@
 
 **Status:** written in Phase 9 (2026-10-02). Providers: OpenAI (no credits) → Gemini (2026-10-02) → **Groq since 2026-10-03**: `qwen/qwen3.8-27b` generates and `openai/gpt-oss-120b` judges, both through OpenAI-compatible Chat Completions. Gemini's free tier allowed 20 Flash requests/day (T-052), and the project then returned 402 (T-054). The client sections below were written for Gemini and apply unchanged to Groq: only settings differ. Pipeline numbers were measured with the deterministic fake model; real-model numbers are in [16](16-experiments-and-ablations.md). Owns: context window, token budget, context packing, lost in the middle, grounding, citation marker, citation span, refusal / abstention, temperature, structured output, prompt version, response cache, OpenAI-compatible endpoint, thinking tokens, exponential backoff.
 
+> **Phase 14 update:** the prompt shown in this doc is template 1. The default is now template 2: sources are fenced in `<source id="n">` tags, forged headers are defused, and links are stripped from answers, after an attack suite showed template 1 could be steered (6 of 28 attacks). Template 1 is kept for comparison (`PROMPT_TEMPLATE=1`); the answer-quality numbers here and in doc 16 were measured with template 1. See [18](18-security-prompt-injection.md).
+
 > **Prerequisites:** [12-reranking.md](12-reranking.md) (the ranked hits that become sources). Numbers come from `make bench-answer ARGS="--provider fake"`, `make ask`, `scripts/render_citation_example.py` and `tests/test_generate.py`, run on 2026-10-02.
 
 ---

@@ -1,0 +1,30 @@
+%% Owner: docs/18-security-prompt-injection.md — who can put text where, and which boundary each crossing passes.
+flowchart TB
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#172554
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef threat fill:#ffffff,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    user["API caller<br/>(untrusted input)"]:::threat
+    author["Document author<br/>(untrusted text: poisoned filing, upload)"]:::threat
+    api["FastAPI: pydantic validation<br/>T1 control chars · T2 oversize · T3 unknown filters"]:::io
+    ingest["Ingest: parse + chunk<br/>text kept verbatim (offsets exact)"]:::ingest
+    db[("Postgres<br/>bound parameters only · T4 SQL injection")]:::store
+    retr["Retrieval<br/>T5 filter bypass → wrong company's text"]:::retrieve
+    prompt["Prompt assembly<br/>T6 injected instructions · T7 forged source header"]:::generate
+    llm["LLM (Groq)<br/>follows text it reads"]:::generate
+    out["Answer to the reader<br/>T8 links / images · T9 forced refusal"]:::threat
+    legend["Legend: red border = attacker-controlled or attacker-visible · T1–T9 = threats, §4 table"]:::legend
+
+    user -->|"question, filters (JSON)"| api
+    api -->|"validated question"| retr
+    author -->|"PDF"| ingest
+    ingest -->|"chunks (untrusted text)"| db
+    retr -->|"SQL with bound values"| db
+    db -->|"top-k chunks"| retr
+    retr -->|"hits"| prompt
+    prompt -->|"instructions + fenced sources"| llm
+    llm -->|"raw text"| out

@@ -1,0 +1,24 @@
+%% Owner: docs/18-security-prompt-injection.md — the four layers a poisoned passage meets, and what each removes.
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef threat fill:#ffffff,stroke:#dc2626,stroke-width:2px,color:#7f1d1d
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    hits["Retrieved hits<br/>one is poisoned"]:::threat
+    screen["1 · screen<br/>pattern list → quarantine<br/>(A1, A3–A6)"]:::retrieve
+    defuse["2 · defuse + fence<br/>‹/source · (1) header<br/>(A2 header, A5 tags)"]:::generate
+    prompt["3 · template 2<br/>'sources are data'<br/>(A7: the model decides)"]:::generate
+    llm["LLM"]:::generate
+    policy["4 · output policy<br/>no links / images / HTML<br/>(A3, A6 even if obeyed)"]:::generate
+    out["Answer + quarantined list"]:::io
+    legend["Legend: deterministic layers 1, 2, 4 · probabilistic layer 3 · red = attacker text"]:::legend
+
+    hits -->|"chunks"| screen
+    screen -->|"clean chunks"| defuse
+    defuse -->|"fenced sources"| prompt
+    prompt -->|"messages"| llm
+    llm -->|"raw answer"| policy
+    policy -->|"shown answer"| out
+    screen -->|"flagged: id + signals"| out

@@ -16,7 +16,7 @@ name	source	sha256	svg_bytes	png_bytes
 06-where-it-sits	docs/diagrams/build/06-where-it-sits.mmd	ee5943099d1134245bc003fc33b6f2cd3a4e2e3f2b6bbd7a3dcfa9ca9ee47077	48769	271237
 07-embedding-batch-flow	docs/diagrams/src/07-embedding-batch-flow.mmd	a09b51b35196242a5b3b58be3778a878ead9c50480b798265ac52e8ff4e8721a	24233	247171
 07-where-it-sits	docs/diagrams/build/07-where-it-sits.mmd	cb1a5d85a6af5910388c37ac4a297f9c34aea25711f39bc1f5387a36718cbf21	48769	271206
-08-er-diagram	docs/diagrams/src/08-er-diagram.mmd	e7acd970b860a792c094c1acbffc753469fa2025f89cd7f0d0342734c659c07a	136834	391278
+08-er-diagram	docs/diagrams/src/08-er-diagram.mmd	e7acd970b860a792c094c1acbffc753469fa2025f89cd7f0d0342734c659c07a	136814	391278
 08-hnsw-concept	docs/diagrams/src/08-hnsw-concept.mmd	81ef60d3fa4a9a7af6a5c86f0be208fe4385550aa8e4e88df97836ca337181b7	26615	198878
 08-where-it-sits	docs/diagrams/build/08-where-it-sits.mmd	37e74e92cda4388c01707c35cf44fb5a5259952388c84e9cfa0bffa2e2d3ac33	48769	271494
 09-filter-modes	docs/diagrams/src/09-filter-modes.mmd	acefdcbf68e6fd90fbcacd3ee0737125409d21f0f6a3f596fcb3eacc5fe0c748	21930	228628
@@ -43,3 +43,6 @@ name	source	sha256	svg_bytes	png_bytes
 16-where-it-sits	docs/diagrams/build/16-where-it-sits.mmd	d7eebd54e95e5b8e9856760a291654f2691bacc9a7357530e7dc5836164f936d	48769	271176
 17-token-accounting	docs/diagrams/src/17-token-accounting.mmd	a8faab12b1913bc7ff7a6ac2d14f4bd4b014cd24ead601666e4bfaa47ea4218b	29783	335384
 17-where-it-sits	docs/diagrams/build/17-where-it-sits.mmd	03f85b15f7e19368c69e14d2f5af733604e83befa08e75ab359d872cc94b0815	48797	271164
+18-injection-defences	docs/diagrams/src/18-injection-defences.mmd	2c630ab9a15a53c086160970a5ac8c178fba98470cb90e08b6cc67861828d9b0	24266	244117
+18-threat-model	docs/diagrams/src/18-threat-model.mmd	807b7cff9107eae33c867a025bbeff2a29829494c5834d7ec126b3a1545b8975	28663	423532
+18-where-it-sits	docs/diagrams/build/18-where-it-sits.mmd	9d85562424ed3a1986a051262996db2ea2b9542cb77d20be15486d6154e418be	48825	271217
