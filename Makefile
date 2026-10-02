@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect parse migrate ingest bench-vector bench-keyword bench-hybrid test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -61,6 +61,9 @@ bench-vector: install up ## Vector search: recall vs exact, ef_search, filter mo
 
 bench-keyword: install up ## Keyword ranking (ts_rank, ts_rank_cd, BM25) vs vector on FinanceBench questions
 	$(PY) scripts/bench_keyword.py
+
+bench-hybrid: install up ## Vector vs keyword vs hybrid (RRF k, weighted fusion) on FinanceBench + exact figures
+	$(PY) scripts/bench_hybrid.py
 
 test: install up corpus ## Run the full test suite (starts Postgres and fetches the corpus if needed)
 	$(PY) -m pytest

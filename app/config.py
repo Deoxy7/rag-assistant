@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     chunk_size: int = 256                # in embedding-model tokens
     chunk_overlap: int = 32              # in embedding-model tokens
 
+    # --- Retrieval (Phases 5-7) ---
+    retrieval_mode: str = "hybrid"       # "vector" | "keyword" | "hybrid"
+    rrf_k: int = 60                      # RRF constant (Cormack et al., 2009)
+    retrieval_depth: int = 50            # results taken from each retriever before fusing
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
