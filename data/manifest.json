@@ -1,0 +1,150 @@
+{
+  "description": "Corpus for the RAG assistant: 10 SEC Form 10-K annual reports (5 companies x fiscal 2021 and 2022), as PDFs mirrored in the FinanceBench repository, plus the FinanceBench open-source question set used as an external check in Phase 11.",
+  "source": "https://github.com/patronus-ai/financebench (Islam et al., 2023, arXiv:2311.11944). Dataset licence per its Hugging Face card: CC BY-NC 4.0. The filings themselves are public SEC records.",
+  "documents": [
+    {
+      "doc_key": "PEPSICO_2021_10K",
+      "company": "PepsiCo",
+      "ticker": "PEP",
+      "gics_sector": "Consumer Staples",
+      "fiscal_year": 2021,
+      "form": "10-K",
+      "path": "pdfs/PEPSICO_2021_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/PEPSICO_2021_10K.pdf",
+      "original_url": "https://pepsico.gcs-web.com/static-files/a5a1d988-8e28-4dc7-ac4e-e6a2abfd0310",
+      "sha256": "f2c7cf1969c7f6dfc8c0596824e1d6b3cc70f662ee2dd06be84bb27af5635364",
+      "bytes": 2139398
+    },
+    {
+      "doc_key": "PEPSICO_2022_10K",
+      "company": "PepsiCo",
+      "ticker": "PEP",
+      "gics_sector": "Consumer Staples",
+      "fiscal_year": 2022,
+      "form": "10-K",
+      "path": "pdfs/PEPSICO_2022_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/PEPSICO_2022_10K.pdf",
+      "original_url": "https://pepsico.gcs-web.com/static-files/d051bdd6-c6d2-4814-826f-ece589b88d4c",
+      "sha256": "7d8a9f3374e429c58f101319e2da8a0e601a89859e1e4f6854163dd5f8ce6b47",
+      "bytes": 2993516
+    },
+    {
+      "doc_key": "VERIZON_2021_10K",
+      "company": "Verizon",
+      "ticker": "VZ",
+      "gics_sector": "Communication Services",
+      "fiscal_year": 2021,
+      "form": "10-K",
+      "path": "pdfs/VERIZON_2021_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/VERIZON_2021_10K.pdf",
+      "original_url": "https://www.verizon.com/about/sites/default/files/2021-Annual-Report-on-Form-10-K.pdf",
+      "sha256": "f7fcb508f920e3df9a07bc858a6d9f0d3cd1e976a46efe72375c9ffb983822ac",
+      "bytes": 2098068
+    },
+    {
+      "doc_key": "VERIZON_2022_10K",
+      "company": "Verizon",
+      "ticker": "VZ",
+      "gics_sector": "Communication Services",
+      "fiscal_year": 2022,
+      "form": "10-K",
+      "path": "pdfs/VERIZON_2022_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/VERIZON_2022_10K.pdf",
+      "original_url": "https://www.verizon.com/about/sites/default/files/2022-Annual-Report-on-Form-10K.pdf",
+      "sha256": "403d7346e8a059472863d1789527f16e5127a61c2f6c4429012e6227f27576d7",
+      "bytes": 2315268
+    },
+    {
+      "doc_key": "CORNING_2021_10K",
+      "company": "Corning",
+      "ticker": "GLW",
+      "gics_sector": "Information Technology",
+      "fiscal_year": 2021,
+      "form": "10-K",
+      "path": "pdfs/CORNING_2021_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/CORNING_2021_10K.pdf",
+      "original_url": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000024741/f9519502-38b3-4e0b-94fa-b6a7138812a4.pdf",
+      "sha256": "8023fac91ad417f996b692c506ee0e097effd091e698275288e4126cb8a2020e",
+      "bytes": 1131912
+    },
+    {
+      "doc_key": "CORNING_2022_10K",
+      "company": "Corning",
+      "ticker": "GLW",
+      "gics_sector": "Information Technology",
+      "fiscal_year": 2022,
+      "form": "10-K",
+      "path": "pdfs/CORNING_2022_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/CORNING_2022_10K.pdf",
+      "original_url": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000024741/eb24002c-e050-45eb-806a-15264d59131c.pdf",
+      "sha256": "a63f102f045826b38ad21a606c33710f62932646fd7c0f1852ce411a4397a3ee",
+      "bytes": 1399926
+    },
+    {
+      "doc_key": "AMD_2021_10K",
+      "company": "AMD",
+      "ticker": "AMD",
+      "gics_sector": "Information Technology",
+      "fiscal_year": 2021,
+      "form": "10-K",
+      "path": "pdfs/AMD_2021_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/AMD_2021_10K.pdf",
+      "original_url": "https://ir.amd.com/sec-filings/filter/annual-filings/content/0000002488-22-000016/0000002488-22-000016.pdf",
+      "sha256": "51c1fbfb4587b375fe64a1d8daa3d103ecc09f8194c6a6e2537149c618d97271",
+      "bytes": 1518628
+    },
+    {
+      "doc_key": "AMD_2022_10K",
+      "company": "AMD",
+      "ticker": "AMD",
+      "gics_sector": "Information Technology",
+      "fiscal_year": 2022,
+      "form": "10-K",
+      "path": "pdfs/AMD_2022_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/AMD_2022_10K.pdf",
+      "original_url": "https://ir.amd.com/sec-filings/content/0000002488-23-000047/0000002488-23-000047.pdf",
+      "sha256": "a3bd74088fae0ad4aa03d04998a1f4c64fd0b3c693841601b0ac49b46cf5c1f4",
+      "bytes": 5122473
+    },
+    {
+      "doc_key": "BOEING_2021_10K",
+      "company": "Boeing",
+      "ticker": "BA",
+      "gics_sector": "Industrials",
+      "fiscal_year": 2021,
+      "form": "10-K",
+      "path": "pdfs/BOEING_2021_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/BOEING_2021_10K.pdf",
+      "original_url": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000012927/0c5ce0eb-2517-45fe-afc8-b1a9bb9ab4b7.pdf",
+      "sha256": "947c298acb17e663db8faca2028a26ca53520864a660676abdc313afd23d46a9",
+      "bytes": 1250296
+    },
+    {
+      "doc_key": "BOEING_2022_10K",
+      "company": "Boeing",
+      "ticker": "BA",
+      "gics_sector": "Industrials",
+      "fiscal_year": 2022,
+      "form": "10-K",
+      "path": "pdfs/BOEING_2022_10K.pdf",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/pdfs/BOEING_2022_10K.pdf",
+      "original_url": "https://d18rn0p25nwr6d.cloudfront.net/CIK-0000012927/c93682a4-8b3c-4251-a2ed-97c4e474a214.pdf",
+      "sha256": "09285ff7ee737d3302977104aa05cc53c9dfb0161f3461a89b583dc38b9f2ab6",
+      "bytes": 1366995
+    }
+  ],
+  "auxiliary": [
+    {
+      "path": "financebench/financebench_open_source.jsonl",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/data/financebench_open_source.jsonl",
+      "sha256": "a5a2aa673e573e55675fc3c0f9aa38c1cf59d2abc91edb077534f71f10a71877",
+      "bytes": 929848
+    },
+    {
+      "path": "financebench/financebench_document_information.jsonl",
+      "source_url": "https://raw.githubusercontent.com/patronus-ai/financebench/main/data/financebench_document_information.jsonl",
+      "sha256": "1c69127783879de8cdadb159d2181f39bc3123b8e0ebf74031c3969d69189575",
+      "bytes": 88781
+    }
+  ]
+}

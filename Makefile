@@ -4,7 +4,7 @@
 # path may contain spaces (make splits unquoted paths on spaces).
 
 .DEFAULT_GOAL := help
-.PHONY: help install up down db-reset psql test diagrams cards docs
+.PHONY: help install up down db-reset psql corpus inspect test diagrams cards docs
 
 PYTHON_BIN ?= python3.11
 VENV := .venv
@@ -41,7 +41,13 @@ db-reset: ## DESTRUCTIVE: stop Postgres and delete its volume (all local data)
 psql: ## Open a psql shell inside the database container
 	docker compose exec db sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
-test: install up ## Run the full test suite (starts Postgres if needed)
+corpus: install ## Download the PDFs in data/manifest.json (if missing) and verify every sha256
+	$(PY) scripts/fetch_corpus.py
+
+inspect: corpus ## Report page counts, text, tables, items, tokens; render docs/diagrams/out/04-*.png
+	$(PY) scripts/inspect_corpus.py --charts
+
+test: install up corpus ## Run the full test suite (starts Postgres and fetches the corpus if needed)
 	$(PY) -m pytest
 
 diagrams: install ## Render docs/diagrams sources to SVG + PNG in docs/diagrams/out/
