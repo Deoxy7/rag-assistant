@@ -316,3 +316,33 @@
 **Trap.** Scaling the database when the reranker is the bottleneck.
 
 **Bridge.** "Phase 13 measures the full budget, including the LLM, which will dwarf all of this."
+
+---
+
+## Phase 9 questions
+
+### Q: Your app needs an API key that isn't available yet. How do you build and test it?
+**ID:** P9-04 · **Round:** system design · behavioural  **Difficulty:** 2/5
+
+**30-second answer.** "Put the provider behind a two-method interface, generate and stream, with three implementations: the real OpenAI client, a deterministic fake that quotes the best-matching source sentence with its citation, and a cache wrapper. The real client is tested by running the actual SDK against a mocked HTTP transport, which checks the request body, auth header, usage parsing, SSE streaming and 401 handling. No silent fallback: without a key, `LLM_PROVIDER=openai` fails loudly."
+
+**2-minute answer.** Explain why the fake is useful but dangerous. It exercises packing, citation mapping and refusal end to end, so pipeline bugs surface early; the marker-after-period bug was found this way. But its answers aren't model quality, so every output line is labelled with the provider, and numbers that need the real model are written as "not yet measured".
+
+**If they push — level 2.** *"Why mock HTTP rather than the SDK object?"* Mocking the transport runs the SDK's own request building and response parsing, so an SDK upgrade that changes behaviour breaks the test.
+
+**If they push — level 3.** *"How do you keep the key safe?"* `.env` is git-ignored, the setting is a `SecretStr` (repr shows asterisks; tested), the key is never logged, and `store=False` on requests.
+
+**If they push — level 4.** *"Contract drift between fake and real?"* The fake follows the same contract (cite with [n], refusal token), but a real model can break it. That's measured, not assumed, once the key exists.
+
+**Whiteboard it.**
+```text
+ LLM interface: generate(instructions, user) · stream(...)
+   ├─ OpenAIClient   (Responses API; tested via httpx.MockTransport)
+   ├─ FakeLLM        (extractive, deterministic; opt-in, labelled)
+   └─ CachedLLM(inner, conn)   (sha256 key → llm_cache)
+ no key + provider=openai → MissingAPIKey (loud)
+```
+
+**Trap.** Falling back to the fake automatically, so a demo looks like it works.
+
+**Bridge.** "Phase 10's API streams through the same interface."

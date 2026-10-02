@@ -291,3 +291,32 @@
 **Trap.** "GPUs are always 10× faster": not for tiny batches.
 
 **Bridge.** "Same lesson as the embedder in Phase 4, where MPS was 2.5× faster on large batches."
+
+---
+
+## Phase 9 questions
+
+### Q: What is SSE, and how does the OpenAI SDK stream a response?
+**ID:** P9-07 · **Round:** backend screen · viva  **Difficulty:** 2/5
+
+**30-second answer.** "Server-Sent Events: one long HTTP response with content-type text/event-stream. The server writes 'event: name' and 'data: json' lines, each event ending with a blank line. The Responses API sends response.created, output_item.added, content_part.added, then many response.output_text.delta events with text pieces, and finally response.completed with usage. My client yields only the deltas and reads token usage from the final event."
+
+**2-minute answer.** Explain why streaming matters: time to first token is what users perceive. A three-second answer that starts after 300 ms feels fast. Then a detail learned in testing: the SDK's stream accumulator requires the item and part events before any delta. My first mock skipped them and the SDK raised 'content event … before receiving its output item'. A mock has to follow the real event sequence.
+
+**If they push — level 2.** *"SSE vs WebSockets?"* SSE is one-way server-to-client over plain HTTP, with automatic reconnect in browsers. WebSockets are bidirectional, which we don't need. Card #31 covers it in Phase 10.
+
+**If they push — level 3.** *"What does buffering do to SSE?"* A proxy or framework that buffers the response defeats streaming. Disable buffering (e.g. nginx `X-Accel-Buffering: no`) and flush per event.
+
+**If they push — level 4.** *"How does the client know the stream ended?"* The terminal event (response.completed), then the connection closes. Errors come as an error event or an HTTP status before the stream starts.
+
+**Whiteboard it.**
+```text
+ event: response.output_text.delta
+ data: {"type":"response.output_text.delta","delta":"Revenue was ",...}
+ (blank line)
+ … → event: response.completed  data: {..., "usage": {"input_tokens": 812, ...}}
+```
+
+**Trap.** Thinking SSE needs WebSockets, or a special protocol.
+
+**Bridge.** "Phase 10 re-streams these deltas to the browser as our own SSE."

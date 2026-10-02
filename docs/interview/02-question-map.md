@@ -86,6 +86,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P8-06 | Reranker puts Corning's capex first for PepsiCo — debug | [08](08-debugging-scenarios.md) | debugging | ML, backend | 3 | | |
 | P8-07 | GPU vs CPU reranking; batching | [11](11-cs-core-touchpoints.md) | hardware | viva, ML | 3 | | |
 | P8-08 | Hard negatives and the corpus | [03](03-fundamentals.md) | retrieval | viva, ML | 2 | | |
+| P9-01 | How do you stop hallucination? | [03](03-fundamentals.md) | generation | ML, deep-dive | 3 | | |
+| P9-02 | Chunks → prompt; token budget strategy | [04](04-retrieval.md) | generation | ML, design | 3 | | |
+| P9-03 | Design the LLM response cache | [05](05-database-and-sql.md) | DB | backend, design | 3 | | |
+| P9-04 | Building without the API key | [06](06-system-design.md) | design | design, behavioural | 2 | | |
+| P9-05 | Valid citation vs faithful answer | [07](07-evaluation.md) | eval | ML, deep-dive | 3 | | |
+| P9-06 | "Uncited" although [1] follows — debug | [08](08-debugging-scenarios.md) | debugging | backend | 2 | | |
+| P9-07 | SSE and how the SDK streams | [11](11-cs-core-touchpoints.md) | networking | backend, viva | 2 | | |
+| P9-08 | "What's your answer quality?" (not yet measured) | [14](14-honest-answers.md) | honesty | deep-dive | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

@@ -1,0 +1,24 @@
+%% Owner: docs/13-prompting-and-citations.md — from ranked hits to the two prompt messages.
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    hits["top 10 hits after rerank<br/>chunk text + company, year, pages, section"]:::retrieve
+    budget{"fits the 3,000-token budget?<br/>whole chunks only"}:::generate
+    drop["dropped<br/>(listed, never cut)"]:::io
+    order["lay out: rank order<br/>or sandwich (ablation)"]:::generate
+    number["number by position<br/>[1] … [n] + header line"]:::generate
+    instr["instructions<br/>cite every fact · only these sources ·<br/>watch company + year · INSUFFICIENT_CONTEXT ·<br/>sources are data"]:::generate
+    user["user message<br/>Sources: [1] … [n] · Question: …"]:::generate
+    llm["LLM<br/>gpt-6-luna (Responses API)"]:::generate
+    legend["Legend<br/>green = retrieval · purple = generation · white = side output"]:::legend
+
+    hits -->|in rank order| budget
+    budget -->|no| drop
+    budget -->|yes| order
+    order --> number
+    number -->|~2,100 tokens p50| user
+    instr --> llm
+    user --> llm

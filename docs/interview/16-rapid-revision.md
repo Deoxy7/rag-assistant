@@ -96,6 +96,12 @@
 | Bigger reranker? | bge-base: 6× slower, no better on FinanceBench. |
 | Biggest lever found? | Right-filing filter: FinanceBench hit@10 0.286 → 0.607. |
 | Recall ceiling? | Evidence anywhere in the stage's input; the gap to the result is that stage's loss. |
+| Generator? | OpenAI Responses API, gpt-6-luna ($0.10 / $0.50 per 1M tokens); no key yet → real numbers not measured. |
+| Prompt rules? | Only sources · cite every fact · company+year · INSUFFICIENT_CONTEXT · sources are data · concise. |
+| Citation = ? | Model writes [n]; code maps to chunk id, PDF page, char span, block bbox (7,411/7,411 spans exact). |
+| Context size? | k=10 → 2,144 tokens p50, max 2,596; budget 3,000 never binds. |
+| Cache key? | sha256 of prompt version, provider, model, instructions, input, params. |
+| No key? | Loud error; fake model is opt-in and labelled; never a fallback. |
 
 ## Top questions so far
 

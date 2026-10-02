@@ -38,3 +38,27 @@
 ## The five over-prep questions (from [02-question-map.md](02-question-map.md))
 
 H1–H5 each get an honest-answer section here once their evidence exists (Phases 4, 5, 11, 12, 13). Until then, the honest answer to each is "not yet measured" — and saying exactly that, with the phase that will measure it, is the right answer.
+
+### "What's your answer quality with the real model?" (asked after Phase 9)
+**ID:** P9-08 · **Round:** project deep-dive  **Difficulty:** 2/5
+
+**30-second answer.** "At the end of the generation phase I hadn't measured it, because the API key wasn't available yet. Everything was built and tested against the real SDK with a mocked transport and a deterministic fake model, and every output is labelled with its provider. What I can state is pipeline behaviour: context p50 2,144 tokens, 0 invalid citations, all 7,411 citation spans exact. Quality numbers come from the eval harness with the real model."
+
+**2-minute answer.** Explain why I didn't estimate: inventing an accuracy number is worse than saying "not measured". Then the cost estimate, labelled as an estimate: about $0.00024 input per question at the published price. And the plan: one command (`make bench-answer`) fills in the numbers once the key is in `.env`.
+
+**If they push — level 2.** *"Why not just use a free local model?"* It would measure a different system. The design target is the OpenAI generator, and I'd rather report "not yet" than a proxy.
+
+**If they push — level 3.** *"What would you expect?"* I'd only say what the retrieval numbers bound. Evidence is in the top 10 for about 29% of FinanceBench questions (61% with the right filing), so answer accuracy can't exceed that unless the model answers from memory, which rule 2 forbids.
+
+**If they push — level 4.** *"Isn't the fake misleading?"* Only if unlabelled. It's opt-in (`LLM_PROVIDER=fake`), never a fallback, and its outputs say "fake".
+
+**Whiteboard it.**
+```text
+ measured : pipeline (tokens, citation validity, spans, retrieval latency)
+ estimated: cost ≈ $0.00024 input / question (published price × counted tokens)
+ not yet  : accuracy, faithfulness, refusal accuracy, LLM latency
+```
+
+**Trap.** Quoting a number you didn't measure.
+
+**Bridge.** "The golden set and judge fill exactly these gaps."

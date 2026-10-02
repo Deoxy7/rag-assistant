@@ -411,3 +411,30 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Picking the leaderboard winner without measuring on your data.
 
 **Bridge.** "The latency numbers feed the end-to-end budget in Phase 13."
+
+---
+
+## Phase 9 questions
+
+### Q: How do you turn retrieved chunks into a prompt? What's your token budget strategy?
+**ID:** P9-02 · **Round:** ML screen · system design  **Difficulty:** 3/5
+
+**30-second answer.** "Whole chunks, best-first, until a 3,000-token budget. Each gets a header line: number, company, fiscal year, PDF page, section path. Measured on 28 FinanceBench questions, ten chunks need 2,144 tokens at p50 and 2,596 at most, so nothing is dropped and k decides the size. I never truncate a chunk, because the citation's character span must cover exactly what the model saw."
+
+**2-minute answer.** Mention what a real prompt revealed. Headers cost 37–62 tokens each (18% of the context). Three of ten sources repeated the same revenue figures (652 tokens). The section path was sometimes wrong, and an exhibit list slipped through. Each is an ablation candidate: shorter headers, near-duplicate removal, section filters. Then the lost-in-the-middle option: a "sandwich" layout is implemented, used only if it measurably helps.
+
+**If they push — level 2.** *"How do you count tokens for a model tiktoken doesn't know?"* o200k_base as an estimate for budgeting. Billing uses the API's reported usage.
+
+**If they push — level 3.** *"Why skip a long chunk instead of stopping?"* One long table shouldn't block smaller, lower-ranked sources that still fit.
+
+**If they push — level 4.** *"What would you change for a 100-page context?"* Compression or summarisation per source, hierarchical retrieval (section first, then chunks), and caching the static prefix (prompt caching).
+
+**Whiteboard it.**
+```text
+ hits (rank) → fits budget? → keep / drop whole → order (rank|sandwich) → [n] header + text
+ k=10: 2,144 tokens p50 · headers ≈ 440 · dup tables 652 · budget 3,000 · dropped 0/280
+```
+
+**Trap.** Truncating sources to fill the budget exactly.
+
+**Bridge.** "Numbering by position is what lets citations map back exactly."

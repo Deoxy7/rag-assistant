@@ -236,3 +236,31 @@
 **Trap.** Blaming the index when the query semantics are the issue.
 
 **Bridge.** "The ranking function then matters — I compared three."
+
+---
+
+## Phase 9 questions
+
+### Q: Design the LLM response cache. What's the key, and when is it wrong to serve from it?
+**ID:** P9-03 · **Round:** backend screen · system design  **Difficulty:** 3/5
+
+**30-second answer.** "A Postgres table keyed by the sha256 of everything that determines the response: prompt version, provider, model, instructions, the full user message (sources included) and generation parameters. A hit returns the stored text and token counts and increments a hits counter. That makes eval re-runs free and identical, so a metric change means a code change, not sampling noise. It's an exact-match cache; a different source order is a different key, on purpose."
+
+**2-minute answer.** Explain the invalidation design. Editing the instructions must invalidate old answers, so `PROMPT_VERSION` is in the key. A re-ingested chunk with different text changes the user message, so its key changes automatically. When not to serve: when you *want* fresh sampling (measuring variance, or a judge's self-consistency), or when the model behind an alias changes silently. That's why the model name is in the key, and why a dated snapshot is better when the provider offers one.
+
+**If they push — level 2.** *"Why Postgres, not Redis?"* It's already there, transactional, and cached responses are part of the eval record. At this volume (dozens per run) latency is irrelevant.
+
+**If they push — level 3.** *"Semantic cache?"* Serve answers for *similar* questions by embedding similarity. It's faster for real users, but it can serve an answer about the wrong filing. Not for evals.
+
+**If they push — level 4.** *"Concurrency?"* `INSERT … ON CONFLICT (key) DO NOTHING`: two identical requests racing both call the API once each, and one row wins. Acceptable at this scale; a lock or single-flight would avoid the double cost.
+
+**Whiteboard it.**
+```text
+ key = sha256(json{v, provider, model, instructions, input, params}, sort_keys)
+ llm_cache(key PK, provider, model, response_text, input_tokens, output_tokens, created_at, hits)
+ hit → UPDATE … SET hits = hits + 1 RETURNING …   miss → call → INSERT … ON CONFLICT DO NOTHING
+```
+
+**Trap.** Keying on the question alone. The same question with different sources must miss.
+
+**Bridge.** "Phase 13's cost tracking reads the same token counts."

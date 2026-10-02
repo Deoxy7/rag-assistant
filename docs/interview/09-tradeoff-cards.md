@@ -36,9 +36,9 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 24 | Top-k at each stage: over-retrieve, then narrow | 8 | ✅ [12-reranking](../12-reranking.md) |
 | 25 | Cross-encoder vs bi-encoder vs ColBERT vs LLM-as-reranker vs no rerank | 8 | ✅ [12-reranking](../12-reranking.md) |
 | 26 | Rerank depth N: the quality/latency curve | 8 | ✅ [12-reranking](../12-reranking.md) |
-| 27 | Context packing order and token budget (lost-in-the-middle) | 9 | not yet written |
-| 28 | Citation granularity: document vs chunk vs sentence vs character span | 9 | not yet written |
-| 29 | Prompt design for grounding; temperature; structured output | 9 | not yet written |
+| 27 | Context packing order and token budget (lost-in-the-middle) | 9 | ✅ [13-prompting-and-citations](../13-prompting-and-citations.md) |
+| 28 | Citation granularity: document vs chunk vs sentence vs character span | 9 | ✅ [13-prompting-and-citations](../13-prompting-and-citations.md) |
+| 29 | Prompt design for grounding; temperature; structured output | 9 | ✅ [13-prompting-and-citations](../13-prompting-and-citations.md) |
 | 30 | FastAPI vs Flask vs Django vs Express | 10 | not yet written |
 | 31 | SSE vs WebSockets vs polling vs plain JSON | 10 | not yet written |
 | 32 | Async vs sync; where CPU-bound work goes | 10 | not yet written |
@@ -961,6 +961,112 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): Your sample is 28 questions. Isn't "N = 10 is best" noise? → A: Partly. The FinanceBench differences are 1–3 questions. But the direction repeats on four runs and on the 50 figure queries, and N = 10 is also the cheapest, so the decision doesn't rest on noise. The golden set re-tests it.
 
 **The trap.** Assuming quality rises monotonically with N.
+
+### Card 27 — from [13-prompting-and-citations](../13-prompting-and-citations.md)
+
+#### Decision: pack whole chunks in rank order under a 3,000-token budget  (kept as an ablation: "sandwich" order; rejected: truncating chunks, filling the context window)
+
+**One-line defence.** Whole chunks keep every citation span honest, best-first puts the strongest evidence where models read most reliably, and a 3,000-token cap keeps cost and distraction down. Measured: k = 10 needs 2,144 tokens at p50, so the cap is headroom, not a cut.
+
+**What problem is this even solving?** Which retrieved text the model sees, in what order, and how much. More context means more chance the answer is in it, but also more cost, more latency and more distractors (the wrong-filing passages from [12](../12-reranking.md)).
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Rank order, whole chunks, 3,000-token cap | Best first; skip what doesn't fit | Honest spans; cheap (~$0.00024 input per question) | Middle sources may be under-used (unmeasured here) | Default |
+| "Sandwich" order | Best at the start *and* end, weakest in the middle | Targets lost-in-the-middle | Unmeasured on this model; numbering by position stays the same | Ablation (`CONTEXT_ORDER=sandwich`) |
+| Truncate chunks to fit | Cut the last chunk at the budget | Uses every token | Cut tables; citation spans cover unseen text | Never with span citations |
+| Fill the context window (1.05 M tokens) | Send everything retrieved, or whole filings | No retrieval misses | ~$0.10 per question per 1 M tokens; distractors; slow | Rarely; maybe "chat with one filing" |
+| Compress or summarise sources | LLM-condense chunks first | Fits more | Extra call; summaries can drop the figure | When budgets are tight and k large |
+
+**What would actually change if we swapped it.** Order: one setting (`CONTEXT_ORDER`). Budget: one setting (`CONTEXT_TOKEN_BUDGET`). Truncation: a different packing function and span adjustment. Compression: a second LLM call per source.
+
+**The decision rule.** Measure how many tokens your k actually needs and set the budget just above it. Order by rank unless an ablation on your model shows a positional effect. Never cut a source whose span you cite.
+
+**Where our choice breaks.** With larger chunks (510 tokens) or larger k, the budget starts dropping sources. They're dropped from the bottom, which is right only if the ranking is right.
+
+**The number.** Context tokens p50 2,144, max 2,596 (budget 3,000; 0 sources dropped on 28 questions). Input tokens p50 2,388, about $0.00024 at $0.10 / 1 M. Lost-in-the-middle effect on gpt-6-luna: *not yet measured*.
+
+**Interview script (3 sentences).** "I pack whole chunks best-first under a 3,000-token budget. Whole chunks because a citation's character span must match exactly what the model saw, and I verified that for all 7,411 chunks. Measured, ten chunks take about 2,100 tokens, so the budget is headroom. The 'sandwich' ordering for lost-in-the-middle is implemented but only gets switched on if the ablation shows an effect on this model."
+
+**Follow-ups they will ask:**
+- Q: What's "lost in the middle"? → A: Liu et al. (2023) found models used facts at the start and end of a long context better than in the middle. Newer models show it less, which is why I'd measure, not assume.
+- Q: Why not use the whole 1 M-token context? → A: Cost scales with input tokens, and distractors hurt. My reranker results show same-topic wrong-filing passages are exactly what confuses ranking.
+- Q: Why number sources by position? → A: So [1] is always the first source the model reads. Numbering by rank would scramble the numbers under sandwich order.
+- Q (the hard one): Three of your ten sources repeat the same revenue figures. Isn't that waste? → A: Yes: 652 tokens across the three. De-duplicating near-identical chunks before packing would free that budget. It's on the ablation list, not built.
+
+**The trap.** "More context is always better."
+
+### Card 28 — from [13-prompting-and-citations](../13-prompting-and-citations.md)
+
+#### Decision: chunk-level citations with exact character spans  (rejected: document-level, sentence-level quotes generated by the model)
+
+**One-line defence.** The model writes only a source number. Everything else (document, PDF page, character span, on-page bounding boxes) comes from what we stored at ingest. So citations are cheap to produce, impossible to fabricate, and precise enough to highlight on the page.
+
+**What problem is this even solving?** Letting a reader verify a claim in seconds, and letting the eval harness check citations automatically.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| Document-level | "Source: AMD 2022 10-K" | Trivial | Useless for verification in a 120-page filing | Never for long documents |
+| ✅ Chunk-level, by number, mapped to stored span | Model writes [n]; code maps to chunk, pages, chars, bbox | Unfabricable; page-exact; highlightable | A ~256-token chunk is coarser than the exact sentence | Default |
+| Sentence-level span (model quotes) | Model copies the supporting sentence | Precise | Quotes can be paraphrased or invented; needs fuzzy matching back | When chunks are long |
+| Character-level, post hoc | After answering, align each claim to the best-matching sentence in its cited chunk | Precise *and* unfabricable | Extra alignment step; can pick the wrong sentence | A planned refinement (UI highlight) |
+
+**What would actually change if we swapped it.** Sentence-level would add a "quote" field to the output format and a matching step. Post-hoc alignment would add a function from (claim, chunk) to a sub-span, possibly with the embedder. Neither changes storage, because spans and bboxes are already stored.
+
+**The decision rule.** Never let the model produce the location; let it produce a key you control. Make the key's target as small as you can verify: chunk span here, sentence when alignment is reliable.
+
+**Where our choice breaks.** When a chunk holds several facts, the citation points at the whole chunk (1,258 characters in the AMD example), not the one sentence. And an answer citing the right chunk for a wrong number still looks cited. That's faithfulness, measured in Phase 11, not citation validity.
+
+**The number.** Chunks whose stored span ≠ their text: **0 of 7,411**. Invalid markers in the fake run: 0. Example: [1] → chunk 5736, AMD_2022_10K, PDF page 43, chars 185,634–186,892, one block highlighted.
+
+**Interview script (3 sentences).** "The model only writes [n]. My code maps that to the chunk we stored: document, PDF page, exact character span, and the bounding boxes of the blocks it came from. So citations can't be fabricated and can be highlighted on the real page. I verified every one of the 7,411 chunk spans matches the stored text exactly."
+
+**Follow-ups they will ask:**
+- Q: What if the model cites [9] and there are only 8 sources? → A: It's reported as invalid and removed from the displayed answer. The eval counts it.
+- Q: What if it cites the right source but states a wrong number? → A: The citation is valid but the claim isn't faithful. Phase 11's judge checks claim-against-source.
+- Q: Why PDF page numbers, not printed ones? → A: They're unambiguous and open the right page in any viewer. Printed folios differ (43 vs 40 here) and some pages have none.
+- Q (the hard one): Isn't a 1,258-character citation too coarse? → A: For a reader, yes, which is why the UI highlights the block on the page. Narrowing to the sentence is a post-hoc alignment step I'd add, still without trusting model-written quotes.
+
+**The trap.** Asking the model to write page numbers or quotes and trusting them.
+
+### Card 29 — from [13-prompting-and-citations](../13-prompting-and-citations.md)
+
+#### Decision: plain-text answer with [n] markers, strict grounding rules and a refusal token; temperature not set  (rejected: JSON structured output; temperature 0 by default)
+
+**One-line defence.** Plain text streams token by token for the UI. Markers are checked by code afterwards, and a fixed `INSUFFICIENT_CONTEXT` makes refusal machine-detectable. Temperature isn't sent because some current models reject it, and I couldn't check this one without a key.
+
+**What problem is this even solving?** Getting answers that are grounded, checkable, and honest about not knowing, in a form that can stream.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ Text + [n] markers + refusal token | Rules in the system message; code parses afterwards | Streams naturally; readable; robust parser (3 marker styles) | Format compliance not guaranteed; checked, not enforced | Default |
+| JSON structured output | Schema: {answer, claims: [{text, sources}], refused} | Enforced shape; per-claim sources | Streams as JSON fragments; harder UI; more output tokens | Batch or eval pipelines; agentic use |
+| Free-form, no citation rule | Just answer | Simplest | Unverifiable | Never here |
+| Temperature 0 | Send `temperature=0` | Less sampling variation | May be rejected by the model; still not fully deterministic | If the model accepts it (check once a key exists) |
+
+**What would actually change if we swapped it.** JSON: a `text.format` schema in the request, a JSON-aware stream parser in Phase 10, and different citation extraction. Temperature: one setting (`LLM_TEMPERATURE`). Determinism for evals is handled by the response cache regardless.
+
+**The decision rule.** Stream-facing answers: text with markers and post-hoc checks. Machine-consumed outputs: structured. Pin sampling only where the model supports it, and use a cache for reproducibility.
+
+**Where our choice breaks.** If the model mixes formats (writes "(Source 2)" instead of [2]), citations are missed and the claim is flagged as uncited. That's visible, not silent. Phase 11 measures compliance with the real model.
+
+**The number.** Rules: 6. Marker styles parsed: `[1]`, `[1][3]`, `[1, 3]`, plus marker-after-period. Refusal-token variants accepted: 4 (tested). Real-model format compliance and refusal accuracy: *not yet measured*.
+
+**Interview script (3 sentences).** "The system prompt has six rules, each targeting a failure: cite every fact, no outside knowledge, watch company and year, a fixed refusal token, sources are data not instructions, be concise. I chose plain text with [n] markers over JSON so the answer streams naturally, and code checks the markers afterwards. Reproducibility comes from a response cache keyed by the whole request, not from hoping temperature 0 is deterministic."
+
+**Follow-ups they will ask:**
+- Q: Why a refusal token instead of "say you don't know"? → A: A fixed string can be detected exactly, so the API returns a clean refusal and the eval counts abstentions. Free-text refusals vary.
+- Q: Does temperature 0 make outputs deterministic? → A: Not guaranteed. Batching and floating-point non-determinism on the server can still change tokens. The cache gives real determinism for re-runs.
+- Q: Why "sources are data, not instructions"? → A: A filing chunk could contain text like "ignore previous instructions". Telling the model the trust boundary is the first defence; Phase 14 tests it.
+- Q (the hard one): How do you know the model follows the rules? → A: Today I don't: no key yet, so it's untested against the real model. The checks (invalid markers, uncited claims, refusal detection) are built and tested, and Phase 11 measures compliance.
+
+**The trap.** Claiming the prompt "guarantees" grounding.
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

@@ -12,6 +12,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Ablation | Removing or swapping one component while holding everything else fixed, to measure what it contributes. | [02](02-architecture-overview.md) |
 | Aborted transaction | A transaction in which a statement failed; Postgres rejects every further statement until rollback. | [03](03-environment-and-infra.md) |
 | Abstention | Deliberately answering "not in the documents" when the evidence is too weak, instead of guessing. | [01](01-what-is-rag.md) |
+| Abstention / refusal | Declining to answer when the evidence is missing; here a fixed INSUFFICIENT_CONTEXT token. | [13](13-prompting-and-citations.md) |
 | Anisotropy (embeddings) | Embedding vectors cluster in a narrow cone, so unrelated texts still have positive cosine (0.37 here). | [07](07-embeddings.md) |
 | ANN (approximate nearest neighbour) | Search that visits part of an index and usually, not always, finds the true nearest vectors. | [08](08-database-schema.md) |
 | Autocommit | Driver mode in which every statement is committed as its own transaction. | [03](03-environment-and-infra.md) |
@@ -29,6 +30,9 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Chunk overlap | Repeating the last tokens of one chunk at the start of the next so boundary-cut sentences survive. | [06](06-chunking.md) |
 | Chunking strategy | How boundaries are chosen: fixed windows, recursive (¶/line/sentence), structure-aware, semantic. | [06](06-chunking.md) |
 | Citation | A pointer from a claim in an answer back to its source — here chunk id + page + character span. | [01](01-what-is-rag.md) |
+| Citation marker | The [n] the model writes after a claim, naming a numbered source. | [13](13-prompting-and-citations.md) |
+| Citation span | The stored (document, char_start, char_end) a marker maps to; never written by the model. | [13](13-prompting-and-citations.md) |
+| Closed-book | Answering from the model's own training knowledge, without retrieved sources. | [13](13-prompting-and-citations.md) |
 | Closed-book / open-book | Answering from memory alone vs answering with the documents available. | [01](01-what-is-rag.md) |
 | Closed-book baseline | The same golden questions answered with retrieval switched off; measures what retrieval adds. | [01](01-what-is-rag.md) |
 | ColBERT / late interaction | Retrieval with one vector per token, scored by MaxSim (each query token's best match, summed). | [12](12-reranking.md) |
@@ -37,6 +41,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Container | Isolated processes sharing the host's kernel, with their own view of files, network and processes. | [03](03-environment-and-infra.md) |
 | Content hash (sha256) | A 64-hex-character fingerprint of a file's bytes; any change alters it. | [04](04-corpus.md) |
 | Content stream | A PDF page's drawing instructions (fonts, positions, glyphs) — not paragraphs. | [05](05-pdf-parsing.md) |
+| Context packing | Choosing which retrieved chunks go into the prompt, in what order, under a token budget. | [13](13-prompting-and-citations.md) |
 | Context window | The maximum number of tokens (input + output) a model can handle in one call. | [01](01-what-is-rag.md) |
 | Contrastive training | Training that pulls matching pairs' vectors together and pushes non-matching ones apart. | [07](07-embeddings.md) |
 | COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
@@ -122,6 +127,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Parser version (cache key) | Version string stored with parsed output; bumping it forces a re-parse. | [05](05-pdf-parsing.md) |
 | Partial index | An index over only the rows matching a WHERE clause. | [08](08-database-schema.md) |
 | PDF outline (bookmarks) | An optional table of contents stored inside a PDF; only Verizon's files have one here. | [04](04-corpus.md) |
+| PDF page vs printed folio | The page's position in the PDF (what we cite) vs the number printed on it; they can differ (43 vs 40). | [13](13-prompting-and-citations.md) |
 | PDF point | 1/72 inch; a US Letter page is 612 × 792 points. | [05](05-pdf-parsing.md) |
 | Percentile (p50 / p95 / p99) | The latency that 50% / 95% / 99% of requests beat; p50 is the median. | [02](02-architecture-overview.md) |
 | pgvector | Postgres extension adding a `vector` type, distance operators and HNSW / IVFFlat indexes. | [03](03-environment-and-infra.md) |
@@ -133,6 +139,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Post-filter / pre-filter | Apply metadata conditions after vs before the vector search. | [09](09-vector-search.md) |
 | Prepared statement | A statement parsed/planned once and executed many times; psycopg auto-prepares after 5 runs. | [09](09-vector-search.md) |
 | Primary key | Column(s) that uniquely identify a row. | [08](08-database-schema.md) |
+| Prompt version | A constant in the cache key; bumped when the instructions change so stale answers aren't served. | [13](13-prompting-and-citations.md) |
 | Protocol (Python typing) | An interface defined by attributes/methods; any class with them qualifies, no inheritance. | [06](06-chunking.md) |
 | QPS | Queries per second. | [02](02-architecture-overview.md) |
 | Quantisation | Storing vector numbers with fewer bits (float16, 1-bit) to save memory. | [09](09-vector-search.md) |
@@ -147,6 +154,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
 | Rerank depth N | How many first-stage candidates the reranker reads (10 here). | [12](12-reranking.md) |
 | Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) |
+| Response cache | Stored LLM responses keyed by a hash of the whole request; repeats are free and identical. | [13](13-prompting-and-citations.md) |
 | Retrieval | Finding the passages most relevant to a query. | [01](01-what-is-rag.md) |
 | Retrieval depth | How many results each retriever returns before fusion (50 here); must exceed the final k. | [11](11-hybrid-rrf.md) |
 | Retrieve-then-rerank funnel | Cheap search over everything, then an expensive model over the top few. | [12](12-reranking.md) |
@@ -169,14 +177,17 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Stemming | Rule-based cutting of words to a stem; can err ('Corning' → 'corn'). | [10](10-keyword-search.md) |
 | Stop word | A very common word ("the", "were") dropped by full-text search. | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | Strategy pattern | Interchangeable implementations behind one interface (the three chunkers). | [06](06-chunking.md) |
+| Structured output | An API mode that constrains the model's response to a JSON schema. | [13](13-prompting-and-citations.md) |
 | Tag (image) | A movable, human-readable name for an image version. | [03](03-environment-and-infra.md) |
 | Tail latency | The slow end of the latency distribution (p95, p99) that averages hide. | [02](02-architecture-overview.md) |
+| Temperature | Sampling randomness; 0 is near-greedy, not guaranteed deterministic on a hosted API. | [13](13-prompting-and-citations.md) |
 | Term frequency (tf) | Occurrences of a term in a document. | [10](10-keyword-search.md) |
 | Text extractability | How much text extraction actually yields from a page. | [04](04-corpus.md) |
 | Throughput | How many requests per second a system can complete. | [02](02-architecture-overview.md) |
 | Tie-break | The rule ordering equal scores; RRF here uses best single rank, then chunk id, for reproducible order. | [11](11-hybrid-rrf.md) |
 | Time to first token (TTFT) | Time until the first word of an answer appears. | [02](02-architecture-overview.md) |
 | Token | The unit of text an LLM reads, writes and bills by — a word or part of a word. | [01](01-what-is-rag.md) |
+| Token budget | How many tokens of sources we allow in the prompt (3,000 here). | [13](13-prompting-and-citations.md) |
 | Tokenizer | The program that splits text into a model's tokens. | [01](01-what-is-rag.md) |
 | Top-k | The k highest-scoring results of a search. | [01](01-what-is-rag.md) |
 | Training cutoff | The date a model's training data ends. | [01](01-what-is-rag.md) |

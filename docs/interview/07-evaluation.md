@@ -195,3 +195,32 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Tuning the first stage when the loss is in the reranker.
 
 **Bridge.** "The eval harness makes this per-stage breakdown routine."
+
+---
+
+## Phase 9 questions
+
+### Q: What's the difference between a valid citation and a faithful answer, and how would you measure each?
+**ID:** P9-05 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "A citation is valid if the source number exists and maps to a stored chunk. My code checks that deterministically: invalid markers are removed and counted, uncited claims are flagged. An answer is faithful if each claim is actually supported by the source it cites. That needs reading: an LLM judge or a human checks each claim against its source. A valid citation on a wrong number is the dangerous case, because it looks trustworthy."
+
+**2-minute answer.** Add the in-between metrics: citation precision (the share of citations that support their claim) and citation recall (the share of claims with a supporting citation). Add a cheap automatic pre-check: numbers in the claim appear in the cited text. Then answer correctness against the golden answer. Phase 11 implements these. Today, with the fake model, only validity is measured (0 invalid markers, 0 uncited claims on 26 answers), and that says the parser works, not that a model cites well.
+
+**If they push — level 2.** *"Judge bias?"* Judges favour long answers and their own model family, and vary across runs. Pin the judge, cache it, and check it against a human-labelled sample.
+
+**If they push — level 3.** *"Could the generator grade itself?"* It's cheaper but biased toward agreeing with itself. Use a different or stronger model as judge, or at least a different prompt.
+
+**If they push — level 4.** *"What's a claim?"* Here, a sentence with a digit or at least four words. A judge can decompose sentences into atomic claims, at extra cost.
+
+**Whiteboard it.**
+```text
+ valid      : [n] ∈ sources                      (code, exact)
+ cited      : every claim has ≥1 [n]             (code, heuristic)
+ faithful   : source[n] supports the claim       (judge / human)
+ correct    : matches the golden answer          (judge / exact for numbers)
+```
+
+**Trap.** Reporting "100% of answers cited" as quality.
+
+**Bridge.** "The eval harness measures all four, separately."

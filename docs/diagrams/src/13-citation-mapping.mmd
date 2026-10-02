@@ -1,0 +1,22 @@
+%% Owner: docs/13-prompting-and-citations.md — a [n] marker back to the exact place in the PDF.
+flowchart LR
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    ans["answer text<br/>'… $23.6 billion … [1]'"]:::io
+    parse["parse markers<br/>[1] · [2][4] · [1, 3]"]:::generate
+    src["Source 1<br/>= chunk 5736"]:::generate
+    chunk[("chunks<br/>AMD_2022_10K · page 43<br/>chars 185,634–186,892")]:::store
+    blocks[("blocks<br/>bbox on page 43")]:::store
+    pdf["PDF page 43, highlighted<br/>(printed folio: 40)"]:::io
+    bad["invalid [9] → removed<br/>uncited claim → flagged"]:::io
+    legend["Legend<br/>purple = generation · grey = storage · white = input / output"]:::legend
+
+    ans --> parse
+    parse -->|number in prompt| src
+    parse -.->|no such source| bad
+    src -->|chunk id| chunk
+    chunk -->|span overlaps| blocks
+    blocks -->|x0, y0, x1, y1| pdf

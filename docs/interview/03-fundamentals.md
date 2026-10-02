@@ -261,3 +261,32 @@
 **Trap.** Calling any non-relevant passage a hard negative.
 
 **Bridge.** "The fix is metadata, as the oracle-filter run showed."
+
+---
+
+## Phase 9 questions
+
+### Q: How does your system stop the model from hallucinating?
+**ID:** P9-01 · **Round:** ML screen · project deep-dive  **Difficulty:** 3/5
+
+**30-second answer.** "In layers. Retrieval puts the evidence in the prompt as numbered sources with company, year and page headers. Six rules tell the model to use only those sources, cite every factual sentence, watch company and year, and reply with a fixed INSUFFICIENT_CONTEXT token if the answer isn't there. Then code checks the output: invalid source numbers are removed and uncited claims are flagged. What it can't stop is a cited but wrong number. That's faithfulness, which the Phase 11 judge measures."
+
+**2-minute answer.** Separate the failure types. Fabrication: a number in no source. Misattribution: the right number, wrong filing. Over-answering: answering when the evidence is missing. Map each to a defence: grounding rules, the header plus rule 3, the refusal token plus a no-context refusal. Then be honest: prompts reduce these failures but don't guarantee anything, so they're measured. Without an API key in this phase, real-model rates are not yet measured.
+
+**If they push — level 2.** *"Why a refusal token?"* It can be detected exactly, so the API returns a clean refusal and the eval counts abstention. Free-text "I'm not sure" varies.
+
+**If they push — level 3.** *"What about the model's own knowledge?"* Rule 2 forbids it. The model might "know" AMD's revenue, but an answer must be sourced. The Phase 12 closed-book baseline shows how much it knows without retrieval.
+
+**If they push — level 4.** *"How would you verify a numeric claim automatically?"* Extract numbers from each sentence and check they appear in a cited source (with unit and scale normalisation), as a cheap pre-check before an LLM judge.
+
+**Whiteboard it.**
+```text
+ fabrication     → only-sources rule + cite every fact + invalid-marker check
+ misattribution  → header (company, FY, page) + rule 3 + filters
+ over-answering  → INSUFFICIENT_CONTEXT + no-context refusal (no call)
+ cited-but-wrong → faithfulness judge (Phase 11)
+```
+
+**Trap.** "The prompt prevents hallucination."
+
+**Bridge.** "That's why every answer comes with citations a reader can open on the page."

@@ -421,3 +421,31 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** "Use a bigger reranker." The 12× bigger one made the same kind of mistake.
 
 **Bridge.** "That's the hard-negative design of the corpus paying off: it exposed this."
+
+---
+
+## Phase 9 questions
+
+### Q: The citation checker says a sentence is uncited, but the answer clearly has "[1]" right after it. Debug.
+**ID:** P9-06 · **Round:** backend screen  **Difficulty:** 2/5
+
+**30-second answer.** "This happened. The answer was '…$16.4 billion. [1]'. My sentence splitter cuts after a full stop followed by a space, so '[1]' was glued to the start of the next sentence. The revenue claim looked uncited, and the next sentence looked cited by a source it never used. The fix: before splitting, move markers that follow a full stop to before it ('billion [1].'). A regression test pins both placements."
+
+**2-minute answer.** Walk through it: reproduce with the exact string, print `sentences(answer)`, and see `['… billion.', '[1] Margin …']`. My first fix merged marker-only fragments into the previous sentence, which handles '[1]' on its own line but not '[1] Margin…'. The test caught that, and the normalisation handles both. Lesson: models write citations in several styles, so the parser accepts `[1]`, `[1][3]`, `[1, 3]` and marker-after-period.
+
+**If they push — level 2.** *"Why not ask for JSON?"* It would remove the ambiguity, but it streams badly and adds output tokens. Parsing three marker styles is cheap and tested.
+
+**If they push — level 3.** *"Other splitter traps?"* Decimals ('19.5%') aren't split because a space must follow. Abbreviations like 'Inc. and' would be split; that's harmless here because both halves get checked.
+
+**If they push — level 4.** *"How would you test the parser at scale?"* Property tests: generate answers with random marker placements and check every claim maps to the marker the generator attached.
+
+**Whiteboard it.**
+```text
+ in : "Revenue was $23.6 billion. [1] Margin was 45%."
+ bad: ["Revenue was $23.6 billion.", "[1] Margin was 45%."]   → claim 1 uncited
+ fix: "…billion [1]. Margin…" → ["Revenue was $23.6 billion [1].", "Margin was 45%."]
+```
+
+**Trap.** Blaming the model for not citing.
+
+**Bridge.** "Found by the fake model, before any money was spent."

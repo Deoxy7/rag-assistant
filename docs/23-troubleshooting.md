@@ -280,3 +280,25 @@ KeyError: 'evidence_doc_name'
 - **Symptom:** the first `get_reranker("BAAI/bge-reranker-base", …)` took 66 s.
 - **Cause:** a 1.1 GB first download into `data/models`. Later loads are local.
 - **Note:** MiniLM is 91 MB; the default setup downloads only it.
+
+## Phase 9
+
+### T-035 · Claim flagged uncited although "[1]" follows it — hit (my bug)
+
+- **Symptom:** the fake model's first answer, "…$16.4 billion. [1]", was reported with 1 uncited sentence.
+- **Cause:** the sentence splitter cuts after ". ", so "[1]" became the start of the next fragment. My first fix (merge marker-only fragments into the previous sentence) handled "[1]" alone but not "[1] Margin was…".
+- **Fix:** before splitting, move markers that follow a full stop to before it (`TRAILING_MARKERS`). Test `test_marker_after_the_period_belongs_to_the_sentence` covers both forms.
+
+### T-036 · Mocked OpenAI stream raised "content event … before receiving its output item" — hit (test fixture)
+
+```text
+RuntimeError: Received a content event for output index 0 before receiving its output item
+```
+
+- **Cause:** my SSE mock sent `response.created` then text deltas directly. The SDK's stream accumulator needs `response.output_item.added` and `response.content_part.added` first, as the real API sends.
+- **Fix:** the mock sends the full event sequence. Lesson: mocks must follow the real protocol, or they test nothing.
+
+### T-037 · No OPENAI_API_KEY during Phase 9 — expected, not an error
+
+- **Symptom:** `make ask` → `error: LLM_PROVIDER=openai but OPENAI_API_KEY is empty…`
+- **Fix:** add the key to `.env` (never commit it), or `ARGS="--provider fake"` for the labelled offline fake. Real-model numbers in docs 13 and up say *not yet measured* until then.
