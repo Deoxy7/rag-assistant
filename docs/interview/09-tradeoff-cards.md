@@ -33,9 +33,9 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 | 21 | Postgres FTS vs Elasticsearch/OpenSearch BM25 vs SPLADE | 6 | ✅ [10-keyword-search](../10-keyword-search.md) |
 | 22 | RRF vs weighted-score fusion vs learned fusion | 7 | ✅ [11-hybrid-rrf](../11-hybrid-rrf.md) |
 | 23 | The RRF k constant: what it actually controls | 7 | ✅ [11-hybrid-rrf](../11-hybrid-rrf.md) |
-| 24 | Top-k at each stage: over-retrieve, then narrow | 8 | not yet written |
-| 25 | Cross-encoder vs bi-encoder vs ColBERT vs LLM-as-reranker vs no rerank | 8 | not yet written |
-| 26 | Rerank depth N: the quality/latency curve | 8 | not yet written |
+| 24 | Top-k at each stage: over-retrieve, then narrow | 8 | ✅ [12-reranking](../12-reranking.md) |
+| 25 | Cross-encoder vs bi-encoder vs ColBERT vs LLM-as-reranker vs no rerank | 8 | ✅ [12-reranking](../12-reranking.md) |
+| 26 | Rerank depth N: the quality/latency curve | 8 | ✅ [12-reranking](../12-reranking.md) |
 | 27 | Context packing order and token budget (lost-in-the-middle) | 9 | not yet written |
 | 28 | Citation granularity: document vs chunk vs sentence vs character span | 9 | not yet written |
 | 29 | Prompt design for grounding; temperature; structured output | 9 | not yet written |
@@ -854,6 +854,113 @@ Use this as a single-sitting revision document: read a card, close it, and say t
 - Q (the hard one): What does k = 60 mean intuitively? → A: It works as if every list had 60 imaginary results ahead of its real ones. That dampens the difference between the top few positions.
 
 **The trap.** Treating k = 60 as magic, or tuning k on the same small set you report results on.
+
+### Card 24 — from [12-reranking](../12-reranking.md)
+
+#### Decision: top-k at each stage: 50 + 50 → ≤ 100 fused → rerank 10 → return 10  (rejected: one stage at k = 10; deep rerank of 50–100)
+
+**One-line defence.** Each stage narrows the candidates for the next, more expensive one. Depth 50 lets RRF find agreement below rank 10. The reranker reads only 10 because, measured, reading more let wrong-filing passages in and cost 2–4× the latency.
+
+**What problem is this even solving?** Cheap methods can look at everything but judge poorly; expensive methods judge well but can only look at a few. Over-retrieving then narrowing gets some of both, provided each stage's k is right.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| One stage, k = 10 | Return the first retriever's top 10 | Simplest, fastest (3.6 ms) | No fusion, no rereading; fig hit@1 0.00 (vector) | Prototype; latency budget under 10 ms |
+| ✅ 50 + 50 → fuse → rerank 10 → 10 | Over-retrieve for fusion, rerank a short list | fig hit@1 0.82; FB@5 0.179; +77 ms | Reranker can't change top-10 membership | Default here, measured |
+| Rerank 50–100 → 10 | Let the reranker pick from a deep pool | Recall ceiling 0.50–0.71 | Measured *worse* (FB@10 0.214–0.250) and 3.5–4× slower | A reranker that handles hard negatives |
+| Three stages (… → LLM reranks 5) | An LLM orders the final few | Best judgement on entity and year | Seconds and money per query | High-value, low-QPS queries |
+
+**What would actually change if we swapped it.** Each k is a setting (`RETRIEVAL_DEPTH`, `RERANK_N`, the API's k), and nothing else changes. A three-stage design adds an LLM call to retrieval (Phase 9's client).
+
+**The decision rule.** Make the first stage's depth large enough that the evidence is *in* the pool (measure the recall ceiling). Make the reranker's N as large as its *judgement* stays good and latency allows. Those are two different curves; measure both.
+
+**Where our choice breaks.** When the evidence sits at fused rank 11–20, N = 10 can't recover it. That covers 3 of 28 FinanceBench questions here (ceiling 0.286 → 0.393). A better reranker would make a larger N worth it.
+
+**The number.** Recall ceiling at N = 10 / 20 / 50 / 100: 0.286 / 0.393 / 0.500 / 0.714. MiniLM reranked hit@10 over the same: 0.286 / 0.286 / 0.214 / 0.250. Latency p50 77 / 136 / 267 / 285 ms.
+
+**Interview script (3 sentences).** "Every stage over-retrieves for the next: 50 per retriever so fusion can see agreement, then a cross-encoder rereads the top 10. I measured two curves, recall in the pool and reranker accuracy. The evidence for 71% of questions was in the top 100, but the reranker got worse as N grew, because more candidates meant more same-topic, wrong-company passages. So N = 10 is the knee, chosen from data, not habit."
+
+**Follow-ups they will ask:**
+- Q: Why not rerank everything? → A: Cost is one transformer pass per pair: 7,411 pairs at the measured ~7.7 ms per pair would take about 57 s per query. And here, quality dropped with N anyway.
+- Q: Why is depth 50 but N only 10? → A: Different jobs. Depth feeds RRF's agreement signal, which is nearly free (fusion is microseconds). N feeds a model that costs ~7 ms per pair and was misled by deeper candidates.
+- Q: What decides the final k? → A: The prompt's token budget and how many chunks the generator can use, which Phase 9 measures.
+- Q (the hard one): Your recall ceiling is 0.71 but you return 0.29. Isn't that a failure? → A: Yes, and it's the most useful number in the phase. It says the remaining loss is judgement, mostly wrong company or year, not recall. With the right filing as a filter, hit@10 doubles to 0.607.
+
+**The trap.** "Retrieve 100, rerank 100" because more is better. Here it measurably wasn't.
+
+### Card 25 — from [12-reranking](../12-reranking.md)
+
+#### Decision: a small cross-encoder reranker, ms-marco-MiniLM-L6-v2  (rejected: no rerank, bge-reranker-base, ColBERT late interaction, LLM-as-reranker)
+
+**One-line defence.** It settles the exact-figure ties RRF can't (hit@1 0.46 → 0.82) for 77 ms. The 12× larger bge-reranker-base was 6× slower and no better on FinanceBench.
+
+**What problem is this even solving?** The first stage never reads question and chunk together. A bi-encoder compresses each into one vector separately, so subtle relevance (this table contains *that* figure) is lost.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| No rerank | Use the fused order | 0 ms; no model | fig hit@1 0.46; FB@1 0.036 | Latency-critical; a first stage that's already good |
+| Bi-encoder only (re-score with cosine) | Re-sort by vector similarity | Precomputed, fast | That's the first stage; nothing new | Never as a "reranker" |
+| ✅ Cross-encoder MiniLM-L6 (22 M) | Question + chunk through 6 layers → score | 77 ms / 10 pairs; fig hit@1 0.82 | Trained on web search: weak on entity and year (wrong-company #1s) | Default here |
+| Cross-encoder bge-reranker-base (278 M) | Same, bigger, multilingual | fig hit@1 0.88 | 435 ms / 10 pairs; FB no better; scored Corning 0.96 for an AMD question | If a golden set shows a gain worth 6× |
+| ColBERT (late interaction) | Per-token vectors; MaxSim between every question and chunk token | Near cross-encoder quality; chunk side precomputable | Index much larger: a vector per token (chunks here are ~200 tokens) before compression; new infra | Large corpora that need rerank-like quality cheaply |
+| LLM-as-reranker | Prompt an LLM to order or score candidates | Best at "whose figure, which year" | Seconds and $ per query; non-deterministic; needs caching | Few, valuable queries; as a final stage |
+
+**What would actually change if we swapped it.** Another cross-encoder: two settings (`RERANK_MODEL`, `RERANK_MODEL_REVISION`) plus a download. ColBERT: a token-level index (pgvector can't do MaxSim natively) and a new ingest step. LLM reranking: a prompt, the Phase 9 client, a cache and a cost line in Phase 13.
+
+**The decision rule.** Start with the smallest cross-encoder and measure. Go bigger only if the golden set shows the gain. If failures are about *entities* (company, year) rather than topical relevance, fix them with filters or an entity-aware stage before buying a bigger reranker.
+
+**Where our choice breaks.** On hard negatives: same topic, different filing. MiniLM ranked Corning's capex paragraph first for a PepsiCo capex question.
+
+**The number.** N = 10, MPS: MiniLM 76.5 ms p50, FB@5 0.179, fig@1 0.82; bge-base 434.7 ms, FB@5 0.143, fig@1 0.88. Models: 91 MB vs 1.1 GB.
+
+**Interview script (3 sentences).** "A cross-encoder reads the question and chunk together, so it can see that a table contains the exact figure asked about. That fixed the ties fusion couldn't, raising exact-figure top-1 from 46% to 82% for 77 ms. I compared a model 12× larger: 6× slower and no better on FinanceBench, because both fail the same way, ranking the right topic from the wrong company. That failure is fixed by filtering, not by a bigger reranker."
+
+**Follow-ups they will ask:**
+- Q: Why is a cross-encoder more accurate than a bi-encoder? → A: Attention runs across both texts, so each question token can attend to each chunk token. A bi-encoder must compress the chunk into one vector before it has seen the question.
+- Q: Why can't you precompute cross-encoder scores? → A: The score depends on the question, which is unknown at ingest. Bi-encoder chunk vectors don't depend on it.
+- Q: How does ColBERT sit between the two? → A: It keeps one vector per token on both sides and scores by summing each question token's best match (MaxSim). Chunk token vectors can be precomputed, and the interaction happens late, at query time.
+- Q (the hard one): Would an LLM reranker fix the wrong-company problem? → A: Probably, since it reads "PepsiCo" and "FY2021" as constraints. But it costs seconds and money per query, and the oracle-filter run shows a free fix for most of the same failures. I'd measure filters first.
+
+**The trap.** Assuming the biggest reranker on a leaderboard (trained on web search) transfers to financial filings full of near-duplicates.
+
+### Card 26 — from [12-reranking](../12-reranking.md)
+
+#### Decision: rerank depth N = 10  (rejected: 20, 50, 100)
+
+**One-line defence.** On all four runs, N = 10 was never meaningfully worse than larger N. Larger N was slower and, beyond 20, measurably worse: more same-topic distractors.
+
+**What problem is this even solving?** Choosing where the reranker stops reading. Every extra candidate is ~7 ms more, and as it turned out here, one more chance to promote a wrong-filing passage.
+
+**The options, compared.**
+
+| Option | How it works (1 line) | Strengths | Weaknesses | When it's the right call |
+|---|---|---|---|---|
+| ✅ N = 10 | Rerank the fused top 10 | 77 ms; best or tied on 3 of 4 runs | Can't change top-10 membership | Default here |
+| N = 20 | Rerank top 20 | Can recover evidence at 11–20 (ceiling +0.107) | 136 ms; recovered none on hybrid; oracle FB@5 0.393 vs 0.464 | A stronger reranker |
+| N = 50 | Rerank top 50 | Ceiling 0.500 | 267 ms; FB@10 0.214 (lower than no rerank) | Rarely |
+| N = 100 | Rerank everything fused | Ceiling 0.714 | 285 ms p50, 667 ms p95; FB@10 0.250 | Offline / batch |
+
+**What would actually change if we swapped it.** One setting (`RERANK_N`). Latency scales roughly linearly: on CPU, 153 → 317 → 622 ms for 10 → 20 → 50.
+
+**The decision rule.** Plot quality vs N next to the recall ceiling. Pick the smallest N past which quality stops rising. If quality *falls* with N, the reranker is the bottleneck, and no N fixes it.
+
+**Where our choice breaks.** Evidence at fused ranks 11–20 (3 of 28 FinanceBench questions) can't be promoted. With a reranker that handles hard negatives, N = 20 would likely win.
+
+**The number.** Hybrid first stage, MiniLM, N = 10 / 20 / 50 / 100: FB@10 0.286 / 0.286 / 0.214 / 0.250; fig@1 0.82 / 0.80 / 0.72 / 0.72; p50 76.5 / 136.0 / 267.2 / 285.3 ms. Oracle filter, N = 10 / 20 / 50: FB@5 0.464 / 0.393 / 0.321.
+
+**Interview script (3 sentences).** "I swept N from 10 to 100 alongside the recall ceiling. The pool kept improving, from 29% to 71% of questions with evidence present, but reranked quality fell, because the extra candidates were same-topic passages from the wrong filing and the reranker liked them. So the smallest N is the best one here, and it's also the fastest at 77 ms."
+
+**Follow-ups they will ask:**
+- Q: Isn't N = 10 with k = 10 pointless? → A: It changes order, not membership. Order decides what goes first in the prompt: hit@1 went from 1 to 3 questions on FinanceBench and from 23 to 41 queries on figures.
+- Q: Why does latency not double from N = 50 to 100? → A: For 50 of 78 queries (the figure queries), the fused list has only about 51 candidates, so N = 100 doesn't add pairs.
+- Q: Would you set N per query? → A: Possibly: a short N for exact-token queries and a longer one for open questions. But that's routing again; I'd want golden-set evidence first.
+- Q (the hard one): Your sample is 28 questions. Isn't "N = 10 is best" noise? → A: Partly. The FinanceBench differences are 1–3 questions. But the direction repeats on four runs and on the 50 figure queries, and N = 10 is also the cheapest, so the decision doesn't rest on noise. The golden set re-tests it.
+
+**The trap.** Assuming quality rises monotonically with N.
 
 ### Card 34 — from [02-architecture-overview](../02-architecture-overview.md)
 

@@ -393,3 +393,31 @@ Every answer is a **diagnostic tree**: what to check first, second, third — an
 **Trap.** Blaming k, or claiming RRF "knows" keyword is right for numbers.
 
 **Bridge.** "Which is exactly what a cross-encoder reranker is for."
+
+---
+
+## Phase 8 questions
+
+### Q: For "What is PepsiCo's FY2021 capex?", the reranked #1 is Corning's capital expenditures paragraph. Debug it.
+**ID:** P8-06 · **Round:** ML screen · backend screen  **Difficulty:** 3/5
+
+**30-second answer.** "First check where the evidence is: PepsiCo's 2021 cash-flow statement was at fused rank 14 and the reranker moved it to 7, so it's ranking, not recall. The #1 passage literally says 'Capital expenditures were $1.6 billion…', a perfect topical match from the wrong company. The cross-encoder was trained on web search, where topic is what matters. Fix with a company/year filter: with the right filing, top-10 accuracy across FinanceBench doubles, 0.286 → 0.607."
+
+**2-minute answer.** Show the debugging steps: print the candidates with doc keys, the evidence rank before and after reranking, and the reranker's score for each. Notice that the evidence chunk is a cash-flow *table*, which a web-trained model scores lower than a prose paragraph. Options in order of cost: filters from the UI or API; automatic extraction of company and year from the question; boosting chunks whose company matches a name in the question; fine-tuning on in-domain hard negatives; an LLM final stage.
+
+**If they push — level 2.** *"Why didn't keyword search save it? 'PepsiCo' is in the question."* Company names rarely appear inside a chunk's text. The filing's identity is metadata (`documents.company`), not chunk words. That's another argument for filters.
+
+**If they push — level 3.** *"Could you prepend the company and year to every chunk?"* Yes. Contextual chunk headers ("PepsiCo FY2021 10-K, Item 8: …") give both the embedder and the reranker the entity. It's a re-ingest, so it's a Phase 12 ablation.
+
+**If they push — level 4.** *"How do you stop this regressing?"* Golden-set questions that name a company and year, with an assertion that the top hit's filing matches.
+
+**Whiteboard it.**
+```text
+ fused #14 PEPSICO_2021 p63 cash-flow table   → reranked #7  (score −5.34)
+ reranked #1 CORNING_2022 p37 'Capital expenditures were $1.6 billion…' (−2.15)
+ fix: filter company=PepsiCo, year=2021 → FinanceBench hit@10 .286 → .607
+```
+
+**Trap.** "Use a bigger reranker." The 12× bigger one made the same kind of mistake.
+
+**Bridge.** "That's the hard-negative design of the corpus paying off: it exposed this."

@@ -89,6 +89,13 @@
 | Why fig hit@1 only 0.46? | The two lists' #1s tie at 1/61; tie-break by chunk id. |
 | Weighted fusion bug? | One-hit list normalised to 0 (T-032); fixed → α 0.5 competitive. |
 | Hybrid latency? | p50 48.5 ms vs vector 3.6 ms (sequential, keyword at depth 50). |
+| Bi- vs cross-encoder? | Separate vectors + dot product (precomputable) vs both texts through one model (accurate, per pair). |
+| Reranker? | ms-marco-MiniLM-L6-v2, pinned, N = 10, 77 ms MPS / 153 ms CPU. |
+| Rerank effect? | figures hit@1 0.46 → 0.82; FinanceBench hit@5 0.143 → 0.179. |
+| Deeper N? | Ceiling 0.29 → 0.71 but reranked hit@10 falls to 0.25: same-topic, wrong-filing distractors. |
+| Bigger reranker? | bge-base: 6× slower, no better on FinanceBench. |
+| Biggest lever found? | Right-filing filter: FinanceBench hit@10 0.286 → 0.607. |
+| Recall ceiling? | Evidence anywhere in the stage's input; the gap to the result is that stage's loss. |
 
 ## Top questions so far
 

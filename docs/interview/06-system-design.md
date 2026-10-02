@@ -288,3 +288,31 @@
 **Trap.** Mode `if`s scattered across the API and the eval code.
 
 **Bridge.** "The same interface is what the reranker wraps in Phase 8."
+
+---
+
+## Phase 8 questions
+
+### Q: Design the retrieve-then-rerank pipeline for 100× the traffic. Where does the time go?
+**ID:** P8-04 · **Round:** system design  **Difficulty:** 4/5
+
+**30-second answer.** "Today one query takes about 49 ms of first stage (vector 4 ms, keyword 32 ms at depth 50, sequential) plus 77 ms of reranking 10 pairs on the M1 GPU. The reranker dominates, and it's the only stage on a GPU. At 100× traffic I'd run reranking as a separate batched model service, run the two searches concurrently, cache by question hash, and keep N small. Measured, larger N didn't buy quality anyway."
+
+**2-minute answer.** Explain batching: cross-encoder throughput rises with batch size, so a server collecting pairs from concurrent requests for a few milliseconds (dynamic batching) uses the GPU far better than one request at a time. Postgres scales with read replicas for the first stage. Then name the degradation path: if the reranker is slow or down, return the fused order. That's measured as worse but still useful (fig hit@1 0.46 instead of 0.82).
+
+**If they push — level 2.** *"CPU-only deployment?"* MiniLM at N = 10 runs at 153 ms p50 on CPU, so it's feasible. Add replicas behind a queue; an int8 export would be faster.
+
+**If they push — level 3.** *"What's the p95 story?"* Keyword search's tail (269 ms for the longest question) plus rerank p95 (91 ms). Cap OR terms and set per-stage timeouts.
+
+**If they push — level 4.** *"Can you skip reranking for some queries?"* If the top fused hit is in both lists at rank 1, fusion is confident. A skip rule like that needs measurement on the golden set to show it doesn't lose accuracy.
+
+**Whiteboard it.**
+```text
+ request → [vector 4 ms ∥ keyword 32 ms] → RRF <1 ms → rerank 10 pairs 77 ms → k=10
+                 Postgres replicas                    GPU service, dynamic batching
+ fallback: reranker timeout → fused order
+```
+
+**Trap.** Scaling the database when the reranker is the bottleneck.
+
+**Bridge.** "Phase 13 measures the full budget, including the LLM, which will dwarf all of this."

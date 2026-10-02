@@ -84,3 +84,13 @@ Decisions: hybrid RRF k=60 default — hybrid loses 2 of 28 FB questions (noise)
 Open:     interleaving pushes good vector hits down when keyword is noise (reranker should fix); searches run sequentially (concurrency not built); long questions make keyword search slow (269 ms max).
 Next:     Phase 8 — cross-encoder reranking.
 
+## Phase 8 — Reranking   [DONE 2026-10-02]
+
+Built:    `app/retrieve/rerank.py` (`Reranker`: pinned CrossEncoder, device auto, max_length 512; `rerank` stable re-sort; `RerankingRetriever` wraps any retriever, fetches max(N, k); `retriever_from_settings` = retrieval_mode + optional rerank); settings `rerank_enabled`, `rerank_n` (10), `rerank_model` (cross-encoder/ms-marco-MiniLM-L6-v2 @ 233902d2), `rerank_model_revision`, `rerank_device`, `rerank_batch_size`, `rerank_max_length`; `scripts/bench_rerank.py` (`make bench-rerank`; flags --models, --ns, --device, --first, --oracle-filter); `tests/test_rerank.py` (8).
+Docs:     `docs/12-reranking.md`; cards #24, #25, #26; 8 interview questions (P8-01…P8-08); story S-07; T-033, T-034.
+Diagrams: `12-rerank-funnel`, `12-bi-vs-cross-encoder`, generated `12-where-it-sits`.
+Numbers:  hybrid → +MiniLM N=10: figures hit@1 0.46 → 0.82; FB hit@1 0.036 → 0.107, hit@5 0.143 → 0.179, hit@10 0.286 (unchanged by construction). Ceiling N=10/20/50/100: 0.286/0.393/0.500/0.714; reranked FB@10 0.286/0.286/0.214/0.250. MiniLM p50 76.5/136.0/267.2/285.3 ms (MPS), 152.6/316.6/621.5/765.4 (CPU). bge-reranker-base N=10: 434.7 ms, FB@5 0.143, fig@1 0.88. Oracle filing filter: FB@10 0.607 (no rerank), MiniLM N=10 FB@5 0.464.
+Decisions: rerank on, MiniLM, N=10 (never meaningfully worse than larger N; half the latency of 20); bigger reranker rejected (6× slower, no FB gain).
+Open:     wrong-company/year hard negatives dominate FB misses → auto company/year filter from the question as a Phase 12 ablation; contextual chunk headers as another; background-run CPU slowdown (T-033) cause unconfirmed.
+Next:     Phase 9 — generation + citations (OpenAI; key from .env or fake client).
+

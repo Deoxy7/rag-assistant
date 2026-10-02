@@ -78,6 +78,14 @@ Every question in `docs/interview/` appears here (a test in `tests/test_docs_int
 | P7-06 | Switchable retrieval modes; making hybrid fast | [06](06-system-design.md) | design | design | 3 | | |
 | P7-07 | Is hybrid better? Deciding on 28 questions | [07](07-evaluation.md) | eval | deep-dive, ML | 4 | | |
 | P7-08 | RRF as an algorithm: structures, complexity | [11](11-cs-core-touchpoints.md) | DSA | DSA | 2 | | |
+| P8-01 | Bi-encoder vs cross-encoder; why both | [04](04-retrieval.md) | rerank | ML | 2 | | |
+| P8-02 | Deeper reranking made quality worse — explain | [04](04-retrieval.md) | rerank | deep-dive, ML | 4 | | |
+| P8-03 | How you chose the reranker model | [04](04-retrieval.md) | rerank | ML, design | 3 | | |
+| P8-04 | Retrieve-then-rerank at 100× traffic | [06](06-system-design.md) | scale | design | 4 | | |
+| P8-05 | Recall ceiling vs reranked accuracy | [07](07-evaluation.md) | eval | deep-dive, ML | 3 | | |
+| P8-06 | Reranker puts Corning's capex first for PepsiCo — debug | [08](08-debugging-scenarios.md) | debugging | ML, backend | 3 | | |
+| P8-07 | GPU vs CPU reranking; batching | [11](11-cs-core-touchpoints.md) | hardware | viva, ML | 3 | | |
+| P8-08 | Hard negatives and the corpus | [03](03-fundamentals.md) | retrieval | viva, ML | 2 | | |
 
 ## Over-prepare these: the five hardest questions this build invites
 

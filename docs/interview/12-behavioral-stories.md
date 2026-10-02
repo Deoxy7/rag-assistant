@@ -52,3 +52,10 @@
 - **What I did:** checking the write-up's numbers, I noticed that at α_vec = 0.3 the fusion found 20 of 50 figures while its keyword input alone found 50. A fusion worse than its own input is a bug signal. Min-max normalisation scored a one-hit list as 0.
 - **Outcome number:** after the fix, 49 of 50. Weighted fusion at 0.5 turned out competitive with RRF (FinanceBench hit@10 0.357 vs 0.286, within noise). I rewrote the card, kept RRF for a different, honest reason (no weight to tune on the test set), and logged it as T-032.
 - **Lesson:** sanity-check results against their inputs before believing them, especially results that confirm what you expected.
+
+### S-07 · The reranker that got worse with more data
+
+- **Situation:** I expected a cross-encoder to fix hybrid search's ranking problems, and that reading more candidates would help it.
+- **What I did:** measured reranked accuracy next to the recall ceiling for N = 10…100 and for two models, then looked at the top results question by question.
+- **Outcome number:** the ceiling rose from 0.29 to 0.71, but reranked top-10 fell to 0.25. The top results were the right topic from the wrong company or year. One more experiment (filter to the right filing) doubled top-10 to 0.607. I chose the smallest N and the small model, and moved company/year filters up the plan.
+- **Lesson:** measure each stage's ceiling separately. The fix was metadata, not a bigger model.

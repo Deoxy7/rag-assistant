@@ -329,3 +329,85 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Calling 60 a magic number, or tuning it on the test set.
 
 **Bridge.** "The bigger lever wasn't k, it was what's downstream: a reranker."
+
+---
+
+## Phase 8 questions
+
+### Q: Bi-encoder vs cross-encoder: what's the difference, and why use both?
+**ID:** P8-01 · **Round:** ML screen  **Difficulty:** 2/5
+
+**30-second answer.** "A bi-encoder encodes question and chunk separately into vectors and compares them with a dot product. Chunk vectors are precomputed, so search over 7,411 chunks takes milliseconds. A cross-encoder reads question and chunk together through every layer and outputs one relevance score. It's more accurate, but nothing can be precomputed: about 7.7 ms per pair here. So the bi-encoder finds candidates and the cross-encoder re-sorts the top 10."
+
+**2-minute answer.** Explain the accuracy difference through attention: in a cross-encoder each question token attends to each chunk token, so it can see that this table row contains the figure asked about. A bi-encoder has compressed the chunk into 384 numbers before it ever saw the question. Then give the measured effect: exact-figure top-1 went from 0.46 to 0.82 with reranking.
+
+**If they push — level 2.** *"Where does ColBERT fit?"* It keeps one vector per token on both sides and scores with MaxSim, the sum of each question token's best match. Chunk tokens are precomputable, and the interaction is late but fine-grained.
+
+**If they push — level 3.** *"Can you distil a cross-encoder into a bi-encoder?"* Yes. Train the bi-encoder on the cross-encoder's scores (knowledge distillation). Several strong embedding models are trained this way.
+
+**If they push — level 4.** *"Why are cross-encoder scores not comparable across models?"* MiniLM outputs unbounded logits (−11 to +11 here), while bge-reranker applies a sigmoid. Only the ranking within one model is meaningful.
+
+**Whiteboard it.**
+```text
+ bi:    q → enc → v_q ┐
+        c → enc → v_c ┴→ v_q·v_c        (v_c stored at ingest)
+ cross: [CLS] q [SEP] c [SEP] → transformer → score   (per pair, per query)
+ cost:  bi ≈ 4 ms for all 7,411 · cross ≈ 77 ms for 10
+```
+
+**Trap.** Saying a cross-encoder "embeds" the chunk.
+
+**Bridge.** "The interesting part was what the cross-encoder still got wrong."
+
+---
+
+### Q: You reranked deeper and quality went down. Explain.
+**ID:** P8-02 · **Round:** project deep-dive · ML screen  **Difficulty:** 4/5
+
+**30-second answer.** "I measured two curves. The share of questions whose evidence was anywhere in the reranker's input rose from 29% at N = 10 to 71% at N = 100. But reranked top-10 accuracy fell from 0.286 to 0.250, and at N = 50 to 0.214. The extra candidates were same-topic passages from the wrong company or year, which this corpus is full of, and a reranker trained on web search prefers a well-matched topic over the right entity. So N = 10."
+
+**2-minute answer.** Show the per-question evidence. For a PepsiCo capex question, the reranked #1 was Corning's capital expenditures paragraph. For AMD FY22 revenue drivers, it was an AMD 2021 chunk. Then the control experiment: restricting the search to the right filing doubled top-10 accuracy to 0.607. The bottleneck is entity and year disambiguation, not ranking skill on topical relevance.
+
+**If they push — level 2.** *"Did a bigger reranker fix it?"* No. bge-reranker-base, 12× larger, was 6× slower and no better on FinanceBench. In a smoke test it gave Corning's net sales 0.96 for an AMD revenue question.
+
+**If they push — level 3.** *"How would you fix it without filters?"* Extract company and year from the question and filter or boost. Or add an LLM final stage that reads constraints. Or fine-tune the cross-encoder on in-domain hard negatives (pairs from the same topic, wrong filing).
+
+**If they push — level 4.** *"Is the oracle filter a fair number?"* It's an upper bound: it assumes the right filing is known. It's realistic when a user picks the filing in the UI. An automatic extractor will land below it, and that's what Phase 12 measures.
+
+**Whiteboard it.**
+```text
+ N        10     20     50     100
+ ceiling .286   .393   .500   .714   evidence in the pool
+ reranked .286  .286   .214   .250   evidence in top 10
+ oracle filter (right filing): top 10 = .607 without any reranker
+```
+
+**Trap.** "More candidates always helps the reranker."
+
+**Bridge.** "That's why the API exposes company and year filters, and why auto-filters are an ablation."
+
+---
+
+### Q: How did you choose the reranker model?
+**ID:** P8-03 · **Round:** ML screen · system design  **Difficulty:** 3/5
+
+**30-second answer.** "I benchmarked two pinned cross-encoders on the same fused candidates. MiniLM-L6 (22 M parameters, 91 MB) took 77 ms for 10 pairs on the M1 GPU. bge-reranker-base (278 M, 1.1 GB) took 435 ms. bge was 3 queries better on exact-figure top-1, 1 question worse on FinanceBench top-5, and 1 query worse on figure top-5. Not worth 6×, so MiniLM is the default, and swapping is two settings."
+
+**2-minute answer.** Add the CPU result (153 ms for MiniLM: still usable without a GPU) and the deployment view. A 1.1 GB model is a 12× bigger download and image, more start-up time and more memory on an 8 GB laptop. Then the rule: the bigger model must win on the golden set by more than noise before it earns its cost.
+
+**If they push — level 2.** *"Why pin the model revision?"* Model repos can be updated in place. A pinned commit makes scores reproducible, and the revision is part of the settings.
+
+**If they push — level 3.** *"How would you speed MiniLM up?"* ONNX or quantised int8 export (the repo ships an int8 OpenVINO file of 23 MB), shorter max_length, or fewer pairs.
+
+**If they push — level 4.** *"When would you pay for an LLM reranker?"* For few, high-value queries where entity constraints matter, with caching. Only after filters, because filters fixed most of the same failures for free.
+
+**Whiteboard it.**
+```text
+               params  size    p50 (N=10, MPS)  FB@5   fig@1  fig@5
+ MiniLM-L6      22 M   91 MB    76.5 ms         .179   .82    1.00
+ bge-base      278 M   1.1 GB  434.7 ms         .143   .88     .98
+```
+
+**Trap.** Picking the leaderboard winner without measuring on your data.
+
+**Bridge.** "The latency numbers feed the end-to-end budget in Phase 13."

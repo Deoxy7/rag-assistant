@@ -101,7 +101,7 @@ This doc *is* the overview — here is the whole target system. Phases 1–16 fi
 | Vector search: HNSW, filters (iterative), ef_search 160 | [09](09-vector-search.md) | 5 | ✅ built |
 | Keyword search: Postgres FTS, OR + phrases, ts_rank (BM25 option) | [10](10-keyword-search.md) | 6 | ✅ built |
 | RRF fusion + `retrieval_mode` switch (vector / keyword / hybrid) | [11](11-hybrid-rrf.md) | 7 | ✅ built |
-| Rerank | [12](12-reranking.md) | 8 | planned |
+| Rerank: cross-encoder MiniLM-L6 over fused top 10, `RERANK_ENABLED` / `RERANK_N` | [12](12-reranking.md) | 8 | ✅ built |
 | Prompt + citations + LLM | [13](13-prompting-and-citations.md) | 9 | planned |
 | FastAPI + SSE | [14](14-api-and-streaming.md) | 10 | planned |
 | Eval harness | [15](15-eval-harness.md) | 11 | planned |

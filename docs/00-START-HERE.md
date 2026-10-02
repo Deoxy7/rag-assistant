@@ -105,7 +105,7 @@ What each command does inside, and every error you might hit: [03-environment-an
 | [09](09-vector-search.md) | Vector search | 5 | ✅ written |
 | [10](10-keyword-search.md) | Keyword search | 6 | ✅ written |
 | [11](11-hybrid-rrf.md) | Hybrid search + RRF | 7 | ✅ written |
-| [12](12-reranking.md) | Reranking | 8 | not yet written |
+| [12](12-reranking.md) | Reranking | 8 | ✅ written |
 | [13](13-prompting-and-citations.md) | Prompting and citations | 9 | not yet written |
 | [14](14-api-and-streaming.md) | API and streaming | 10 | not yet written |
 | [15](15-eval-harness.md) | Evaluation harness | 11 | not yet written |

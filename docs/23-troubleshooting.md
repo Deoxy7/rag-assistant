@@ -265,3 +265,18 @@ KeyError: 'evidence_doc_name'
 - **Symptom:** `make bench-hybrid` showed weighted fusion at α_vec = 0.3 finding 20 of 50 exact figures in the top 5, while keyword search alone found 50. The fusion was worse than one of its own inputs.
 - **Cause:** min-max normalisation was written `(s - lo) / ((hi - lo) or 1.0)`. For a list with one hit, lo = hi, so the hit scored 0 / 1 = 0. Rare figures are usually matched by one keyword chunk.
 - **Fix:** if `hi > lo` normalise, else every hit counts 1.0. Test `test_weighted_fusion_single_hit_list_counts_as_its_best`. After the fix, α_vec = 0.3 found 49 of 50. Doc 11 and card #22 were rewritten: weighted fusion at α = 0.5 is competitive with RRF, not "worse at every weight".
+
+## Phase 8
+
+### T-033 · Benchmark on CPU made no progress when run in the background — hit, cause not certain
+
+- **Symptom:** `bench_rerank.py --device cpu`, started as a background job, printed its first line and then nothing for 25+ minutes. A faulthandler stack dump (`kill -ABRT`) showed it inside the cross-encoder's attention (`sdpa_attention`), computing, not deadlocked.
+- **What I checked:** the same CPU scoring in a foreground script took ~165 ms per 10 pairs, including with the MPS embedder and a Postgres connection open in the same process, and over all 78 queries (p50 169 ms). The identical bench command in the foreground finished in about 2 minutes.
+- **Cause:** I'm not sure. The likeliest explanation is that macOS ran the background process at a low quality-of-service level (efficiency cores, throttled), which hits CPU-bound work hardest.
+- **Fix / rule:** run benchmarks in the foreground. Treat latency numbers from background runs as invalid.
+
+### T-034 · bge-reranker-base download looked like a hang — not an error
+
+- **Symptom:** the first `get_reranker("BAAI/bge-reranker-base", …)` took 66 s.
+- **Cause:** a 1.1 GB first download into `data/models`. Later loads are local.
+- **Note:** MiniLM is 91 MB; the default setup downloads only it.

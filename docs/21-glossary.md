@@ -31,6 +31,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Citation | A pointer from a claim in an answer back to its source — here chunk id + page + character span. | [01](01-what-is-rag.md) |
 | Closed-book / open-book | Answering from memory alone vs answering with the documents available. | [01](01-what-is-rag.md) |
 | Closed-book baseline | The same golden questions answered with retrieval switched off; measures what retrieval adds. | [01](01-what-is-rag.md) |
+| ColBERT / late interaction | Retrieval with one vector per token, scored by MaxSim (each query token's best match, summed). | [12](12-reranking.md) |
 | Colima | Open-source tool that runs a small Linux VM with a Docker engine on macOS. | [03](03-environment-and-infra.md) |
 | Column gutter | A vertical strip no text crosses, separating two columns of text. | [05](05-pdf-parsing.md) |
 | Container | Isolated processes sharing the host's kernel, with their own view of files, network and processes. | [03](03-environment-and-infra.md) |
@@ -41,7 +42,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | COPY | Postgres bulk-load command that streams many rows in one operation. | [08](08-database-schema.md) |
 | Corpus manifest | A committed list of corpus files with source URL, size and sha256 (`data/manifest.json`). | [04](04-corpus.md) |
 | Cosine similarity | a·b / (‖a‖‖b‖): cosine of the angle between vectors; equals the dot product for unit vectors. | [07](07-embeddings.md) |
-| Cross-encoder | A model that reads the query and a passage *together* to score relevance; accurate but slower. | [12](12-reranking.md) (Phase 8) |
+| Cross-encoder | A model that reads the query and a passage *together* to score relevance; accurate but slower. | [12](12-reranking.md) |
 | Custom vs generic plan | Plan built with actual parameter values vs one cached plan built without them (after 5 executions). | [09](09-vector-search.md) |
 | Dehyphenation | Rejoining a word hyphenated across a line break. | [05](05-pdf-parsing.md) |
 | Digest | A sha256 hash of an image's content; unlike a tag it can never point at different bytes. | [03](03-environment-and-infra.md) |
@@ -93,9 +94,12 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Learned fusion | Combining retrievers with a model trained on labelled queries (features: scores, ranks, query type). | [11](11-hybrid-rrf.md) |
 | Lexeme | A normalised word form stored by Postgres full-text search (e.g. "revenue" → `revenu`). | [10](10-keyword-search.md) (Phase 6); preview [03](03-environment-and-infra.md) |
 | LLM (large language model) | A neural network trained to predict the next token of text. | [01](01-what-is-rag.md) |
+| LLM-as-reranker | Using a generative model to score or order retrieved candidates. | [12](12-reranking.md) |
+| Logit | A model's raw, unbounded output score before a sigmoid/softmax. | [12](12-reranking.md) |
 | Long-context stuffing | Pasting whole documents into a large context window instead of retrieving passages. | [01](01-what-is-rag.md) |
 | Lost in the middle | The finding that models use information in the middle of long inputs worse than at the edges (Liu et al., 2023). | [01](01-what-is-rag.md) |
 | Make target / prerequisite | What Make builds, and what it must be newer than; a phony target is a command name, not a file. | [03](03-environment-and-infra.md) |
+| MaxSim | ColBERT's scoring: for each query token, the maximum similarity to any document token, summed. | [12](12-reranking.md) |
 | Microservices | Each component deployed as its own network service. | [02](02-architecture-overview.md) |
 | Migration | A numbered, ordered schema change applied once and recorded. | [08](08-database-schema.md) |
 | Min-max normalisation | Rescaling a list's scores to 0–1 via (s − min)/(max − min); the best hit always becomes 1.0. | [11](11-hybrid-rrf.md) |
@@ -112,6 +116,7 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Offline path | Work done ahead of time that nobody waits for (parsing, chunking, embedding). | [02](02-architecture-overview.md) |
 | Offset mapping | A fast tokenizer's per-token character spans; bridges token windows to character offsets. | [06](06-chunking.md) |
 | Online path | Work done while a user waits (search, rank, generate). | [02](02-architecture-overview.md) |
+| Oracle filter | A filter taken from the ground truth (the evidence filing); an upper bound, not a realistic result. | [12](12-reranking.md) |
 | Parametric memory | Knowledge stored in a model's weights; fixed after training, uncitable. | [01](01-what-is-rag.md) |
 | Parent-document retrieval | Match small child chunks, return the larger parent section they belong to. | [06](06-chunking.md) |
 | Parser version (cache key) | Version string stored with parsed output; bumping it forces a re-parse. | [05](05-pdf-parsing.md) |
@@ -138,10 +143,13 @@ One line per term, alphabetical. "Explained in" links to the doc that owns the c
 | Rank fusion | Merging several ranked lists into one ranking. | [11](11-hybrid-rrf.md) |
 | Re-embedding migration | Recomputing every vector for a new model, side by side, before switching queries. | [07](07-embeddings.md) |
 | Reading order | The order a human reads blocks in; reconstructed from positions. | [05](05-pdf-parsing.md) |
+| Recall ceiling | Share of queries whose evidence is anywhere in a stage's input; no later stage can exceed it. | [12](12-reranking.md) |
 | Recall cliff | Fewer than k (or zero) results when a selective filter runs after an approximate search. | [09](09-vector-search.md) |
-| Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) (Phase 8) |
+| Rerank depth N | How many first-stage candidates the reranker reads (10 here). | [12](12-reranking.md) |
+| Reranker | A slower, more accurate model that re-orders the top candidates from retrieval. | [12](12-reranking.md) |
 | Retrieval | Finding the passages most relevant to a query. | [01](01-what-is-rag.md) |
 | Retrieval depth | How many results each retriever returns before fusion (50 here); must exceed the final k. | [11](11-hybrid-rrf.md) |
+| Retrieve-then-rerank funnel | Cheap search over everything, then an expensive model over the top few. | [12](12-reranking.md) |
 | Role (Postgres) | A database user identity you log in as. | [03](03-environment-and-infra.md) |
 | RRF (Reciprocal Rank Fusion) | Merging ranked lists by summing 1 / (k + rank) for each item across lists. | [11](11-hybrid-rrf.md) |
 | RRF k constant | Added to every rank before inverting; small k favours each list's top hit, large k favours agreement (k = 60 default). | [11](11-hybrid-rrf.md) |

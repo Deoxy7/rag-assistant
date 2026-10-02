@@ -232,3 +232,32 @@
 **Trap.** Assuming stemming understands words.
 
 **Bridge.** "Vector search covers the cases stemming misses — that's why both exist."
+
+---
+
+## Phase 8 questions
+
+### Q: What's a hard negative, and how did your corpus use them?
+**ID:** P8-08 · **Round:** viva · ML screen  **Difficulty:** 2/5
+
+**30-second answer.** "A hard negative is a passage that looks relevant (same topic, similar wording) but doesn't answer the question. My corpus is five companies × two fiscal years, so every topic exists ten times: PepsiCo 2021 capex, Corning 2022 capex, and so on. Rerankers trained on web search fall for them. The PepsiCo capex question got Corning's capex paragraph as its top result."
+
+**2-minute answer.** Contrast with easy negatives (random unrelated passages). Then explain why hard negatives matter for both training and evaluation. In training, models learn fine distinctions only from hard negatives. In evaluation, a test set without them overstates quality. That's why two years per company was a deliberate corpus choice in Phase 1.
+
+**If they push — level 2.** *"How would you mine hard negatives for fine-tuning?"* Take each question's top-ranked non-evidence chunks from the current retriever, especially same-topic chunks from other filings.
+
+**If they push — level 3.** *"Risk of mining?"* False negatives: an "other" chunk might also answer the question (identical boilerplate across years). Check or de-duplicate before training.
+
+**If they push — level 4.** *"How does your eval account for them?"* The golden set includes wrong-year traps, and the oracle-filter run separates entity confusion from ranking quality.
+
+**Whiteboard it.**
+```text
+ Q: PepsiCo FY2021 capex?
+ ✔ PEPSICO_2021 cash flow table        (evidence)
+ ✗ CORNING_2022 'Capital expenditures were $1.6 billion…'   ← hard negative, ranked #1
+ ✗ cafeteria menu                      ← easy negative
+```
+
+**Trap.** Calling any non-relevant passage a hard negative.
+
+**Bridge.** "The fix is metadata, as the oracle-filter run showed."

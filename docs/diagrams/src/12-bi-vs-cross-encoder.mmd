@@ -1,0 +1,26 @@
+%% Owner: docs/12-reranking.md — why one can be precomputed and the other can't.
+flowchart LR
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef ingest fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    subgraph bi["Bi-encoder (first stage)"]
+        q1["question"]:::io
+        c1["chunk"]:::io
+        eq["encoder"]:::retrieve
+        ec["encoder<br/>run at ingest"]:::ingest
+        dot["dot product<br/>= cosine"]:::retrieve
+        q1 --> eq
+        c1 --> ec
+        eq -->|384-dim vector| dot
+        ec -->|384-dim vector, stored| dot
+    end
+    subgraph cross["Cross-encoder (reranker)"]
+        pair["[CLS] question [SEP] chunk [SEP]"]:::io
+        enc["one transformer pass<br/>every word attends to every word"]:::retrieve
+        sc["relevance score"]:::io
+        pair --> enc
+        enc -->|one number| sc
+    end
+    legend["Legend<br/>blue = offline (ingest) · green = query time · white = data"]:::legend

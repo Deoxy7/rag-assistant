@@ -1,0 +1,24 @@
+%% Owner: docs/12-reranking.md — counts at each stage for one question (chunk set 1, defaults).
+flowchart TB
+    classDef retrieve fill:#dcfce7,stroke:#15803d,color:#052e16
+    classDef store fill:#e5e7eb,stroke:#4b5563,color:#111827
+    classDef generate fill:#f3e8ff,stroke:#7e22ce,color:#3b0764
+    classDef io fill:#ffffff,stroke:#111827,color:#111827
+    classDef legend fill:#fafafa,stroke:#9ca3af,stroke-dasharray:4 3,color:#374151
+
+    all[("7,411 chunks<br/>chunk set 1")]:::store
+    vec["Vector search<br/>top 50 · ~4 ms"]:::retrieve
+    kw["Keyword search<br/>top 50 · ~32 ms"]:::retrieve
+    fused["RRF fusion<br/>≤ 100 distinct candidates"]:::retrieve
+    rr["Cross-encoder rerank<br/>first N = 10 pairs · ~77 ms (MPS)"]:::retrieve
+    top["top k = 10 hits<br/>re-sorted by cross-encoder score"]:::io
+    gen["Prompt context<br/>Phase 9"]:::generate
+    legend["Legend<br/>grey = storage · green = retrieval · purple = generation · white = output"]:::legend
+
+    all -->|HNSW, cosine| vec
+    all -->|GIN, ts_rank| kw
+    vec -->|50 ranked| fused
+    kw -->|50 ranked| fused
+    fused -->|first 10| rr
+    rr -->|same 10, new order| top
+    top -.->|later phase| gen

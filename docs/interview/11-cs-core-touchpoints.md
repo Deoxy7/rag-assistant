@@ -263,3 +263,31 @@
 **Trap.** Proposing a k-way merge of the input lists.
 
 **Bridge.** "The expensive part is never fusion; it's the two searches and, next, the reranker."
+
+---
+
+## Phase 8 questions
+
+### Q: Why is GPU reranking 2× faster than CPU at N = 10 but the gap grows at N = 50? What's batching doing?
+**ID:** P8-07 · **Round:** viva · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "A cross-encoder pass is mostly matrix multiplications over (pairs × tokens × hidden size). The GPU runs them in parallel, but each call has fixed launch and transfer overhead. At 10 pairs the overhead is a big share, so the GPU is only 2× faster (77 vs 153 ms). At 50 pairs there's more parallel work per call, and it's 2.3× (267 vs 622 ms). Batch size 32 means 50 pairs take two batches."
+
+**2-minute answer.** Attention cost per pair is quadratic in sequence length (here ≤ 298 tokens), and the feed-forward layers are linear. Padding to the longest pair in a batch wastes work, so sorting by length helps. Larger batches amortise overhead until memory or latency limits. In a server, dynamic batching across requests does the same.
+
+**If they push — level 2.** *"Why did torch report 4 CPU threads?"* That's PyTorch's default intra-op thread count on this machine. More threads help large matrix multiplications but contend with other processes.
+
+**If they push — level 3.** *"Why does quantisation speed it up?"* int8 matrix multiplications move a quarter of the bytes of float32 and use faster integer units. Memory bandwidth is often the limit.
+
+**If they push — level 4.** *"Complexity of reranking N candidates?"* O(N · L² · d) attention plus O(N · L · d²) feed-forward per layer: linear in N. That's why the measured latency is close to linear in N.
+
+**Whiteboard it.**
+```text
+ N     10    20    50    100*      (* ≈51 pairs for figure queries)
+ MPS   77   136   267   285   ms
+ CPU  153   317   622   765   ms
+```
+
+**Trap.** "GPUs are always 10× faster": not for tiny batches.
+
+**Bridge.** "Same lesson as the embedder in Phase 4, where MPS was 2.5× faster on large batches."

@@ -167,3 +167,31 @@ Every question added here uses the answer format in [02-question-map.md](02-ques
 **Trap.** Reporting "hybrid −7 points" as a finding, or tuning k on the test set.
 
 **Bridge.** "That's why the eval harness reports confidence intervals, not just means."
+
+---
+
+## Phase 8 questions
+
+### Q: What is a recall ceiling, and why did you measure it next to reranked accuracy?
+**ID:** P8-05 · **Round:** project deep-dive · ML screen  **Difficulty:** 3/5
+
+**30-second answer.** "The recall ceiling is the share of questions whose evidence is anywhere in the reranker's input. No reranker can beat it, so the gap between the ceiling and the reranked result is the reranker's own loss. Here the ceiling at N = 100 was 0.714 and the reranked top-10 was 0.250. That tells me the problem is judgement, not recall, and spending effort on a better first stage would be wasted."
+
+**2-minute answer.** Decompose any end-to-end miss into stages: not retrieved (first-stage recall), retrieved but not ranked high (reranker), ranked high but answered wrongly (generator, Phase 9). The ceiling separates the first two. A third run, the oracle filter, shows what share of the reranker's loss is entity confusion: with the right filing, the ceiling at N = 10 is 0.607 and reranked top-5 rises to 0.464.
+
+**If they push — level 2.** *"Why does it matter for planning?"* It tells you which component to improve. Here it's not embeddings or depth, but entity filtering and reranker judgement.
+
+**If they push — level 3.** *"How does this generalise?"* Every multi-stage system should report each stage's ceiling: retrieval recall@N, rerank recall@k, generation faithfulness given the right context. Phase 11's harness computes recall@k per stage.
+
+**If they push — level 4.** *"Any caveat with your hit definition?"* A hit is a chunk on an evidence page, not one containing the exact answer sentence. That overstates hits when a page has several chunks. The golden set (Phase 11) uses evidence spans instead.
+
+**Whiteboard it.**
+```text
+ miss = not in pool        (1 − ceiling)
+      + in pool, ranked low (ceiling − reranked)   ← here .714 − .250
+      + ranked high, answered wrong (Phase 9)
+```
+
+**Trap.** Tuning the first stage when the loss is in the reranker.
+
+**Bridge.** "The eval harness makes this per-stage breakdown routine."
